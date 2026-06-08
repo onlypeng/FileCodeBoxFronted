@@ -1,6 +1,6 @@
 <template>
   <div
-    class="rounded-xl p-8 flex flex-col items-center justify-center border-2 border-dashed transition-all duration-300 group cursor-pointer relative"
+    class="rounded-xl border-2 border-dashed transition-all duration-300 group cursor-pointer relative"
     :class="[
       isDarkMode
         ? 'bg-gray-800 bg-opacity-50 border-gray-600 hover:border-indigo-500'
@@ -10,6 +10,7 @@
     @click="triggerFileUpload"
     @dragover.prevent
     @drop.prevent="handleFileDrop"
+    @paste.prevent="handlePaste"
   >
     <input
       ref="fileInput"
@@ -19,73 +20,95 @@
       :accept="acceptedTypes"
       :disabled="isUploading"
       multiple
+      :directory="directory"
+      :webkitdirectory="directory"
     />
     <div class="absolute inset-0 w-full h-full" v-if="progress > 0">
       <BorderProgressBar :progress="progress" />
     </div>
 
-    <!-- 上传状态图标 -->
-    <component
-      :is="statusIcon"
-      :class="['w-16 h-16 transition-colors duration-300', statusIconClass]"
-    />
+    <!-- 上传区域主体 -->
+    <div class="p-8 flex flex-col items-center justify-center">
+      <!-- 上传状态图标 -->
+      <component
+        :is="statusIcon"
+        :class="['w-16 h-16 transition-colors duration-300', statusIconClass]"
+      />
 
-    <!-- 文件名或占位文本 -->
-    <p
-      :class="[
-        'mt-4 text-sm transition-colors duration-300 w-full text-center',
-        isDarkMode
-          ? 'text-gray-400 group-hover:text-indigo-400'
-          : 'text-gray-600 group-hover:text-indigo-600'
-      ]"
-    >
-      <span v-if="selectedFiles && selectedFiles.length > 1" class="block">
-        <span
-          v-for="(f, i) in selectedFiles"
-          :key="i"
-          class="block truncate"
-        >{{ f.name }}</span>
-      </span>
-      <span v-else class="block truncate">
-        {{ displayText }}
-      </span>
-    </p>
-
-    <!-- 状态描述或默认描述 -->
-    <p :class="['mt-2 text-xs', statusDescriptionClass]">
-      {{ statusDescription }}
-    </p>
-
-    <!-- 进度详情（上传中显示） -->
-    <div v-if="isUploading && showProgressDetails" class="mt-3 w-full">
-      <div
-        class="flex justify-between text-xs mb-1"
-        :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+      <!-- 文件名或占位文本 -->
+      <p
+        :class="[
+          'mt-4 text-sm transition-colors duration-300 w-full text-center',
+          isDarkMode
+            ? 'text-gray-400 group-hover:text-indigo-400'
+            : 'text-gray-600 group-hover:text-indigo-600'
+        ]"
       >
-        <span>{{ formatBytes(uploadedBytes) }} / {{ formatBytes(totalBytes) }}</span>
-        <span>{{ progress }}%</span>
+        <span v-if="selectedFiles && selectedFiles.length > 1" class="block">
+          {{ `已选择 ${selectedFiles.length} 个文件` }}
+        </span>
+        <span v-else class="block truncate">
+          {{ displayText }}
+        </span>
+      </p>
+
+      <!-- 状态描述或默认描述 -->
+      <p :class="['mt-2 text-xs', statusDescriptionClass]">
+        {{ statusDescription }}
+      </p>
+
+      <!-- 进度详情（上传中显示） -->
+      <div v-if="isUploading && showProgressDetails" class="mt-3 w-full">
+        <div
+          class="flex justify-between text-xs mb-1"
+          :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+        >
+          <span>{{ formatBytes(uploadedBytes) }} / {{ formatBytes(totalBytes) }}</span>
+          <span>{{ progress }}%</span>
+        </div>
       </div>
+
+      <!-- 错误重试按钮 -->
+      <button
+        v-if="hasError && allowRetry"
+        @click.stop="handleRetry"
+        class="mt-3 px-4 py-2 text-sm rounded-lg transition-colors duration-200"
+        :class="[
+          isDarkMode
+            ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
+            : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+        ]"
+      >
+        {{ retryText }}
+      </button>
     </div>
 
-    <!-- 错误重试按钮 -->
-    <button
-      v-if="hasError && allowRetry"
-      @click.stop="handleRetry"
-      class="mt-3 px-4 py-2 text-sm rounded-lg transition-colors duration-200"
-      :class="[
-        isDarkMode
-          ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-          : 'bg-indigo-500 hover:bg-indigo-600 text-white'
-      ]"
+    <!-- 已选文件列表 -->
+    <div
+      v-if="selectedFiles && selectedFiles.length > 0"
+      class="border-t border-dashed px-3 py-2 space-y-1"
+      :class="[isDarkMode ? 'border-gray-600' : 'border-gray-300']"
+      @click.stop
     >
-      {{ retryText }}
-    </button>
+      <div
+        v-for="(f, idx) in selectedFiles"
+        :key="idx"
+        class="flex items-center justify-between p-1.5 rounded text-xs"
+        :class="[isDarkMode ? 'bg-gray-700/50' : 'bg-white/50']"
+      >
+        <span class="truncate flex-1 mr-2" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">{{ f.name }}</span>
+        <span :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ formatBytes(f.size) }}</span>
+        <button type="button" @click.stop="emit('fileRemove', idx)" class="ml-2 text-red-400 hover:text-red-600 transition-colors">
+          <XIcon class="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { UploadCloudIcon, CheckCircleIcon, XCircleIcon, LoaderIcon } from 'lucide-vue-next'
+import { UploadCloudIcon, CheckCircleIcon, XCircleIcon, LoaderIcon, XIcon } from 'lucide-vue-next'
 import BorderProgressBar from './BorderProgressBar.vue'
 import { useI18n } from 'vue-i18n'
 import { useInjectedDarkMode } from '@/composables'
@@ -115,13 +138,17 @@ interface Props {
   retryText?: string
   /** 是否显示进度详情 */
   showProgressDetails?: boolean
+  /** 是否支持选择目录（文件夹）上传 */
+  directory?: boolean
 }
 
 interface Emits {
   fileSelected: [file: File]
   filesSelected: [files: File[]]
   fileDrop: [event: DragEvent]
+  fileRemove: [index: number]
   retry: []
+  paste: [event: ClipboardEvent]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -137,7 +164,8 @@ const props = withDefaults(defineProps<Props>(), {
   errorMessage: '',
   allowRetry: true,
   retryText: '重试',
-  showProgressDetails: true
+  showProgressDetails: true,
+  directory: false
 })
 
 const emit = defineEmits<Emits>()
@@ -267,5 +295,9 @@ const handleFileDrop = (event: DragEvent) => {
 
 const handleRetry = () => {
   emit('retry')
+}
+
+const handlePaste = (event: ClipboardEvent) => {
+  emit('paste', event)
 }
 </script>

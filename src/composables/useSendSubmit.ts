@@ -1,6 +1,6 @@
 import { FileService, uploadChunkedFile } from '@/services'
 import type { AlertType, ApiResponse, ExpireStyle, UploadProgress } from '@/types'
-import { calculateFileHash, packFilesAsZip } from '@/utils/file-processing'
+import { calculateFileHash } from '@/utils/file-processing'
 import { usePresignedUpload } from './usePresignedUpload'
 
 type Translate = (
@@ -10,6 +10,8 @@ type Translate = (
 
 type UseSendSubmitOptions = {
   getMaxFileSize: () => number
+  getUploadCount: () => number
+  getUploadMinute: () => number
   notify: (message: string, type: AlertType) => void
   translate: Translate
   onProgress: (progress: number) => void
@@ -91,17 +93,60 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     enableChunk,
     validateFileSize
   }: SubmitFileOptions): Promise<ApiResponse | null> => {
-    let fileToUpload = selectedFile
-
-    if (selectedFiles.length > 0) {
-      options.notify('正在打包文件...', 'success')
-      fileToUpload = await packFilesAsZip(selectedFiles)
-      if (!validateFileSize(fileToUpload)) {
-        return null
-      }
-      options.onHashCalculated(await calculateFileHash(fileToUpload))
+    // 限流检查
+    const uploadCount = options.getUploadCount()
+    const uploadMinute = options.getUploadMinute()
+    if (uploadCount > 0 && selectedFiles.length > uploadCount) {
+      throw new Error(`每${uploadMinute}分钟最多上传${uploadCount}个文件`)
     }
 
+    // 多文件共用一个取件码上传
+    if (selectedFiles.length > 1) {
+      // 校验每个文件大小
+      for (const file of selectedFiles) {
+        if (!validateFileSize(file)) return null
+      }
+
+      // 计算第一个文件的哈希作为参考
+      options.onHashCalculated(await calculateFileHash(selectedFiles[0]))
+
+      // 使用 uploadFiles 一次上传所有文件，共用一个取件码
+      const res = await FileService.uploadFiles(
+        selectedFiles,
+        expireValue,
+        expireStyle,
+        (progress: UploadProgress) => {
+          options.onProgress(progress.percentage)
+        }
+      )
+
+      if (res.code === 200 && res.detail) {
+        return {
+          code: 200,
+          detail: {
+            code: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).code,
+            name: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).name,
+            is_multi_file: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).is_multi_file || true
+          }
+        }
+      } else {
+        throw new Error(options.translate('send.messages.sendFailed'))
+      }
+    }
+
+    // 单文件列表（selectedFiles.length === 1）
+    if (selectedFiles.length === 1) {
+      const file = selectedFiles[0]
+      if (!validateFileSize(file)) return null
+      options.onHashCalculated(await calculateFileHash(file))
+
+      return enableChunk
+        ? handleChunkUpload(file, expireValue, expireStyle)
+        : handlePresignedUpload(file, expireValue, expireStyle)
+    }
+
+    // 单文件上传
+    const fileToUpload = selectedFile
     if (!fileToUpload) {
       throw new Error(options.translate('send.messages.selectFile'))
     }

@@ -25,11 +25,13 @@ import { computed } from 'vue'
 import type { Component } from 'vue'
 import { useInjectedDarkMode } from '@/composables'
 
+type IconColor = 'indigo' | 'purple' | 'green' | 'blue' | 'pink' | 'orange' | 'teal' | 'cyan'
+
 interface Props {
   title: string
   value: string | number
   icon: Component
-  iconColor: 'indigo' | 'purple' | 'green' | 'blue'
+  iconColor: IconColor
   descriptionType?: 'success' | 'error' | 'neutral'
 }
 
@@ -40,21 +42,29 @@ const props = withDefaults(defineProps<Props>(), {
 const isDarkMode = useInjectedDarkMode()
 
 const iconBgClass = computed(() => {
-  const colorMap = {
+  const colorMap: Record<IconColor, string> = {
     indigo: isDarkMode.value ? 'bg-indigo-900' : 'bg-indigo-100',
     purple: isDarkMode.value ? 'bg-purple-900' : 'bg-purple-100',
     green: isDarkMode.value ? 'bg-green-900' : 'bg-green-100',
-    blue: isDarkMode.value ? 'bg-blue-900' : 'bg-blue-100'
+    blue: isDarkMode.value ? 'bg-blue-900' : 'bg-blue-100',
+    pink: isDarkMode.value ? 'bg-pink-900' : 'bg-pink-100',
+    orange: isDarkMode.value ? 'bg-orange-900' : 'bg-orange-100',
+    teal: isDarkMode.value ? 'bg-teal-900' : 'bg-teal-100',
+    cyan: isDarkMode.value ? 'bg-cyan-900' : 'bg-cyan-100',
   }
   return colorMap[props.iconColor]
 })
 
 const iconClass = computed(() => {
-  const colorMap = {
+  const colorMap: Record<IconColor, string> = {
     indigo: isDarkMode.value ? 'text-indigo-400' : 'text-indigo-600',
     purple: isDarkMode.value ? 'text-purple-400' : 'text-purple-600',
     green: isDarkMode.value ? 'text-green-400' : 'text-green-600',
-    blue: isDarkMode.value ? 'text-blue-400' : 'text-blue-600'
+    blue: isDarkMode.value ? 'text-blue-400' : 'text-blue-600',
+    pink: isDarkMode.value ? 'text-pink-400' : 'text-pink-600',
+    orange: isDarkMode.value ? 'text-orange-400' : 'text-orange-600',
+    teal: isDarkMode.value ? 'text-teal-400' : 'text-teal-600',
+    cyan: isDarkMode.value ? 'text-cyan-400' : 'text-cyan-600',
   }
   return colorMap[props.iconColor]
 })

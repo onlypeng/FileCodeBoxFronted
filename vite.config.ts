@@ -7,6 +7,9 @@ import tailwindcss from 'tailwindcss'
 import autoprefixer from 'autoprefixer'
 export default defineConfig({
   plugins: [vue(), vueJsx()],
+  server: {
+    host: '0.0.0.0'
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))

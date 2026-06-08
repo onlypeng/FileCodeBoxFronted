@@ -52,4 +52,7 @@ export interface ConfigState {
   webdav_url: string
   webdav_username: string
   webdav_password: string
+  maxCollectionFiles: number
+  maxSendFiles: number
+  maxMultiFileCount: number
 }

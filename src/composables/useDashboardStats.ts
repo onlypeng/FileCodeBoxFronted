@@ -33,7 +33,14 @@ const emptyDashboardData = (): DashboardViewData => ({
   activeRatio: 0,
   textRatio: 0,
   fileRatio: 0,
-  todaySizeRatio: 0
+  todaySizeRatio: 0,
+  totalCollections: 0,
+  activeCollections: 0,
+  totalDeliveries: 0,
+  todayDeliveries: 0,
+  todayDeliveriesSize: '0',
+  yesterdayDeliveries: 0,
+  yesterdayDeliveriesSize: '0'
 })
 
 const toNumber = (value: number | string | null | undefined) => Number(value || 0)
@@ -81,6 +88,15 @@ export function useDashboardStats() {
     dashboardData.maxSaveSeconds = toNumber(detail.maxSaveSeconds)
     dashboardData.topSuffixes = detail.topSuffixes || []
     dashboardData.recentFiles = detail.recentFiles || []
+
+    // 收件箱统计
+    dashboardData.totalCollections = toNumber(detail.totalCollections)
+    dashboardData.activeCollections = toNumber(detail.activeCollections)
+    dashboardData.totalDeliveries = toNumber(detail.totalDeliveries)
+    dashboardData.todayDeliveries = toNumber(detail.todayDeliveries)
+    dashboardData.todayDeliveriesSize = String(detail.todayDeliveriesSize || '0')
+    dashboardData.yesterdayDeliveries = toNumber(detail.yesterdayDeliveries)
+    dashboardData.yesterdayDeliveriesSize = String(detail.yesterdayDeliveriesSize || '0')
 
     dashboardData.storageUsedText = formatFileSize(dashboardData.storageUsed)
     dashboardData.yesterdaySizeText = formatFileSize(dashboardData.yesterdaySize)

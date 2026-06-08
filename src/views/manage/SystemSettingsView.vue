@@ -382,6 +382,18 @@ onMounted(() => {
               :suffix="t('common.files')"
             />
 
+            <SettingNumberInput
+              v-model="config.maxSendFiles"
+              :label="t('manage.settings.maxSendFiles')"
+              :suffix="t('common.files')"
+            />
+
+            <SettingNumberInput
+              v-model="config.maxCollectionFiles"
+              :label="t('manage.settings.maxCollectionFiles')"
+              :suffix="t('common.files')"
+            />
+
             <div class="space-y-2">
               <label class="block text-sm font-medium" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">
                 {{ t('manage.settings.fileSizeLimit') }}

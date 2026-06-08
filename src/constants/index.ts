@@ -6,7 +6,10 @@ export const STORAGE_KEYS = {
   ADMIN_PASSWORD: 'adminPassword',
   TOKEN: 'token',
   CONFIG: 'config',
-  NOTIFY: 'notify'
+  NOTIFY: 'notify',
+  UPLOADER_NICKNAME: 'uploaderNickname',
+  RECENT_DELIVERY_CODES: 'recentDeliveryCodes',
+  DELIVERY_UPLOAD_HISTORY: 'deliveryUploadHistory'
 } as const
 
 // 主题模式
@@ -67,18 +70,33 @@ export const ROUTES = {
   ADMIN: '/admin',
   LOGIN: '/login',
   DASHBOARD: '/admin/dashboard',
-  FILE_MANAGE: '/admin/files',
-  SETTINGS: '/admin/settings'
+  SETTINGS: '/admin/settings',
+  COLLECTION_CREATE: '/collection/create',
+  COLLECTION_MANAGE: '/collection/manage',
+  COLLECTION_RETRIEVE: '/collection/retrieve',
+  COLLECTION_DETAIL: '/collection/manage',
+  COLLECTION_SUBMIT: '/collection/submit',
+  DELIVERY_ENTER: '/delivery/enter',
+  DELIVERY_UPLOAD: '/delivery/upload',
+  UNIFIED_MANAGE: '/admin/unified'
 } as const
 
 export const ROUTE_NAMES = {
+  HOME: 'Home',
   RETRIEVE: 'Retrieve',
   SEND: 'Send',
   ADMIN: 'Manage',
   LOGIN: 'Login',
   DASHBOARD: 'Dashboard',
-  FILE_MANAGE: 'FileManage',
-  SETTINGS: 'Settings'
+  SETTINGS: 'Settings',
+  COLLECTION_CREATE: 'CollectionCreate',
+  COLLECTION_MANAGE: 'CollectionManage',
+  COLLECTION_RETRIEVE: 'CollectionRetrieve',
+  COLLECTION_DETAIL: 'CollectionDetail',
+  COLLECTION_SUBMIT: 'CollectionSubmit',
+  DELIVERY_ENTER: 'DeliveryEnter',
+  DELIVERY_UPLOAD: 'DeliveryUpload',
+  UNIFIED_MANAGE: 'UnifiedManage'
 } as const
 
 // 正则表达式

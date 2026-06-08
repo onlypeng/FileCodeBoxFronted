@@ -28,6 +28,12 @@ export default {
     downloadSuccess: '下载成功',
     downloadFailed: '下载失败',
     shareSuccess: '分享成功',
+    day: '天',
+    hour: '小时',
+    minute: '分钟',
+    times: '次',
+    files: '个文件',
+    clear: '清除',
     shareFailed: '分享失败',
     expiredFile: '文件已过期',
     fileNotFound: '文件不存在',
@@ -41,14 +47,54 @@ export default {
     fileDetails: '文件详情',
     enabled: '已开启',
     disabled: '已关闭',
-    minute: '分钟',
-    files: '个文件',
-    second: '秒',
-    hour: '小时',
-    day: '天',
-    times: '次',
     appName: '文件快递柜 - FileCodeBox',
-    appDescription: '开箱即用的文件快传系统'
+    appDescription: '开箱即用的文件快传系统',
+  },
+
+  // 页面标题和导航
+  nav: {
+    sendFile: '发送文件',
+    retrieveFile: '取件',
+    fileRecords: '取件记录'
+  },
+
+  // 首页
+  home: {
+    tabs: {
+      retrieve: '查码',
+      send: '发件'
+    },
+    codeInput: {
+      label: '输入码',
+      placeholder: '请输入取件码 / 投件码 / 管理码',
+      submit: '查询',
+      invalidCode: '请输入6位码'
+    },
+    createCollection: '创建收件箱',
+    adminPanel: '管理后台'
+  },
+
+  // 记录
+  records: {
+    title: '记录',
+    button: '记录',
+    empty: '暂无记录',
+    multiFile: '个文件',
+    tabs: {
+      retrieve: '取件',
+      send: '发件',
+      collection: '收件箱'
+    },
+    badge: {
+      file: '文件',
+      text: '文本',
+      multiFile: '多文件',
+      collection: '收件箱',
+      delivery: '投件',
+      expired: '已过期'
+    },
+    deliveryTitle: '投件记录',
+    deliveryFilename: '{count} 个文件投递'
   },
 
   // 管理员模块
@@ -93,10 +139,37 @@ export default {
         size: '大小',
         usage: '取件',
         status: '状态'
-      }
+      },
+      totalCollections: '收件箱总数',
+      activeCollections: '活跃：{count} 个',
+      totalDeliveries: '总投递文件',
+      todayDeliveriesCount: '今日投递：{count} 个',
+      todayDeliverySize: '今日投递量',
+      yesterdayDeliverySize: '昨日投递量',
+      yesterdayDeliveriesCount: '昨日投递：{count} 个'
     },
-    fileManage: {
-      title: '文件管理'
+    unifiedManage: {
+      title: '统一管理',
+      fileList: '文件列表',
+      collectionList: '收件箱列表',
+      name: '名称',
+      adminCode: '管理码',
+      retrieveCode: '取件码',
+      deliveryCode: '投件码',
+      fileCount: '文件数',
+      status: '状态',
+      expireInfo: '有效期',
+      active: '活跃',
+      expired: '已过期',
+      collectionFiles: '收件箱文件',
+      files: '个文件',
+      searchCollection: '搜索收件箱（标题/码）',
+      deleteConfirm: '确认删除此收件箱？所有文件将被删除，此操作不可撤销。',
+      deleteFailed: '删除收件箱失败',
+      loadFailed: '加载收件箱列表失败',
+      loadFilesFailed: '加载文件列表失败',
+      viewFiles: '查看文件',
+      multiFileItems: '多文件列表'
     },
     settings: {
       title: '系统设置',
@@ -146,6 +219,8 @@ export default {
       uploadPerMinute: '限流时间窗口（在此时间内限制上传次数）',
       minute: '分钟',
       uploadCountLimit: '允许上传文件数（限流窗口内最多上传几个文件）',
+      maxSendFiles: '发送文件数量上限',
+      maxCollectionFiles: '收件箱最大文件数上限',
       files: '个文件',
       fileSizeLimit: '单文件大小上限',
       expirationMethod: '过期方式',
@@ -179,38 +254,74 @@ export default {
     }
   },
 
-  // 页面标题和导航
-  nav: {
-    sendFile: '发送文件',
-    retrieveFile: '取件',
-    fileRecords: '取件记录'
-  },
+
 
   // 取件页面
   retrieve: {
     title: '文件取件',
     codeInput: {
-      placeholder: '请输入5位取件码',
+      placeholder: '请输入取件码',
       label: '取件码'
     },
     submit: '取件',
     needSendFile: '需要发送文件？点击这里',
     recordsDrawer: '取件记录',
     messages: {
-      invalidCode: '请输入5位取件码',
+      invalidCode: '请输入6位取件码',
       retrieveSuccess: '文件获取成功',
       invalidCodeError: '无效的取件码',
       retrieveFailure: '获取文件失败：',
       networkError: '取件失败，请稍后重试：',
-      unknownError: '未知错误'
-    }
+      unknownError: '未知错误',
+      codeNotFound: '码不存在或已过期',
+      expiredCode: '该码已过期',
+      deliveryCodeDetected: '检测到投件码，投件码仅用于上传文件，请前往投递页面上传'
+    },
+    multiFile: {
+      title: '多文件列表',
+      download: '下载',
+      downloadAll: '打包下载全部',
+      code: '取件码',
+      fileCount: '个文件'
+    },
+    types: {
+      text: '文本',
+      file: '文件'
+    },
+    copyCode: '复制取件码',
+    copyCommand: '复制命令',
+    copySuccess: '复制成功',
+    wgetDownload: 'wget 下载',
+    wgetCopyHint: '点击复制 wget 命令',
+    scanToRetrieve: '扫描二维码快速取件',
+    deliveryCode: '投件码',
+    scanToDeliver: '扫描二维码快速投件',
+    createdAt: '创建时间',
+    fileSize: '文件大小',
+    fileCount: '文件数量',
+    expireInfo: '过期信息',
+    expireForever: '永久有效',
+    expireCount: '剩余 {count} 次',
+    expireAt: '过期时间',
+    expireAfter: '{value}{unit}后过期',
+    unitDay: '天',
+    unitHour: '小时',
+    unitMinute: '分钟',
+    collectionFiles: {
+      title: '收件箱文件',
+      noFiles: '暂无文件',
+      uploadFile: '投递文件'
+    },
+    backToRetrieve: '返回取件',
   },
-
   // 发送页面
   send: {
-    title: '文件发送',
+    title: '发送文件',
     sendText: '发送文本',
     fileDetails: '文件详情',
+    fileList: '文件列表',
+    multiFileCount: '个文件',
+    textCountHint: '最多可输入 {max} 个字符',
     expirationMethod: '过期方式',
     uploadArea: {
       dragText: '拖拽文件到此处或',
@@ -219,47 +330,11 @@ export default {
       placeholder: '点击或拖放文件到此处上传',
       description: '支持各种常见格式'
     },
-    submit: '安全寄送',
+    submit: '发送',
     submitting: '发送中...',
     needRetrieveFile: '需要取件？点击这里',
     sendRecords: '发件记录',
     secureEncryption: '安全加密',
-    fileDetail: {
-      title: '文件详情',
-      content: '文件内容',
-      previewContent: '预览内容',
-      download: '点击下载',
-      qrCode: '取件二维码',
-      scanQrCode: '扫描二维码快速取件'
-    },
-    contentPreview: {
-      title: '内容预览'
-    },
-    fileManage: {
-      title: '文件管理',
-      searchPlaceholder: '搜索文件名称、描述...',
-      allFiles: '所有文件',
-      editFileInfo: '编辑文件信息',
-      saveChanges: '保存更改',
-      headers: {
-        code: '取件码',
-        name: '名称',
-        size: '大小',
-        description: '描述',
-        expiration: '过期时间',
-        actions: '操作'
-      },
-      form: {
-        code: '取件码',
-        codePlaceholder: '输入取件码',
-        filename: '文件名称',
-        filenamePlaceholder: '输入文件名称',
-        suffix: '文件后缀',
-        suffixPlaceholder: '输入文件后缀',
-        downloadLimit: '下载次数限制',
-        downloadLimitPlaceholder: '输入下载次数限制'
-      }
-    },
     expiration: {
       label: '过期时间',
       placeholders: {
@@ -289,55 +364,23 @@ export default {
       selectFile: '请选择要上传的文件',
       enterText: '请输入要发送的文本',
       enterExpirationValue: '请输入过期值',
-      expirationTooLong: '过期时间不能超过{days}天',
-      sendSuccess: '文件发送成功！取件码：{code}',
-      initChunkUploadFailed: '初始化切片上传失败',
-      chunkUploadFailed: '切片 {index} 上传失败',
+      expirationTooLong: '过期时间不能超过 {days} 天',
+      sendSuccess: '发送成功！取件码：{code}',
+      initChunkUploadFailed: '初始化分片上传失败',
+      chunkUploadFailed: '分片 {index} 上传失败',
       completeUploadFailed: '完成上传失败',
-      uploadFailed: '上传失败,请稍后重试',
+      uploadFailed: '上传失败，请稍后重试',
       guestUploadDisabled: '游客上传功能已关闭',
-      fileSizeExceeded: '文件大小超过限制 ({size})',
+      fileSizeExceeded: '文件大小超过限制（{size}）',
+      maxFilesExceeded: '文件数量超过上限，最多 {max} 个',
       serverError: '服务器响应异常',
-      sendFailed: '发送失败,请稍后重试',
-      expiresAfterCount: '{count}次后过期',
-      expiresAt: '{date}过期',
+      sendFailed: '发送失败，请稍后重试',
+      expiresAfterCount: '下载 {count} 次后过期',
+      expiresAt: '于 {date} 过期',
       emptyFileError: '无法读取空文件',
       fileAddedFromClipboard: '已从剪贴板添加文件：{filename}',
       fileProcessingFailed: '文件处理失败',
-      expiresAfter: '{value}{unit}后过期'
-    }
-  },
-
-  // 文件管理
-  fileManage: {
-    title: '文件管理',
-    searchPlaceholder: '搜索文件名称、描述...',
-    allFiles: '所有文件',
-    editFileInfo: '编辑文件信息',
-    saveChanges: '保存更改',
-    viewText: '查看',
-    textPreview: '文本预览',
-    copyText: '复制文本',
-    copySuccess: '文本已复制到剪贴板',
-    copyFailed: '复制失败，请重试',
-    charCount: '共 {count} 个字符',
-    headers: {
-      code: '取件码',
-      name: '名称',
-      size: '大小',
-      description: '描述',
-      expiration: '过期时间',
-      actions: '操作'
-    },
-    form: {
-      code: '取件码',
-      codePlaceholder: '输入取件码',
-      filename: '文件名称',
-      filenamePlaceholder: '输入文件名称',
-      suffix: '文件后缀',
-      suffixPlaceholder: '输入文件后缀',
-      downloadLimit: '下载次数限制',
-      downloadLimitPlaceholder: '输入下载次数限制'
+      expiresAfter: '{value} {unit} 后过期'
     }
   },
 
@@ -354,7 +397,8 @@ export default {
     preview: '预览',
     copyContent: '复制内容',
     contentCopied: '内容已复制到剪贴板',
-    copyFailed: '复制失败，请重试'
+    copyFailed: '复制失败，请重试',
+    copyLink: '复制取件链接'
   },
 
   // 文件详情模态框
@@ -364,8 +408,19 @@ export default {
     previewContent: '预览内容',
     download: '点击下载',
     qrCode: '取件二维码',
-    scanQrCode: '扫描二维码快速取件'
+    scanQrCode: '扫描二维码快速取件',
+    expired: '该取件码已过期'
   },
+
+  // 文件大小单位
+  fileSize: {
+    bytes: 'Bytes',
+    kb: 'KB',
+    mb: 'MB',
+    gb: 'GB',
+    tb: 'TB'
+  },
+
 
   // 内容预览
   contentPreview: {
@@ -377,14 +432,7 @@ export default {
     noRecords: '暂无记录'
   },
 
-  // 文件大小单位
-  fileSize: {
-    bytes: 'Bytes',
-    kb: 'KB',
-    mb: 'MB',
-    gb: 'GB',
-    tb: 'TB'
-  },
+
 
   // 管理页面
   manage: {
@@ -412,6 +460,8 @@ export default {
       uploadLimits: '上传设置',
       uploadPerMinute: '限流时间窗口（在此时间内限制上传次数）',
       uploadCountLimit: '允许上传文件数（限流窗口内最多上传几个文件）',
+      maxSendFiles: '发送文件数量上限',
+      maxCollectionFiles: '收件箱最大文件数上限',
       fileSizeLimit: '单文件大小上限',
       expiration: {
         day: '按天数',
@@ -486,33 +536,24 @@ export default {
         size: '大小',
         usage: '取件',
         status: '状态'
-      }
+      },
+      totalCollections: '收件箱总数',
+      activeCollections: '活跃：{count} 个',
+      totalDeliveries: '总投递文件',
+      todayDeliveriesCount: '今日投递：{count} 个',
+      todayDeliverySize: '今日投递量',
+      yesterdayDeliverySize: '昨日投递量',
+      yesterdayDeliveriesCount: '昨日投递：{count} 个'
     },
     fileManage: {
-      title: '文件管理',
       searchPlaceholder: '搜索文件名称、描述...',
-      allFiles: '所有文件',
-      editFileInfo: '编辑文件信息',
-      saveChanges: '保存更改',
       headers: {
         code: '取件码',
         name: '名称',
         size: '大小',
-        description: '描述',
         expiration: '过期时间',
         actions: '操作'
       },
-      form: {
-        code: '取件码',
-        codePlaceholder: '输入取件码',
-        filename: '文件名称',
-        filenamePlaceholder: '输入文件名称',
-        suffix: '文件后缀',
-        suffixPlaceholder: '输入文件后缀',
-        downloadLimit: '下载次数限制',
-        downloadLimitPlaceholder: '输入下载次数限制'
-      },
-      updateFailed: '更新失败',
       deleteFailed: '删除失败',
       deleteConfirm: '确认删除这个文件？此操作不可撤销。',
       loadFileListFailed: '加载文件列表失败'
@@ -549,6 +590,8 @@ export default {
       uploadRateLimit: '限流时间窗口（在此时间内限制上传次数）',
       minute: '分钟',
       uploadCountLimit: '允许上传文件数（限流窗口内最多上传几个文件）',
+      maxSendFiles: '发送文件数量上限',
+      maxCollectionFiles: '收件箱最大文件数上限',
       files: '个文件',
       fileSizeLimit: '单文件大小上限',
       expirationMethod: '过期方式',
@@ -632,8 +675,8 @@ export default {
   // 组件相关
   components: {
     pagination: {
-      showing: '显示第',
-      to: '到',
+      showing: '第',
+      to: '-',
       of: '条，共',
       total: '条',
       previous: '上一页',
@@ -648,38 +691,195 @@ export default {
       createGradient: '创建渐变',
       drawBackground: '绘制背景',
       calculateProgress: '计算进度',
-      drawProgress: '绘制进度'
     }
   },
 
-  // 其他通用文本
-  misc: {
-    emptyFileError: '无法读取空文件',
-    fileAddedFromClipboard: '已从剪贴板添加文件：',
-    fileProcessFailed: '文件处理失败',
-    chunkSize: '保持 2MB 的切片大小用于计算哈希',
-    secureContext: '如果不是安全上下文（HTTP），则返回一个基于文件信息的替代哈希',
-    cryptoFallback: '如果 crypto.subtle.digest 失败，使用替代方案',
-    generateAlternativeHash: '生成替代哈希的函数',
-    fileInfoHash: '使用文件名、大小和最后修改时间生成一个简单的哈希',
-    convertToHex: '转换为16进制字符串并填充到64位',
-    defaultChunkSize: '默认切片大小为5MB',
-    initChunkUpload: '1. 初始化切片上传',
-    uploadChunk: '2. 上传切片',
-    completeUpload: '3. 完成上传',
-    chunkUploadFailed: '切片上传失败:',
-    uploadProgressListener: '添加上传进度监听',
-    noLimitCheck: '如果没有限制，直接返回true',
-    expirationValidation: '添加过期时间验证',
-    chunkUploadReplacement: '使用切片上传替代原来的直接上传',
-    textUploadUnchanged: '文本上传保持不变',
-    addSendRecord: '添加新的发送记录',
-    permanent: '永久',
-    sendSuccessMessage: '显示发送成功消息',
-    resetForm: '重置表单 - 只重置文件和文本内容,保留过期信息',
-    showDetails: '显示详情',
-    autoCopyLink: '自动复制取件码链接',
-    delayedLoading: '使用 onMounted 钩子延迟加载一些非关键资源或初始化',
-    nonCriticalInit: '这里可以放置一些非立即需要的初始化代码'
+  // 收件箱
+  collection: {
+    create: {
+      title: '创建收件箱',
+      titleLabel: '名称',
+      titlePlaceholder: '输入收件箱标题',
+      titleRequired: '收件箱名称不能为空',
+      descriptionLabel: '说明',
+      descriptionPlaceholder: '输入收件箱说明（可选）',
+      maxFilesLabel: '最大文件数',
+      expireDaysLabel: '有效天数',
+      deliveryExpireLabel: '投件码过期时间',
+      retrieveExpireLabel: '取件码过期时间',
+      deliveryExceedCollection: '投件码过期时间不能超过收件箱过期时间',
+      retrieveExceedCollection: '取件码过期时间不能超过收件箱过期时间',
+      submit: '创建收件箱',
+      creating: '创建中...',
+      success: '收件箱创建成功！',
+      collectionCodeLabel: '管理码',
+      retrieveCodeLabel: '取件码',
+      deliveryCodeLabel: '投件码',
+      copyCode: '复制',
+      codeCopied: '已复制',
+      copyFailed: '复制失败',
+      linkCopied: '取件链接已复制',
+      manageHint: '查看/删除/设置',
+      retrieveHint: '查看/下载文件',
+      scanToRetrieve: '扫码查码取件',
+      scanToDeliver: '扫码投件',
+      copyRetrieveLink: '复制取件链接',
+      manage: '管理收件箱',
+      submitFile: '投递文件',
+      backToHome: '返回首页',
+      failed: '创建收件箱失败'
+    },
+    manage: {
+      title: '收件箱管理',
+      connected: '已连接',
+      disconnected: '未连接',
+      fileCount: '{count}/{max} 文件',
+      collectionExpire: '收件箱过期时间',
+      deliveryExpire: '投件码过期时间',
+      retrieveExpire: '取件码过期时间',
+      remaining: '剩余',
+      deliveryCodeLabel: '投件码',
+      retrieveCodeLabel: '取件码',
+      copyDeliveryCode: '复制投件码',
+      copyRetrieveCode: '复制取件码',
+      download: '下载',
+      delete: '删除',
+      noFiles: '暂无投递文件',
+      downloadAll: '打包下载全部',
+      newCollection: '新建收件箱',
+      backToHome: '返回首页',
+      deleteSuccess: '文件已删除',
+      deleteFailed: '删除失败',
+      loadFailed: '加载收件箱失败',
+      statusUploading: '上传中',
+      statusFailed: '上传失败',
+      quickEntry: '管理收件箱',
+      inputCodeLabel: '输入收件箱码',
+      inputCodePlaceholder: '请输入6位收件箱码',
+      lookup: '查找',
+      open: '打开',
+      loading: '加载中...',
+      notFound: '收件箱不存在或已过期',
+      recentCollections: '最近创建',
+      untitled: '未命名收件箱',
+      justNow: '刚刚',
+      minutesAgo: '{n}分钟前',
+      hoursAgo: '{n}小时前',
+      daysAgo: '{n}天前',
+      removeRecent: '移除记录',
+      backToList: '返回列表'
+    },
+    detail: {
+      title: '收件箱详情',
+      backToManage: '返回管理',
+      settings: '设置',
+      scanToDeliver: '扫描二维码快速投件',
+      scanToRetrieve: '扫描二维码快速取件',
+      expiresAt: '过期时间',
+      maxFilesHint: '最大不能超过 {max} 个',
+      maxFilesMinError: '文件数不能小于1',
+      edit: '编辑',
+      cancel: '取消',
+      save: '保存',
+      saving: '保存中...',
+      saveSuccess: '配置已更新',
+      saveFailed: '更新失败',
+      uploading: '正在上传',
+      onlineUsers: '在线用户',
+      maxFiles: '最大文件数',
+      maxFilesExceed: '最大文件数不能超过 {max}',
+      collectionExpireReadOnly: '创建后不可更改',
+      deleteConfirm: '确定要删除此文件吗？此操作不可撤销。'
+    },
+    submit: {
+      title: '投递文件',
+      codeLabel: '投件码',
+      codePlaceholder: '请输入6位投件码',
+      lookup: '查找收件箱',
+      looking: '查找中...',
+      found: '找到收件箱',
+      notFound: '投件码不存在或已过期',
+      defaultTitle: '文件收集',
+      fileCount: '{count}/{max} 文件',
+      maxFileSize: '最大 {size}',
+      rateLimit: '每{minute}分钟最多上传{count}个文件',
+      rateLimitExceeded: '超出上传限制，每{minute}分钟最多上传{count}个文件',
+      uploaderNameLabel: '昵称（必填）',
+      uploaderNamePlaceholder: '输入你的昵称',
+      nicknameRequired: '请输入昵称',
+      maxFilesExceeded: '文件数量超过上限，最多{max}个文件',
+      fileDescription: '选择要投递的文件（支持多文件）',
+      selectFolder: '选择文件夹',
+      selectedFiles: '已选择 {count} 个文件',
+      uploadingFiles: '正在上传...',
+      uploadedFiles: '已成功上传 {count} 个文件',
+      exceedsCapacity: '收件箱剩余容量不足，仅可再添加 {remaining} 个文件',
+      boxFull: '收件箱已满',
+      submit: '投递文件',
+      uploading: '上传中...',
+      uploadSuccess: '文件投递成功！',
+      uploadFailed: '投递失败',
+      changeCode: '更换投件码',
+      backToHome: '返回首页'
+    },
+    retrieve: {
+      title: '取件码取件',
+      loading: '加载中...',
+      notFound: '取件码不存在或已过期',
+    expired: '收件箱已过期',
+      loadFailed: '加载失败，请稍后重试',
+      noFiles: '暂无文件',
+      download: '下载',
+      downloadAll: '打包下载全部',
+      backToHome: '返回首页'
+    }
+  },
+
+  // 多文件取件
+  retrieveMultiFile: {
+    title: '多文件列表',
+    download: '下载',
+    downloadAll: '打包下载全部'
+  },
+
+  // 投件（Delivery）
+  delivery: {
+    quickEntry: '投递文件',
+    enter: {
+      title: '投递文件',
+      description: '输入投件码，向收件箱投递文件',
+      codeLabel: '投件码',
+      codePlaceholder: '请输入6位投件码',
+      submit: '查找并投递',
+      loading: '查找中...',
+      notFound: '投件码不存在或已过期',
+      backToHome: '返回首页',
+      recentCodes: '最近投件码'
+    },
+    upload: {
+      title: '投递文件',
+      fileCount: '{count}/{max} 文件',
+      maxFileSize: '最大 {size}',
+      rateLimit: '每{minute}分钟最多上传{count}个文件',
+      rateLimitExceeded: '超出上传限制，每{minute}分钟最多上传{count}个文件',
+      uploaderNameLabel: '昵称（必填）',
+      uploaderNamePlaceholder: '输入你的昵称',
+      nicknameRequired: '请输入昵称',
+      maxFilesExceeded: '文件数量超过上限，最多{max}个文件',
+      fileDescription: '选择要投递的文件（支持多文件）',
+      selectFolder: '选择文件夹',
+      selectedFiles: '已选择 {count} 个文件',
+      uploadingFiles: '正在上传...',
+      uploadedFiles: '已成功上传 {count} 个文件',
+      exceedsCapacity: '收件箱剩余容量不足，仅可再添加 {remaining} 个文件',
+      boxFull: '收件箱已满',
+      submit: '投递文件',
+      uploading: '上传中...',
+      success: '文件投递成功！',
+      failed: '投递失败',
+      loading: '加载中...',
+      notFound: '投件码无效',
+      backToHome: '返回首页'
+    }
   }
 }

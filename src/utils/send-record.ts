@@ -1,4 +1,4 @@
-import type { ApiResponse, SendType, SentFileRecord } from '@/types'
+import type { ApiResponse, SendType, SentFileRecord, SentRecordType } from '@/types'
 
 type Translate = (key: string, params?: Record<string, string | number>) => string
 
@@ -69,8 +69,11 @@ export function formatExpirationTime(
 }
 
 export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
-  const retrieveCode = (input.response.detail as { code?: string } | undefined)?.code || ''
-  const fileName = (input.response.detail as { name?: string } | undefined)?.name || ''
+  const detail = input.response.detail as { code?: string; name?: string; is_multi_file?: boolean } | undefined
+  const retrieveCode = detail?.code || ''
+  const fileName = detail?.name || ''
+  const isMultiFile = detail?.is_multi_file || input.selectedFiles.length > 1
+  const recordType: SentRecordType = input.sendType === 'text' ? 'text' : (isMultiFile ? 'multiFile' : 'file')
 
   const totalSelectedSize = input.selectedFiles.reduce((total, file) => total + file.size, 0)
   const displaySize =
@@ -94,6 +97,14 @@ export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
             input.translate,
             input.getUnit
           ),
-    retrieveCode
+    retrieveCode,
+    type: recordType,
+    isMultiFile,
+    fileCount: isMultiFile ? input.selectedFiles.length : undefined,
+    files: isMultiFile
+      ? input.selectedFiles.map((f) => ({ name: f.name, size: f.size }))
+      : input.selectedFile
+        ? [{ name: input.selectedFile.name, size: input.selectedFile.size }]
+        : undefined,
   }
 }

@@ -32,9 +32,13 @@ export function useSendFlow() {
   const isSubmitting = ref(false)
   const fileHash = ref('')
   const sendRecords = computed(() => fileDataStore.shareData)
-  const uploadDescription = computed(
-    () => `支持各种常见格式，最大${getStorageUnit(config.value.uploadSize)}`
-  )
+  const uploadDescription = computed(() => {
+    const parts = [`支持各种常见格式，最大${getStorageUnit(config.value.uploadSize)}`]
+    if (config.value.uploadCount > 0) {
+      parts.push(`每${config.value.uploadMinute}分钟最多上传${config.value.uploadCount}个文件`)
+    }
+    return parts.join('，')
+  })
   const expirationOptions = computed(() =>
     config.value.expireStyle.map((value) => ({
       value,
@@ -56,6 +60,8 @@ export function useSendFlow() {
   const sentRecordActions = createSentRecordActions(notifyCopyResult)
   const { resetPresignUpload, submitFile, submitText } = useSendSubmit({
     getMaxFileSize: () => configStore.uploadSizeLimit,
+    getUploadCount: () => config.value.uploadCount || 0,
+    getUploadMinute: () => config.value.uploadMinute || 10,
     notify: (message, type) => alertStore.showAlert(message, type),
     translate: t,
     onProgress: (progress) => {
@@ -107,6 +113,13 @@ export function useSendFlow() {
 
   const handleFilesSelected = async (files: File[]) => {
     if (!checkOpenUpload()) return
+    const maxSendFiles = config.value.maxSendFiles || 20
+    const uploadCount = config.value.uploadCount || 0
+    const maxAllowed = uploadCount > 0 ? Math.min(maxSendFiles, uploadCount) : maxSendFiles
+    if (files.length > maxAllowed) {
+      alertStore.showAlert(t('send.messages.maxFilesExceeded', { max: maxAllowed }), 'error')
+      files = files.slice(0, maxAllowed)
+    }
     selectedFiles.value = files
     selectedFile.value = null
     fileHash.value = ''
@@ -114,7 +127,7 @@ export function useSendFlow() {
 
   const handleFileDrop = async (event: DragEvent) => {
     if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) return
-    const files = Array.from(event.dataTransfer.files)
+    let files = Array.from(event.dataTransfer.files)
     if (files.length === 1) {
       const file = files[0]
       selectedFile.value = file
@@ -123,6 +136,13 @@ export function useSendFlow() {
       fileHash.value = await calculateFileHash(file)
     } else {
       if (!checkOpenUpload()) return
+      const maxSendFiles = config.value.maxSendFiles || 20
+      const uploadCount = config.value.uploadCount || 0
+      const maxAllowed = uploadCount > 0 ? Math.min(maxSendFiles, uploadCount) : maxSendFiles
+      if (files.length > maxAllowed) {
+        alertStore.showAlert(t('send.messages.maxFilesExceeded', { max: maxAllowed }), 'error')
+        files = files.slice(0, maxAllowed)
+      }
       selectedFiles.value = files
       selectedFile.value = null
       fileHash.value = ''
@@ -251,6 +271,9 @@ export function useSendFlow() {
       if (!response) return
 
       if (response?.code === 200) {
+        const detail = response.detail as { code?: string; name?: string; is_multi_file?: boolean } | undefined
+
+        // 统一处理（单文件和多文件共用一个取件码）
         const newRecord = buildSentRecord({
           response,
           sendType: sendType.value,
@@ -273,7 +296,6 @@ export function useSendFlow() {
         uploadProgress.value = 0
         resetPresignUpload()
         selectedRecord.value = newRecord
-        await sentRecordActions.copyLink(newRecord)
       } else {
         throw new Error(t('send.messages.serverError'))
       }
@@ -304,6 +326,10 @@ export function useSendFlow() {
     }
   }
 
+  const removeFile = (idx: number) => {
+    selectedFiles.value.splice(idx, 1)
+  }
+
   return {
     config,
     sendType,
@@ -331,6 +357,7 @@ export function useSendFlow() {
     handleFilesSelected,
     handlePaste,
     handleSubmit,
+    removeFile,
     toggleDrawer,
     viewDetails
   }

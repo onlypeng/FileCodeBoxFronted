@@ -29,6 +29,12 @@ export default {
     downloadFailed: 'Download failed',
     shareSuccess: 'Share successful',
     shareFailed: 'Share failed',
+    day: 'Day(s)',
+    hour: 'Hour(s)',
+    minute: 'Minute(s)',
+    times: 'Time(s)',
+    files: 'file(s)',
+    clear: 'Clear',
     expiredFile: 'File has expired',
     fileNotFound: 'File not found',
     networkError: 'Network error',
@@ -41,12 +47,6 @@ export default {
     fileDetails: 'File Details',
     enabled: 'Enabled',
     disabled: 'Disabled',
-    minute: 'minute',
-    files: 'files',
-    second: 'second',
-    hour: 'hour',
-    day: 'day',
-    times: 'times',
     appName: 'FileCodeBox - File Transfer',
     appDescription: 'Ready-to-use file transfer system'
   },
@@ -93,10 +93,37 @@ export default {
         size: 'Size',
         usage: 'Retrievals',
         status: 'Status'
-      }
+      },
+      totalCollections: 'Total Collections',
+      activeCollections: 'Active: {count}',
+      totalDeliveries: 'Total Deliveries',
+      todayDeliveriesCount: 'Today: {count}',
+      todayDeliverySize: 'Today Delivery Size',
+      yesterdayDeliverySize: 'Yesterday Delivery Size',
+      yesterdayDeliveriesCount: 'Yesterday: {count}'
     },
-    fileManage: {
-      title: 'File Management'
+    unifiedManage: {
+      title: 'Unified Management',
+      fileList: 'File List',
+      collectionList: 'Collection List',
+      name: 'Name',
+      adminCode: 'Admin Code',
+      retrieveCode: 'Retrieve Code',
+      deliveryCode: 'Delivery Code',
+      fileCount: 'Files',
+      status: 'Status',
+      expireInfo: 'Expiration',
+      active: 'Active',
+      expired: 'Expired',
+      collectionFiles: 'Collection Files',
+      files: 'files',
+      searchCollection: 'Search collections (title/code)',
+      deleteConfirm: 'Delete this collection? All files will be removed. This cannot be undone.',
+      deleteFailed: 'Failed to delete collection',
+      loadFailed: 'Failed to load collection list',
+      loadFilesFailed: 'Failed to load file list',
+      viewFiles: 'View Files',
+      multiFileItems: 'Multi-File Items'
     },
     settings: {
       title: 'System Settings',
@@ -146,6 +173,8 @@ export default {
       uploadPerMinute: 'Time Window (limit uploads within this period)',
       minute: 'min',
       uploadCountLimit: 'Max Files Allowed (within the time window)',
+      maxSendFiles: 'Max Files per Send',
+      maxCollectionFiles: 'Max Files per Collection',
       files: 'files',
       fileSizeLimit: 'Max File Size',
       expirationMethod: 'Expiration Options',
@@ -186,24 +215,102 @@ export default {
     fileRecords: 'File Records'
   },
 
+  // Home page
+  home: {
+    tabs: {
+      retrieve: 'Lookup',
+      send: 'Send'
+    },
+    codeInput: {
+      label: 'Code',
+      placeholder: 'Enter retrieve / delivery / management code',
+      submit: 'Lookup',
+      invalidCode: 'Please enter a 6-digit code'
+    },
+    createCollection: 'Create Inbox',
+    adminPanel: 'Admin'
+  },
+
+  // Records
+  records: {
+    title: 'Records',
+    button: 'Records',
+    empty: 'No records yet',
+    multiFile: 'files',
+    tabs: {
+      retrieve: 'Retrieved',
+      send: 'Sent',
+      collection: 'Inbox'
+    },
+    badge: {
+      file: 'File',
+      text: 'Text',
+      multiFile: 'Multi',
+      collection: 'Inbox',
+      delivery: 'Delivery',
+      expired: 'Expired'
+    },
+    deliveryTitle: 'Delivery Record',
+    deliveryFilename: '{count} files delivered'
+  },
+
   // Retrieve page
   retrieve: {
     title: 'File Retrieval',
     codeInput: {
-      placeholder: 'Enter 5-digit retrieval code',
+      placeholder: 'Enter retrieval code',
       label: 'Retrieval Code'
     },
     submit: 'Retrieve',
     needSendFile: 'Need to send a file? Click here',
     recordsDrawer: 'Retrieval Records',
     messages: {
-      invalidCode: 'Please enter a 5-digit retrieval code',
+      invalidCode: 'Please enter a valid retrieval code',
       retrieveSuccess: 'File retrieved successfully',
       invalidCodeError: 'Invalid retrieval code',
       retrieveFailure: 'Failed to retrieve file: ',
       networkError: 'Retrieval failed, please try again later: ',
-      unknownError: 'Unknown error'
-    }
+      unknownError: 'Unknown error',
+      codeNotFound: 'Code not found or expired',
+      expiredCode: 'This code has expired',
+      deliveryCodeDetected: 'Delivery code detected. Delivery codes are for uploading only. Please go to the delivery page to upload files'
+    },
+    multiFile: {
+      title: 'Multiple Files',
+      download: 'Download',
+      downloadAll: 'Download All as ZIP',
+      code: 'Code',
+      fileCount: 'files'
+    },
+    types: {
+      text: 'Text',
+      file: 'File'
+    },
+    copyCode: 'Copy code',
+    copyCommand: 'Copy command',
+    copySuccess: 'Copied',
+    wgetDownload: 'wget Download',
+    wgetCopyHint: 'Click to copy wget command',
+    scanToRetrieve: 'Scan QR code to retrieve',
+    deliveryCode: 'Delivery Code',
+    scanToDeliver: 'Scan QR code to deliver',
+    createdAt: 'Created at',
+    fileSize: 'File size',
+    fileCount: 'File count',
+    expireInfo: 'Expiration',
+    expireForever: 'Never expires',
+    expireCount: '{count} retrievals left',
+    expireAt: 'Expires at',
+    expireAfter: 'Expires after {value} {unit}',
+    unitDay: 'day(s)',
+    unitHour: 'hour(s)',
+    unitMinute: 'minute(s)',
+    collectionFiles: {
+      title: 'Collection Files',
+      noFiles: 'No files yet',
+      uploadFile: 'Deliver File'
+    },
+    backToRetrieve: 'Back to Retrieve'
   },
 
   // Send page
@@ -217,12 +324,15 @@ export default {
       placeholder: 'Click or drag files here to upload',
       description: 'Supports various common formats'
     },
-    submit: 'Secure Send',
+    submit: 'Send',
     submitting: 'Sending...',
     needRetrieveFile: 'Need to retrieve? Click here',
     sendRecords: 'Send Records',
     secureEncryption: 'Secure Encryption',
     fileDetails: 'File Details',
+    fileList: 'File List',
+    multiFileCount: 'files',
+    textCountHint: 'Up to {max} characters',
     expirationMethod: 'Expiration Method',
     expiration: {
       day: 'By Day',
@@ -259,16 +369,17 @@ export default {
       enterText: 'Please enter text to send',
       enterExpirationValue: 'Please enter expiration value',
       expirationTooLong: 'Expiration time cannot exceed {days} days',
-      sendSuccess: 'File sent successfully! Retrieve code: {code}',
+      sendSuccess: 'Sent! Retrieve code: {code}',
       initChunkUploadFailed: 'Failed to initialize chunk upload',
       chunkUploadFailed: 'Chunk {index} upload failed',
       completeUploadFailed: 'Failed to complete upload',
       uploadFailed: 'Upload failed, please try again later',
-      guestUploadDisabled: 'Guest upload feature is disabled',
+      guestUploadDisabled: 'Guest upload is disabled',
       fileSizeExceeded: 'File size exceeds limit ({size})',
-      serverError: 'Server response error',
+      maxFilesExceeded: 'Too many files, maximum {max} allowed',
+      serverError: 'Unexpected server response',
       sendFailed: 'Send failed, please try again later',
-      expiresAfterCount: 'Expires after {count} times',
+      expiresAfterCount: 'Expires after {count} retrievals',
       expiresAt: 'Expires at {date}',
       emptyFileError: 'Cannot read empty file',
       fileAddedFromClipboard: 'File added from clipboard: {filename}',
@@ -290,7 +401,8 @@ export default {
     preview: 'Preview',
     copyContent: 'Copy Content',
     contentCopied: 'Content copied to clipboard',
-    copyFailed: 'Copy failed, please try again'
+    copyFailed: 'Copy failed, please try again',
+    copyLink: 'Copy retrieve link'
   },
 
   // File Detail Modal
@@ -300,45 +412,13 @@ export default {
     previewContent: 'Preview Content',
     download: 'Click to Download',
     qrCode: 'Retrieve QR Code',
-    scanQrCode: 'Scan QR code for quick retrieval'
+    scanQrCode: 'Scan QR code for quick retrieval',
+    expired: 'This code has expired'
   },
 
   // Content Preview Modal
   contentPreview: {
     title: 'Content Preview'
-  },
-
-  // File Management
-  fileManage: {
-    title: 'File Management',
-    searchPlaceholder: 'Search file name, description...',
-    allFiles: 'All Files',
-    editFileInfo: 'Edit File Information',
-    saveChanges: 'Save Changes',
-    viewText: 'View',
-    textPreview: 'Text Preview',
-    copyText: 'Copy Text',
-    copySuccess: 'Text copied to clipboard',
-    copyFailed: 'Copy failed, please try again',
-    charCount: '{count} characters',
-    headers: {
-      code: 'Retrieve Code',
-      name: 'Name',
-      size: 'Size',
-      description: 'Description',
-      expiration: 'Expiration',
-      actions: 'Actions'
-    },
-    form: {
-      code: 'Retrieve Code',
-      codePlaceholder: 'Enter retrieve code',
-      filename: 'File Name',
-      filenamePlaceholder: 'Enter file name',
-      suffix: 'File Extension',
-      suffixPlaceholder: 'Enter file extension',
-      downloadLimit: 'Download Limit',
-      downloadLimitPlaceholder: 'Enter download limit'
-    }
   },
 
   // Side drawer
@@ -385,6 +465,8 @@ export default {
       uploadPerMinute: 'Time Window (limit uploads within this period)',
       minute: 'min',
       uploadCountLimit: 'Max Files Allowed (within the time window)',
+      maxSendFiles: 'Max Files per Send',
+      maxCollectionFiles: 'Max Files per Collection',
       files: 'files',
       fileSizeLimit: 'Max File Size',
       expirationMethod: 'Expiration Options',
@@ -448,6 +530,8 @@ export default {
       uploadRateLimit: 'Time Window (limit uploads within this period)',
       minute: 'min',
       uploadCountLimit: 'Max Files Allowed (within the time window)',
+      maxSendFiles: 'Max Files per Send',
+      maxCollectionFiles: 'Max Files per Collection',
       files: 'files',
       fileSizeLimit: 'Max File Size',
       expirationMethod: 'Expiration Options',
@@ -521,33 +605,24 @@ export default {
         size: 'Size',
         usage: 'Retrievals',
         status: 'Status'
-      }
+      },
+      totalCollections: 'Total Collections',
+      activeCollections: 'Active: {count}',
+      totalDeliveries: 'Total Deliveries',
+      todayDeliveriesCount: 'Today: {count}',
+      todayDeliverySize: 'Today Delivery Size',
+      yesterdayDeliverySize: 'Yesterday Delivery Size',
+      yesterdayDeliveriesCount: 'Yesterday: {count}'
     },
     fileManage: {
-      title: 'File Management',
       searchPlaceholder: 'Search file name, description...',
-      allFiles: 'All Files',
-      editFileInfo: 'Edit File Info',
-      saveChanges: 'Save Changes',
       headers: {
         code: 'Code',
         name: 'Name',
         size: 'Size',
-        description: 'Description',
         expiration: 'Expiration',
         actions: 'Actions'
       },
-      form: {
-        code: 'Code',
-        codePlaceholder: 'Enter code',
-        filename: 'File Name',
-        filenamePlaceholder: 'Enter file name',
-        suffix: 'File Suffix',
-        suffixPlaceholder: 'Enter file suffix',
-        downloadLimit: 'Download Limit',
-        downloadLimitPlaceholder: 'Enter download limit'
-      },
-      updateFailed: 'Update failed',
       deleteFailed: 'Delete failed',
       deleteConfirm: 'Delete this file? This action cannot be undone.',
       loadFileListFailed: 'Failed to load file list'
@@ -658,5 +733,194 @@ export default {
     autoCopyLink: 'Auto copy retrieve code link',
     delayedLoading: 'Use onMounted hook to delay load non-critical resources or initialization',
     nonCriticalInit: 'Place non-immediately needed initialization code here'
+  },
+
+  // Collection (File Inbox)
+  collection: {
+    create: {
+      title: 'Create Collection Inbox',
+      titleLabel: 'Name',
+      titlePlaceholder: 'Enter inbox title',
+      titleRequired: 'Inbox name cannot be empty',
+      descriptionLabel: 'Description',
+      descriptionPlaceholder: 'Enter description (optional)',
+      maxFilesLabel: 'Max Files',
+      expireDaysLabel: 'Expire Days',
+      deliveryExpireLabel: 'Delivery Code Expiration Time',
+      retrieveExpireLabel: 'Retrieve Code Expiration Time',
+      deliveryExceedCollection: 'Delivery code expiration cannot exceed collection expiration',
+      retrieveExceedCollection: 'Retrieve code expiration cannot exceed collection expiration',
+      submit: 'Create Inbox',
+      creating: 'Creating...',
+      success: 'Collection inbox created!',
+      collectionCodeLabel: 'Admin Code',
+      retrieveCodeLabel: 'Retrieve Code',
+      deliveryCodeLabel: 'Delivery Code',
+      copyCode: 'Copy',
+      codeCopied: 'Copied',
+      copyFailed: 'Copy failed',
+      linkCopied: 'Retrieve link copied',
+      manageHint: 'View/Delete/Settings',
+      retrieveHint: 'View/Download files',
+      scanToRetrieve: 'Scan to retrieve',
+      scanToDeliver: 'Scan to deliver',
+      copyRetrieveLink: 'Copy retrieve link',
+      manage: 'Manage Inbox',
+      submitFile: 'Submit File',
+      backToHome: 'Back to Home',
+      failed: 'Failed to create inbox'
+    },
+    manage: {
+      title: 'Inbox Management',
+      connected: 'Connected',
+      disconnected: 'Disconnected',
+      fileCount: '{count}/{max} files',
+      collectionExpire: 'Collection Expiration Time',
+      deliveryExpire: 'Delivery Code Expiration Time',
+      retrieveExpire: 'Retrieve Code Expiration Time',
+      remaining: 'Remaining',
+      deliveryCodeLabel: 'Delivery Code',
+      retrieveCodeLabel: 'Retrieve Code',
+      copyDeliveryCode: 'Copy Delivery Code',
+      copyRetrieveCode: 'Copy Retrieve Code',
+      download: 'Download',
+      delete: 'Delete',
+      noFiles: 'No files submitted yet',
+      downloadAll: 'Download All as ZIP',
+      newCollection: 'New Inbox',
+      backToHome: 'Back to Home',
+      deleteSuccess: 'File deleted',
+      deleteFailed: 'Delete failed',
+      loadFailed: 'Failed to load inbox',
+      statusUploading: 'Uploading',
+      statusFailed: 'Failed',
+      quickEntry: 'Manage Inbox',
+      inputCodeLabel: 'Enter Collection Code',
+      inputCodePlaceholder: 'Enter 6-digit collection code',
+      lookup: 'Lookup',
+      open: 'Open',
+      loading: 'Loading...',
+      notFound: 'Inbox not found or expired',
+      recentCollections: 'Recently Created',
+      untitled: 'Untitled Collection',
+      justNow: 'Just now',
+      minutesAgo: '{n}m ago',
+      hoursAgo: '{n}h ago',
+      daysAgo: '{n}d ago',
+      removeRecent: 'Remove record',
+      backToList: 'Back to list'
+    },
+    detail: {
+      title: 'Collection Detail',
+      backToManage: 'Back to Manage',
+      settings: 'Settings',
+      scanToDeliver: 'Scan QR code to deliver',
+      scanToRetrieve: 'Scan QR code to retrieve',
+      expiresAt: 'Expires at',
+      maxFilesHint: 'Max cannot exceed {max}',
+      maxFilesMinError: 'Min files must be at least 1',
+      edit: 'Edit',
+      cancel: 'Cancel',
+      save: 'Save',
+      saving: 'Saving...',
+      saveSuccess: 'Config updated',
+      saveFailed: 'Update failed',
+      uploading: 'Uploading',
+      onlineUsers: 'Online Users',
+      maxFiles: 'Max Files',
+      maxFilesExceed: 'Max files cannot exceed {max}',
+      collectionExpireReadOnly: 'Cannot be changed after creation',
+      deleteConfirm: 'Are you sure you want to delete this file? This action cannot be undone.'
+    },
+    submit: {
+      title: 'Submit File',
+      codeLabel: 'Delivery Code',
+      codePlaceholder: 'Enter 6-digit delivery code',
+      lookup: 'Find Inbox',
+      looking: 'Searching...',
+      found: 'Inbox found',
+      notFound: 'Delivery code not found or expired',
+      defaultTitle: 'File Collection',
+      fileCount: '{count}/{max} files',
+      maxFileSize: 'Max {size}',
+      rateLimit: 'Max {count} files per {minute} min',
+      rateLimitExceeded: 'Upload limit exceeded, max {count} files per {minute} min',
+      uploaderNameLabel: 'Name (required)',
+      uploaderNamePlaceholder: 'Enter your name',
+      nicknameRequired: 'Please enter your name',
+      maxFilesExceeded: 'Too many files, maximum {max} allowed',
+      fileDescription: 'Select files to submit (multi-file supported)',
+      selectFolder: 'Select Folder',
+      selectedFiles: '{count} file(s) selected',
+      uploadingFiles: 'Uploading...',
+      uploadedFiles: '{count} file(s) uploaded successfully',
+      exceedsCapacity: 'Inbox capacity exceeded, only {remaining} slot(s) remaining',
+      boxFull: 'Inbox is full',
+      submit: 'Submit File',
+      uploading: 'Uploading...',
+      uploadSuccess: 'File submitted successfully!',
+      uploadFailed: 'Submit failed',
+      changeCode: 'Change Code',
+      backToHome: 'Back to Home'
+    },
+    retrieve: {
+      title: 'Retrieve Files',
+      loading: 'Loading...',
+      notFound: 'Retrieve code not found or expired',
+      expired: 'Inbox has expired',
+      loadFailed: 'Failed to load, please try again later',
+      noFiles: 'No files yet',
+      download: 'Download',
+      downloadAll: 'Download All as ZIP',
+      backToHome: 'Back to Home'
+    }
+  },
+
+  // Multi-file retrieval
+  retrieveMultiFile: {
+    title: 'Multiple Files',
+    download: 'Download',
+    downloadAll: 'Download All as ZIP'
+  },
+
+  // Delivery
+  delivery: {
+    quickEntry: 'Deliver File',
+    enter: {
+      title: 'Deliver File',
+      description: 'Enter delivery code to submit files to a collection inbox',
+      codeLabel: 'Delivery Code',
+      codePlaceholder: 'Enter 6-digit delivery code',
+      submit: 'Find & Deliver',
+      loading: 'Searching...',
+      notFound: 'Delivery code not found or expired',
+      backToHome: 'Back to Home',
+      recentCodes: 'Recent Codes'
+    },
+    upload: {
+      title: 'Deliver File',
+      fileCount: '{count}/{max} files',
+      maxFileSize: 'Max {size}',
+      rateLimit: 'Max {count} files per {minute} min',
+      rateLimitExceeded: 'Upload limit exceeded, max {count} files per {minute} min',
+      uploaderNameLabel: 'Name (required)',
+      uploaderNamePlaceholder: 'Enter your name',
+      nicknameRequired: 'Please enter your name',
+      maxFilesExceeded: 'Too many files, maximum {max} allowed',
+      fileDescription: 'Select files to deliver (multi-file supported)',
+      selectFolder: 'Select Folder',
+      selectedFiles: '{count} file(s) selected',
+      uploadingFiles: 'Uploading...',
+      uploadedFiles: '{count} file(s) uploaded successfully',
+      exceedsCapacity: 'Inbox capacity exceeded, only {remaining} slot(s) remaining',
+      boxFull: 'Inbox is full',
+      submit: 'Deliver File',
+      uploading: 'Uploading...',
+      success: 'File delivered successfully!',
+      failed: 'Delivery failed',
+      loading: 'Loading...',
+      notFound: 'Invalid delivery code',
+      backToHome: 'Back to Home'
+    }
   }
 }

@@ -154,11 +154,7 @@ const rules = [
     files: ['src/views/manage/SystemSettingsView.vue'],
     patterns: [/from ['"]@\/utils\/config-form['"]/],
   },
-  {
-    name: '文件管理编辑弹窗字段统一使用 FileEditField',
-    files: ['src/views/manage/FileManageView.vue'],
-    patterns: [/<input[^>]*v-model=['"]editForm\.(code|prefix|suffix|expired_at|expired_count)['"]/],
-  },
+
   {
     name: '发送页记录列表统一使用 SentRecordList',
     files: ['src/views/SendFileView.vue'],

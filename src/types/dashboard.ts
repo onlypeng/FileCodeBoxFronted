@@ -19,6 +19,14 @@ export interface DashboardData {
   maxSaveSeconds: number
   topSuffixes: DashboardSuffixStat[]
   recentFiles: DashboardRecentFile[]
+  // 收件箱统计
+  totalCollections: number
+  activeCollections: number
+  totalDeliveries: number
+  todayDeliveries: number
+  todayDeliveriesSize: string
+  yesterdayDeliveries: number
+  yesterdayDeliveriesSize: string
 }
 
 export interface DashboardSuffixStat {

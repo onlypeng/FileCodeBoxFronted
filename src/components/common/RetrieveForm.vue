@@ -5,7 +5,7 @@
         for="code"
         class="block text-sm font-medium mb-2"
         :class="[isDarkMode ? 'text-gray-300' : 'text-gray-800']"
-        >{{ t('retrieve.codeInput.label') }}</label
+        >{{ label || t('retrieve.codeInput.label') }}</label
       >
       <div class="relative">
         <input
@@ -19,10 +19,10 @@
             { 'ring-2 ring-red-500': error },
             isDarkMode ? 'text-gray-300' : 'text-gray-800'
           ]"
-          :placeholder="t('retrieve.codeInput.placeholder')"
+          :placeholder="placeholder || t('retrieve.codeInput.placeholder')"
           required
           :readonly="inputStatus.readonly"
-          maxlength="5"
+          maxlength="6"
           @focus="isInputFocused = true"
           @blur="isInputFocused = false"
         />
@@ -46,7 +46,7 @@
       :disabled="inputStatus.loading"
     >
       <span class="flex items-center justify-center relative z-10">
-        <span>{{ inputStatus.loading ? t('common.loading') : t('retrieve.submit') }}</span>
+        <span>{{ inputStatus.loading ? t('common.loading') : (buttonText || t('retrieve.submit')) }}</span>
         <ArrowRightIcon
           class="w-5 h-5 ml-2 transition-transform duration-300 transform group-hover:translate-x-1"
         />
@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, inject, computed } from 'vue'
+import { ref, inject, computed, onMounted } from 'vue'
 import { ArrowRightIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
@@ -74,6 +74,9 @@ interface Props {
   inputStatus: InputStatus
   error?: boolean
   modelValue: string
+  label?: string
+  placeholder?: string
+  buttonText?: string
 }
 
 interface Emits {
@@ -87,10 +90,18 @@ const emit = defineEmits<Emits>()
 const isDarkMode = inject('isDarkMode')
 const code = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
+  set: (value) => {
+    // 只保留大写字母和数字，自动转大写
+    const filtered = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+    emit('update:modelValue', filtered)
+  }
 })
 const isInputFocused = ref(false)
 const codeInput = ref<HTMLInputElement>()
+
+onMounted(() => {
+  codeInput.value?.focus()
+})
 
 defineExpose({
   focus: () => codeInput.value?.focus()

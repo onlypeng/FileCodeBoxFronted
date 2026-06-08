@@ -112,10 +112,10 @@ import {
   BoxIcon,
   MenuIcon,
   XIcon,
-  FolderIcon,
   CogIcon,
   LayoutDashboardIcon,
-  LogOutIcon
+  LogOutIcon,
+  LayersIcon
 } from 'lucide-vue-next'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -142,10 +142,10 @@ const menuItems: MenuItem[] = [
     redirect: ROUTES.DASHBOARD
   },
   {
-    id: ROUTE_NAMES.FILE_MANAGE,
-    name: t('admin.fileManage.title'),
-    icon: FolderIcon,
-    redirect: ROUTES.FILE_MANAGE
+    id: ROUTE_NAMES.UNIFIED_MANAGE,
+    name: t('admin.unifiedManage.title'),
+    icon: LayersIcon,
+    redirect: ROUTES.UNIFIED_MANAGE
   },
   {
     id: ROUTE_NAMES.SETTINGS,

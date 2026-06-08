@@ -1,4 +1,3 @@
-export { useAdminFiles } from './useAdminFiles'
 export { useAdminLogin } from './useAdminLogin'
 export { useAppShell } from './useAppShell'
 export { useDashboardStats } from './useDashboardStats'

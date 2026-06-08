@@ -22,7 +22,8 @@
       </button>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <!-- 核心指标：2 行 3 列 -->
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
       <StatCard
         :title="t('admin.dashboard.totalFiles')"
         :value="dashboardData.totalFiles"
@@ -30,7 +31,7 @@
         icon-color="indigo"
       >
         <template #description>
-          {{ t('admin.dashboard.yesterdayShares', { count: dashboardData.yesterdayCount }) }}
+          {{ t('admin.dashboard.todayShares', { count: dashboardData.todayCount }) }}
         </template>
       </StatCard>
 
@@ -46,17 +47,6 @@
       </StatCard>
 
       <StatCard
-        :title="t('admin.dashboard.todayShares')"
-        :value="dashboardData.todayCount"
-        :icon="UploadCloudIcon"
-        icon-color="green"
-      >
-        <template #description>
-          {{ t('admin.dashboard.yesterdayShares', { count: dashboardData.yesterdayCount }) }}
-        </template>
-      </StatCard>
-
-      <StatCard
         :title="t('admin.dashboard.totalRetrievals')"
         :value="dashboardData.usedCount"
         :icon="DownloadCloudIcon"
@@ -66,8 +56,42 @@
           {{ t('admin.dashboard.serverUptime') }} {{ dashboardData.sysUptimeText }}
         </template>
       </StatCard>
+
+      <StatCard
+        :title="t('admin.dashboard.totalCollections')"
+        :value="dashboardData.totalCollections || 0"
+        :icon="InboxIcon"
+        icon-color="pink"
+      >
+        <template #description>
+          {{ t('admin.dashboard.activeCollections', { count: dashboardData.activeCollections || 0 }) }}
+        </template>
+      </StatCard>
+
+      <StatCard
+        :title="t('admin.dashboard.totalDeliveries')"
+        :value="dashboardData.totalDeliveries || 0"
+        :icon="UploadCloudIcon"
+        icon-color="orange"
+      >
+        <template #description>
+          {{ t('admin.dashboard.todayDeliveriesCount', { count: dashboardData.todayDeliveries || 0 }) }}
+        </template>
+      </StatCard>
+
+      <StatCard
+        :title="t('admin.dashboard.todayDeliverySize')"
+        :value="formatFileSize(Number(dashboardData.todayDeliveriesSize || 0))"
+        :icon="HardDriveIcon"
+        icon-color="teal"
+      >
+        <template #description>
+          {{ t('admin.dashboard.yesterdayDeliveriesCount', { count: dashboardData.yesterdayDeliveries || 0 }) }}
+        </template>
+      </StatCard>
     </div>
 
+    <!-- 扩展统计 -->
     <div v-if="dashboardData.hasExtendedStats" class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
       <section class="xl:col-span-2 rounded-lg p-5 shadow-sm" :class="[panelClass]">
         <div class="mb-5 flex items-center justify-between">
@@ -178,6 +202,7 @@
       </section>
     </div>
 
+    <!-- 文件类型分布 + 最近文件 -->
     <div v-if="dashboardData.hasExtendedStats" class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
       <section class="rounded-lg p-5 shadow-sm" :class="[panelClass]">
         <h3 class="text-lg font-semibold" :class="[primaryTextClass]">
@@ -296,6 +321,7 @@ import {
   FilesIcon,
   FileTextIcon,
   HardDriveIcon,
+  InboxIcon,
   RefreshCwIcon,
   UploadCloudIcon
 } from 'lucide-vue-next'

@@ -234,3 +234,23 @@ export function getErrorMessage(error: unknown, fallback: string): string {
     fallback
   )
 }
+
+/**
+ * 判断是否已过期（基于 expired_at 时间 + expire_style/expire_value）
+ * @param expiredAt 过期时间 ISO 字符串
+ * @param expireStyle 过期方式：day/hour/minute/count/forever
+ * @param expireValue 过期数值
+ */
+export function isRecordExpired(
+  expiredAt: string | null | undefined,
+  expireStyle?: string,
+  expireValue?: number
+): boolean {
+  if (!expiredAt) return false
+  if (expireStyle === 'forever') return false
+  try {
+    return new Date(expiredAt).getTime() < Date.now()
+  } catch {
+    return false
+  }
+}

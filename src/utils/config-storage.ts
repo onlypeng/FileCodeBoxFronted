@@ -7,6 +7,11 @@ export type PublicConfig = SystemConfig & {
   openUpload: number
   max_save_seconds: number
   enableChunk: number
+  uploadCount: number
+  uploadMinute: number
+  maxCollectionFiles: number
+  maxSendFiles: number
+  maxMultiFileCount: number
   notify_title?: string
   notify_content?: string
   page_explain?: string
@@ -22,7 +27,12 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   expireStyle: ['day'],
   openUpload: 1,
   max_save_seconds: 0,
-  enableChunk: 0
+  enableChunk: 0,
+  uploadCount: 10,
+  uploadMinute: 1,
+  maxCollectionFiles: 100,
+  maxSendFiles: 20,
+  maxMultiFileCount: 20
 }
 
 export const DEFAULT_CONFIG_STATE: ConfigState = {
@@ -61,7 +71,10 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   themesSelect: '',
   webdav_url: '',
   webdav_username: '',
-  webdav_password: ''
+  webdav_password: '',
+  maxCollectionFiles: 100,
+  maxSendFiles: 20,
+  maxMultiFileCount: 20
 }
 
 export function readStoredConfig<T extends object = Partial<ConfigState>>(): T | null {
@@ -84,6 +97,11 @@ export function toPublicConfig(config: Partial<ConfigState> | null | undefined):
     openUpload: config.openUpload,
     max_save_seconds: config.max_save_seconds,
     enableChunk: config.enableChunk,
+    uploadCount: config.uploadCount,
+    uploadMinute: config.uploadMinute,
+    maxCollectionFiles: config.maxCollectionFiles,
+    maxSendFiles: config.maxSendFiles,
+    maxMultiFileCount: config.maxMultiFileCount,
     notify_title: config.notify_title,
     notify_content: config.notify_content,
     page_explain: config.page_explain,

@@ -1,7 +1,6 @@
 <template>
   <div
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
-    @paste.prevent="handlePaste"
   >
     <div
       class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md transition-colors duration-300"
@@ -29,6 +28,8 @@
                 @file-selected="handleFileSelected"
                 @files-selected="handleFilesSelected"
                 @file-drop="handleFileDrop"
+                @paste="handlePaste"
+                @file-remove="removeFile"
               />
             </div>
             <div v-else key="text" class="grid grid-cols-1 gap-8">
@@ -76,11 +77,6 @@
             </span>
           </button>
         </form>
-        <div class="mt-6 text-center">
-          <router-link to="/" class="text-indigo-400 hover:text-indigo-300 transition duration-300">
-            {{ t('send.needRetrieveFile') }}
-          </router-link>
-        </div>
       </div>
 
       <div
@@ -173,6 +169,7 @@ const {
   handleFilesSelected,
   handlePaste,
   handleSubmit,
+  removeFile,
   toggleDrawer,
   viewDetails
 } = useSendFlow()

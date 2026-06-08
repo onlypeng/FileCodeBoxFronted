@@ -55,6 +55,7 @@
                   :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
                 >
                   {{ record.size }} · {{ record.date }}
+                  <span v-if="record.isMultiFile && record.fileCount" class="ml-1 text-indigo-500">({{ record.fileCount }} {{ t('send.multiFileCount') }})</span>
                 </p>
               </div>
             </div>
@@ -81,6 +82,50 @@
                   :class="[isDarkMode ? 'text-gray-300' : 'text-gray-600']"
                 >
                   安全加密
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 多文件列表 -->
+          <div
+            v-if="record.files && record.files.length > 0"
+            class="mb-4 sm:mb-6"
+          >
+            <h4
+              class="text-xs font-medium mb-2"
+              :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+            >
+              {{ t('send.fileList') }}
+            </h4>
+            <div
+              class="rounded-xl overflow-hidden border"
+              :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']"
+            >
+              <div
+                v-for="(file, index) in record.files"
+                :key="index"
+                class="flex items-center px-3 py-2"
+                :class="[
+                  index < record.files.length - 1 ? (isDarkMode ? 'border-b border-gray-700' : 'border-b border-gray-100') : '',
+                  isDarkMode ? 'bg-gray-800/40' : 'bg-gray-50/60'
+                ]"
+              >
+                <FileIcon
+                  class="w-3.5 h-3.5 mr-2 flex-shrink-0"
+                  :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-500']"
+                />
+                <span
+                  class="text-sm truncate flex-1 min-w-0"
+                  :class="[isDarkMode ? 'text-gray-200' : 'text-gray-800']"
+                >
+                  {{ file.name }}
+                </span>
+                <span
+                  class="text-xs ml-2 flex-shrink-0"
+                  :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']"
+                >
+                  {{ formatFileSize(file.size) }}
                 </span>
               </div>
             </div>
@@ -196,6 +241,14 @@ defineEmits<{
 const { t } = useI18n()
 const isDarkMode = inject('isDarkMode')
 const qrValue = computed(() => (props.record ? props.getQRCodeValue(props.record) : ''))
+
+const formatFileSize = (bytes: number) => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
 </script>
 
 <style scoped>
@@ -205,7 +258,6 @@ const qrValue = computed(() => (props.record ? props.getQRCodeValue(props.record
     opacity 0.3s ease,
     transform 0.3s ease;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;

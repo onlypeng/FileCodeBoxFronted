@@ -6,8 +6,6 @@ import type {
   ChunkUploadInitRequest,
   ChunkUploadInitResponse,
   ChunkUploadResponse,
-  FileEditForm,
-  FileInfo,
   FileListResponse,
   FileUploadResponse,
   ShareSelectResponse,
@@ -40,6 +38,22 @@ export class FileService {
     return api.post('/share/file/', formData, multipartUploadConfig(onProgress))
   }
 
+  static async uploadFiles(
+    files: File[],
+    expireValue: number = 1,
+    expireStyle: string = 'day',
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<ApiResponse<FileUploadResponse>> {
+    const formData = new FormData()
+    for (const file of files) {
+      formData.append('files', file)
+    }
+    formData.append('expire_value', String(expireValue))
+    formData.append('expire_style', expireStyle)
+
+    return api.post('/share/file/', formData, multipartUploadConfig(onProgress))
+  }
+
   static async uploadText(
     text: string,
     expireValue = 1,
@@ -57,13 +71,12 @@ export class FileService {
   ): Promise<ApiResponse<ChunkUploadInitResponse>> {
     return api.post(
       '/chunk/upload/init/',
-      toUrlEncodedForm({
+      {
         file_name: request.file_name,
         file_size: request.file_size,
         chunk_size: request.chunk_size,
         file_hash: request.file_hash
-      }),
-      urlEncodedConfig
+      }
     )
   }
 
@@ -88,16 +101,19 @@ export class FileService {
   ): Promise<ApiResponse<FileUploadResponse>> {
     return api.post(
       `/chunk/upload/complete/${uploadId}`,
-      toUrlEncodedForm({
+      {
         expire_value: request.expire_value,
         expire_style: request.expire_style
-      }),
-      urlEncodedConfig
+      }
     )
   }
 
   static async selectFile(code: string): Promise<ApiResponse<ShareSelectResponse>> {
     return api.post('/share/select/', { code })
+  }
+
+  static async checkCodeType(code: string): Promise<ApiResponse<{ type: string; code: string; title?: string }>> {
+    return api.get('/share/check_code/', { params: { code } })
   }
 
   static async getFile(code: string): Promise<ApiResponse<FileInfo>> {
@@ -119,26 +135,9 @@ export class FileService {
     return api.get('/admin/file/list', { params })
   }
 
-  static async updateFile(data: FileEditForm): Promise<ApiResponse> {
-    return api.patch('/admin/file/update', data)
-  }
-
   static async deleteAdminFile(id: number): Promise<ApiResponse> {
     return api.delete('/admin/file/delete', {
       data: { id }
     })
-  }
-
-  static async downloadAdminFile(
-    id: number
-  ): Promise<{ data: Blob; headers: Record<string, string> }> {
-    const response = await rawApiClient.get<Blob>('/admin/file/download', {
-      params: { id },
-      responseType: 'blob'
-    })
-    return {
-      data: response.data,
-      headers: response.headers as Record<string, string>
-    }
   }
 }
