@@ -236,15 +236,15 @@ export function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 /**
- * 判断是否已过期（基于 expired_at 时间 + expire_style/expire_value）
+ * 判断是否已过期（基于 expired_at 时间 + expire_style）
  * @param expiredAt 过期时间 ISO 字符串
  * @param expireStyle 过期方式：day/hour/minute/count/forever
- * @param expireValue 过期数值
+ * @param _expireValue 过期数值（保留参数以兼容现有调用方，函数内部不使用）
  */
 export function isRecordExpired(
   expiredAt: string | null | undefined,
   expireStyle?: string,
-  expireValue?: number
+  _expireValue?: number
 ): boolean {
   if (!expiredAt) return false
   if (expireStyle === 'forever') return false

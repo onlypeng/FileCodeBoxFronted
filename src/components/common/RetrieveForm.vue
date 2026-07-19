@@ -22,7 +22,7 @@
           :placeholder="placeholder || t('retrieve.codeInput.placeholder')"
           required
           :readonly="inputStatus.readonly"
-          maxlength="6"
+          :maxlength="config.codeDigitCount || 8"
           @focus="isInputFocused = true"
           @blur="isInputFocused = false"
         />
@@ -62,8 +62,11 @@
 import { ref, inject, computed, onMounted } from 'vue'
 import { ArrowRightIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useConfigStore } from '@/stores/configStore'
 
 const { t } = useI18n()
+const configStore = useConfigStore()
+const config = computed(() => configStore.config)
 
 interface InputStatus {
   readonly: boolean
@@ -91,8 +94,8 @@ const isDarkMode = inject('isDarkMode')
 const code = computed({
   get: () => props.modelValue,
   set: (value) => {
-    // 只保留大写字母和数字，自动转大写
-    const filtered = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+    const maxLength = config.value.codeDigitCount || 8
+    const filtered = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, maxLength)
     emit('update:modelValue', filtered)
   }
 })

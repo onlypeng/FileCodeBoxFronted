@@ -1,7 +1,18 @@
-import api, { rawApiClient } from './client'
+import api from './client'
 import { multipartUploadConfig } from './shared'
 import type {
+  AdminBatchPolicyActionRequest,
+  AdminBatchPolicyActionResponse,
+  AdminBatchUpdateFilesRequest,
+  AdminBatchUpdateFilesResponse,
+  AdminFileDetailResponse,
+  AdminFileListParams,
+  AdminFileMetadataRequest,
+  AdminFilePolicyActionRequest,
+  AdminFileViewPreset,
+  AdminFileViewPresetRequest,
   ApiResponse,
+  CheckCodeResponse,
   ChunkUploadCompleteRequest,
   ChunkUploadInitRequest,
   ChunkUploadInitResponse,
@@ -13,27 +24,19 @@ import type {
   UploadProgress
 } from '@/types'
 
-const urlEncodedConfig = {
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded'
-  }
-}
 
-const toUrlEncodedForm = (data: Record<string, string | number>) => {
-  const form = new URLSearchParams()
-  Object.entries(data).forEach(([key, value]) => {
-    form.append(key, String(value))
-  })
-  return form
-}
 
 export class FileService {
   static async uploadFile(
     file: File,
+    expireValue: number = 1,
+    expireStyle: string = 'day',
     onProgress?: (progress: UploadProgress) => void
   ): Promise<ApiResponse<FileUploadResponse>> {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('expire_value', String(expireValue))
+    formData.append('expire_style', expireStyle)
 
     return api.post('/share/file/', formData, multipartUploadConfig(onProgress))
   }
@@ -64,6 +67,29 @@ export class FileService {
     formData.append('expire_value', String(expireValue))
     formData.append('expire_style', expireStyle)
     return api.post('/share/text/', formData, multipartUploadConfig())
+  }
+
+  static async uploadUnified(
+    params: {
+      text?: string
+      files?: File[]
+      expireValue: number
+      expireStyle: string
+    },
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<ApiResponse<FileUploadResponse>> {
+    const formData = new FormData()
+    if (params.text && params.text.trim()) {
+      formData.append('text', params.text)
+    }
+    if (params.files && params.files.length > 0) {
+      for (const file of params.files) {
+        formData.append('files', file)
+      }
+    }
+    formData.append('expire_value', String(params.expireValue))
+    formData.append('expire_style', params.expireStyle)
+    return api.post('/share/', formData, multipartUploadConfig(onProgress))
   }
 
   static async initChunkUpload(
@@ -112,32 +138,65 @@ export class FileService {
     return api.post('/share/select/', { code })
   }
 
-  static async checkCodeType(code: string): Promise<ApiResponse<{ type: string; code: string; title?: string }>> {
+  static async checkCodeType(code: string): Promise<ApiResponse<CheckCodeResponse>> {
     return api.get('/share/check_code/', { params: { code } })
   }
 
-  static async getFile(code: string): Promise<ApiResponse<FileInfo>> {
-    return api.get(`/file/${code}`)
-  }
-
-  static async downloadFile(code: string): Promise<Blob> {
-    const response = await rawApiClient.get<Blob>(`/download/${code}`, {
-      responseType: 'blob'
-    })
-    return response.data
-  }
-
-  static async getAdminFileList(params: {
-    page: number
-    size: number
-    keyword?: string
-  }): Promise<ApiResponse<FileListResponse>> {
+  static async getAdminFileList(params: AdminFileListParams): Promise<ApiResponse<FileListResponse>> {
     return api.get('/admin/file/list', { params })
+  }
+
+  static async getAdminFileDetail(id: number): Promise<ApiResponse<AdminFileDetailResponse>> {
+    return api.get('/admin/file/detail', { params: { id } })
   }
 
   static async deleteAdminFile(id: number): Promise<ApiResponse> {
     return api.delete('/admin/file/delete', {
       data: { id }
     })
+  }
+
+  static async batchDeleteAdminFiles(ids: number[]): Promise<ApiResponse> {
+    return api.delete('/admin/file/batch-delete', {
+      data: { ids }
+    })
+  }
+
+  static async batchUpdateAdminFiles(request: AdminBatchUpdateFilesRequest): Promise<ApiResponse<AdminBatchUpdateFilesResponse>> {
+    return api.patch('/admin/file/batch-update', request)
+  }
+
+  static async applyAdminFilePolicyAction(request: AdminFilePolicyActionRequest): Promise<ApiResponse<AdminFileDetailResponse>> {
+    return api.patch('/admin/file/policy-action', request)
+  }
+
+  static async applyAdminBatchPolicyAction(request: AdminBatchPolicyActionRequest): Promise<ApiResponse<AdminBatchPolicyActionResponse>> {
+    return api.patch('/admin/file/batch-policy-action', request)
+  }
+
+  static async updateAdminFileMetadata(request: AdminFileMetadataRequest): Promise<ApiResponse<AdminFileDetailResponse>> {
+    return api.patch('/admin/file/metadata', request)
+  }
+
+  static async getAdminFileViewPresets(): Promise<ApiResponse<{ presets?: AdminFileViewPreset[]; items?: AdminFileViewPreset[]; total?: number }>> {
+    return api.get('/admin/file/view-presets')
+  }
+
+  static async saveAdminFileViewPreset(request: AdminFileViewPresetRequest): Promise<ApiResponse> {
+    return api.post('/admin/file/view-presets', request)
+  }
+
+  static async deleteAdminFileViewPreset(id: string): Promise<ApiResponse> {
+    return api.delete('/admin/file/view-presets', { data: { id } })
+  }
+
+  static async downloadAdminFile(id: number): Promise<Blob> {
+    return api.get(`/admin/file/download?file_id=${id}`, {
+      responseType: 'blob'
+    })
+  }
+
+  static async previewAdminFile(id: number): Promise<ApiResponse> {
+    return api.get(`/admin/file/preview/${id}`)
   }
 }

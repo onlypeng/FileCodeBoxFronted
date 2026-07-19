@@ -3,7 +3,7 @@
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
     <div
-      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-lg transition-colors duration-300"
+      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-lg md:max-w-2xl lg:max-w-3xl transition-colors duration-300"
       :class="[
         isDarkMode
           ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-xl border-gray-700'
@@ -23,7 +23,7 @@
               v-model="inputCode"
               @keyup.enter="handleCodeSubmit"
               :placeholder="t('collection.manage.inputCodePlaceholder')"
-              maxlength="6"
+              :maxlength="config.codeDigitCount || 8"
               class="flex-1 rounded-lg border px-4 py-2.5 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors duration-300"
               :class="[
                 isDarkMode
@@ -86,7 +86,7 @@
           <router-link to="/collection/create" class="flex-1 py-2 px-4 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm font-medium hover:from-indigo-600 hover:to-purple-600 transition-colors text-center">
             {{ t('collection.manage.newCollection') }}
           </router-link>
-          <router-link to="/" class="flex-1 py-2 px-4 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-center">
+          <router-link to="/" class="flex-1 py-2 px-4 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-center inline-flex items-center justify-center">
             {{ t('collection.manage.backToHome') }}
           </router-link>
         </div>
@@ -102,11 +102,14 @@ import { useRouter } from 'vue-router'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { useCollectionStore } from '@/stores/collectionStore'
 import { useAlertStore } from '@/stores/alertStore'
+import { useConfigStore } from '@/stores/configStore'
 import { CollectionService } from '@/services/collection'
 import { XIcon } from 'lucide-vue-next'
 
 const isDarkMode = inject('isDarkMode')
 const { t } = useI18n()
+const configStore = useConfigStore()
+const config = computed(() => configStore.config)
 const router = useRouter()
 const alertStore = useAlertStore()
 const collectionStore = useCollectionStore()

@@ -36,3 +36,15 @@ export function buildSentRecordQrValue(record: { retrieveCode: string }): string
 export function buildWgetCommand(retrieveCode: string, fileName: string): string {
   return `wget ${buildAbsoluteUrl(`/share/select?code=${retrieveCode}`)} -O "${fileName}"`
 }
+
+export function buildCollectionManageUrl(code: string): string {
+  return `${window.location.origin}/#/collection/manage/${code}`
+}
+
+export function buildCollectionRetrieveUrl(code: string): string {
+  return `${window.location.origin}/#/?retrieve=${code}`
+}
+
+export function buildDeliveryUploadUrl(code: string): string {
+  return `${window.location.origin}/#/delivery/upload/${code}`
+}

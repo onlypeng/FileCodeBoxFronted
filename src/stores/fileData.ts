@@ -59,7 +59,7 @@ export const useFileDataStore = defineStore('fileData', () => {
     receiveData.value = []
   }
 
-  /** 标记取件记录为已过期（后端返回过期/不存在时调用） */
+  /** 标记载件记录为已过期（后端返回过期/不存在时调用） */
   const markRecordExpired = (code: string) => {
     const record = receiveData.value.find((r) => r.code === code)
     if (record) {
@@ -67,8 +67,44 @@ export const useFileDataStore = defineStore('fileData', () => {
     }
   }
 
+  /** 更新取件记录的过期信息（延长过期时间后刷新缓存） */
+  const updateRecordExpiry = (code: string, expiredAt: string | null | undefined, expireStyle?: string, expireValue?: number) => {
+    const record = receiveData.value.find((r) => r.code === code)
+    if (record) {
+      if (expiredAt !== undefined) record.expiredAt = expiredAt
+      if (expireStyle !== undefined) record.expireStyle = expireStyle
+      if (expireValue !== undefined) record.expireValue = expireValue
+      record.isExpired = false
+    }
+  }
+
   // ========== 发件记录 ==========
   const addShareDataRecord = (record: SentFileRecord) => {
+    // 投件记录（isDelivery=true）按投件码（存于 retrieveCode 字段）去重：
+    // 同一浏览器使用同一投件码多次投件时，更新已有记录而非新增
+    if (record.isDelivery && record.retrieveCode) {
+      const existingIndex = shareData.value.findIndex(
+        (r) => r.isDelivery === true && r.retrieveCode === record.retrieveCode
+      )
+      if (existingIndex !== -1) {
+        // 更新已有投件记录：累加文件数、更新日期和大小
+        const existing = shareData.value[existingIndex]
+        const prevCount = existing.fileCount || 0
+        const newCount = record.fileCount || 0
+        existing.filename = record.filename
+        existing.date = record.date
+        existing.size = record.size
+        existing.fileCount = prevCount + newCount
+        existing.isMultiFile = existing.fileCount > 1
+        existing.collectionTitle = record.collectionTitle || existing.collectionTitle
+        // 累加文件列表（追加新上传的文件）
+        if (record.files && record.files.length > 0) {
+          if (!existing.files) existing.files = []
+          existing.files.push(...record.files)
+        }
+        return
+      }
+    }
     shareData.value.push(record)
   }
 
@@ -116,6 +152,7 @@ export const useFileDataStore = defineStore('fileData', () => {
     deleteReceiveData,
     clearReceiveData,
     markRecordExpired,
+    updateRecordExpiry,
     addShareDataRecord,
     deleteShareData,
     clearShareData,

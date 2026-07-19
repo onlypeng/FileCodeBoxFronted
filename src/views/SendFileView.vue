@@ -3,7 +3,7 @@
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
     <div
-      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md transition-colors duration-300"
+      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md md:max-w-2xl lg:max-w-3xl transition-colors duration-300"
       :class="[
         isDarkMode
           ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-xl border-gray-700'
@@ -12,41 +12,35 @@
     >
       <div class="p-8">
         <PageHeader :title="config.name" @title-click="toRetrieve" />
-        <form @submit.prevent="handleSubmit" class="space-y-8">
-          <SendTypeSelector
-            :selected-type="sendType"
-            @update:selected-type="sendType = $event"
-          />
+        <form @submit.prevent="handleSubmit" class="space-y-8 md:grid md:grid-cols-12 md:gap-8 md:space-y-0">
+          <div class="md:col-span-7 md:flex md:flex-col">
+            <FileUploadArea
+              :selected-file="selectedFile"
+              :selected-files="selectedFiles"
+              :progress="uploadProgress"
+              :description="uploadDescription"
+              @file-selected="handleFileSelected"
+              @files-selected="handleFilesSelected"
+              @file-drop="handleFileDrop"
+              @paste="handlePaste"
+              @file-remove="removeFile"
+            />
+          </div>
 
-          <transition name="fade" mode="out-in">
-            <div v-if="sendType === 'file'" key="file" class="grid grid-cols-1 gap-8">
-              <FileUploadArea
-                :selected-file="selectedFile"
-                :selected-files="selectedFiles"
-                :progress="uploadProgress"
-                :description="uploadDescription"
-                @file-selected="handleFileSelected"
-                @files-selected="handleFilesSelected"
-                @file-drop="handleFileDrop"
-                @paste="handlePaste"
-                @file-remove="removeFile"
-              />
-            </div>
-            <div v-else key="text" class="grid grid-cols-1 gap-8">
-              <TextInputArea v-model="textContent" :placeholder="t('send.uploadArea.textInput')" />
-            </div>
-          </transition>
-          <ExpirationSelector
-            v-model:expiration-method="expirationMethod"
-            v-model:expiration-value="expirationValue"
-            :options="expirationOptions"
-          />
-          <!-- 提交按钮 -->
-          <button
-            type="submit"
-            :disabled="isSubmitting"
-            class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:scale-100"
-          >
+          <div class="space-y-8 md:col-span-5 md:flex md:flex-col md:space-y-8">
+            <TextInputArea v-model="textContent" placeholder="添加文本备注（可选，无文件时作为纯文本发送）" />
+
+            <ExpirationSelector
+              v-model:expiration-method="expirationMethod"
+              v-model:expiration-value="expirationValue"
+              :options="expirationOptions"
+            />
+            <!-- 提交按钮 -->
+            <button
+              type="submit"
+              :disabled="isSubmitting"
+              class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:scale-100 md:mt-auto"
+            >
             <span
               class="absolute top-0 left-0 w-full h-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
             ></span>
@@ -76,6 +70,7 @@
               <span>{{ isSubmitting ? t('send.submitting') : t('send.submit') }}</span>
             </span>
           </button>
+          </div>
         </form>
       </div>
 
@@ -109,7 +104,7 @@
         @delete-record="deleteRecord"
       />
     </SideDrawer>
-
+<!-- 发送记录详情弹窗 -->
     <SentRecordDetailModal
       :record="selectedRecord"
       :get-q-r-code-value="getQRCodeValue"
@@ -117,6 +112,7 @@
       @copy-code="copySentRecordCode"
       @copy-link="copySentRecordLink"
       @copy-wget="copySentRecordWgetCommand"
+      @continue-delivery="continueDelivery"
     />
   </div>
 </template>
@@ -131,7 +127,6 @@ import {
   ShieldCheckIcon
 } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
-import SendTypeSelector from '@/components/common/SendTypeSelector.vue'
 import FileUploadArea from '@/components/common/FileUploadArea.vue'
 import ExpirationSelector from '@/components/common/ExpirationSelector.vue'
 import TextInputArea from '@/components/common/TextInputArea.vue'
@@ -145,7 +140,6 @@ const { t } = useI18n()
 const router = useRouter()
 const {
   config,
-  sendType,
   selectedFile,
   selectedFiles,
   textContent,
@@ -159,6 +153,7 @@ const {
   uploadDescription,
   expirationOptions,
   closeDetails,
+  continueDelivery,
   copySentRecordCode,
   copySentRecordLink,
   copySentRecordWgetCommand,

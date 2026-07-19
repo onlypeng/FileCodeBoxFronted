@@ -12,6 +12,7 @@ export type PublicConfig = SystemConfig & {
   maxCollectionFiles: number
   maxSendFiles: number
   maxMultiFileCount: number
+  codeDigitCount: number
   notify_title?: string
   notify_content?: string
   page_explain?: string
@@ -32,7 +33,8 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   uploadMinute: 1,
   maxCollectionFiles: 100,
   maxSendFiles: 20,
-  maxMultiFileCount: 20
+  maxMultiFileCount: 20,
+  codeDigitCount: 8
 }
 
 export const DEFAULT_CONFIG_STATE: ConfigState = {
@@ -74,7 +76,8 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   webdav_password: '',
   maxCollectionFiles: 100,
   maxSendFiles: 20,
-  maxMultiFileCount: 20
+  maxMultiFileCount: 20,
+  codeDigitCount: 8
 }
 
 export function readStoredConfig<T extends object = Partial<ConfigState>>(): T | null {
@@ -102,6 +105,7 @@ export function toPublicConfig(config: Partial<ConfigState> | null | undefined):
     maxCollectionFiles: config.maxCollectionFiles,
     maxSendFiles: config.maxSendFiles,
     maxMultiFileCount: config.maxMultiFileCount,
+    codeDigitCount: config.codeDigitCount,
     notify_title: config.notify_title,
     notify_content: config.notify_content,
     page_explain: config.page_explain,

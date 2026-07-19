@@ -9,7 +9,7 @@ import { useFileDataStore } from '@/stores/fileData'
 import type { ReceivedFileRecord } from '@/types'
 import type { MultiFileItem, CollectionFileItem } from '@/types/collection'
 import { copyToClipboard } from '@/utils/clipboard'
-import { getErrorMessage } from '@/utils/common'
+import { getErrorMessage, formatFileSize as baseFormatSize } from '@/utils/common'
 import { renderMarkdownPreview } from '@/utils/content-preview'
 import { buildDownloadUrl } from '@/utils/share-url'
 import { isRecordExpired } from '@/utils/common'
@@ -54,16 +54,7 @@ export function useRetrieveFlow() {
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 ' + t('fileSize.bytes')
-    const k = 1024
-    const sizes = [
-      t('fileSize.bytes'),
-      t('fileSize.kb'),
-      t('fileSize.mb'),
-      t('fileSize.gb'),
-      t('fileSize.tb')
-    ]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    return baseFormatSize(bytes, 2)
   }
 
   const createRecord = (detail: {
@@ -94,7 +85,7 @@ export function useRetrieveFlow() {
     }
   }
 
-  const CODE_REGEX = /^[A-Z0-9]{6}$/
+  const CODE_REGEX = /^[A-Z0-9]+$/
 
   const handleSubmit = async () => {
     if (!CODE_REGEX.test(code.value)) {
@@ -123,16 +114,16 @@ export function useRetrieveFlow() {
           if (manageRes.code === 200 && manageRes.detail) {
             isCollection.value = true
             collectionFiles.value = manageRes.detail.files.filter((f: CollectionFileItem) => f.status === 'completed')
-            collectionCode.value = code.value
-            collectionRetrieveCode.value = ''  // 管理码入口没有取件码
+            collectionCode.value = code.value  // 管理码用于下载和管理
+            collectionRetrieveCode.value = manageRes.detail.retrieve_code || ''  // 存取件码用于下载校验
             collectionTitle.value = manageRes.detail.title || t('retrieve.collectionFiles.title')
             collectionDeliveryCode.value = manageRes.detail.delivery_code || ''
 
-            // 缓存到取件记录
+            // 缓存到取件记录（管理码入口，code 存管理码，可进入管理页面）
             const totalSize = collectionFiles.value.reduce((sum: number, f: CollectionFileItem) => sum + f.file_size, 0)
             const collectionRecord: ReceivedFileRecord = {
               id: Date.now(),
-              code: code.value,
+              code: code.value,  // 存管理码，用于进入管理页面
               filename: manageRes.detail.title || t('retrieve.collectionFiles.title'),
               size: formatFileSize(totalSize),
               downloadUrl: null,
@@ -140,13 +131,18 @@ export function useRetrieveFlow() {
               date: new Date().toLocaleString(),
               type: 'multiFile',
               isCollection: true,
+              isRetrieveCode: false,  // 标记为管理码入口
               collectionDeliveryCode: manageRes.detail.delivery_code || '',
+              collectionRetrieveCode: manageRes.detail.retrieve_code || '',
               collectionFiles: collectionFiles.value.map((f: CollectionFileItem) => ({
                 id: f.id,
                 file_name: f.file_name,
                 file_size: f.file_size,
                 uploader_name: f.uploader_name || '',
               })),
+              expiredAt: manageRes.detail.expired_at,
+              expireStyle: manageRes.detail.expire_style,
+              expireValue: manageRes.detail.expire_value,
             }
             if (!fileStore.receiveData.some((file) => file.code === collectionRecord.code)) {
               fileStore.addReceiveData(collectionRecord)
@@ -161,29 +157,24 @@ export function useRetrieveFlow() {
         }
 
         if (codeType === 'retrieve') {
-          // 取件码过期检查
-          if (checkRes.detail.expired) {
-            alertStore.showAlert(t('retrieve.messages.expiredCode'), 'error')
-            code.value = ''
-            return
-          }
           // 取件码 → 加载取件信息并弹窗显示
           const retrieveRes = await CollectionService.getRetrieveInfo(code.value)
           if (retrieveRes.code === 200 && retrieveRes.detail) {
             const detail = retrieveRes.detail
             isCollection.value = true
             collectionFiles.value = detail.files.filter((f: CollectionFileItem) => f.status === 'completed')
-            // collectionCode 存管理码（ZIP下载和弹窗需要），collectionRetrieveCode 存取件码（单文件下载校验）
-            collectionCode.value = detail.collection_code || code.value
+            // 取件码模式下：collectionCode 存取件码（用于下载），collectionRetrieveCode 也存取件码
+            // 后端 retrieve 端点不再返回 collection_code 和 delivery_code
+            collectionCode.value = code.value
             collectionRetrieveCode.value = code.value
             collectionTitle.value = detail.title || t('retrieve.collectionFiles.title')
-            collectionDeliveryCode.value = detail.delivery_code || ''
+            collectionDeliveryCode.value = ''  // 取件码模式下不暴露投件码
 
-            // 缓存到取件记录（code 存管理码用于 ZIP 下载，collectionRetrieveCode 存取件码用于单文件下载校验）
+            // 缓存到取件记录
             const totalSize = collectionFiles.value.reduce((sum: number, f: CollectionFileItem) => sum + f.file_size, 0)
             const collectionRecord: ReceivedFileRecord = {
               id: Date.now(),
-              code: detail.collection_code || code.value,
+              code: code.value,  // 存取件码用于下载
               filename: detail.title || t('retrieve.collectionFiles.title'),
               size: formatFileSize(totalSize),
               downloadUrl: null,
@@ -191,7 +182,8 @@ export function useRetrieveFlow() {
               date: new Date().toLocaleString(),
               type: 'multiFile',
               isCollection: true,
-              collectionDeliveryCode: detail.delivery_code || '',
+              isRetrieveCode: true,  // 标记为取件码入口
+              collectionDeliveryCode: '',  // 不存储投件码
               collectionRetrieveCode: code.value,
               collectionFiles: collectionFiles.value.map((f: CollectionFileItem) => ({
                 id: f.id,
@@ -301,14 +293,16 @@ export function useRetrieveFlow() {
   const downloadCollectionFile = (fileId: number) => {
     const file = collectionFiles.value.find(f => f.id === fileId)
     const filename = file?.file_name || undefined
-    // 优先使用取件码（后端会检查取件码过期），否则使用管理码
-    const downloadCode = collectionRetrieveCode.value || collectionCode.value
+    // 使用当前存储的码（管理码或取件码）进行下载
+    const downloadCode = collectionCode.value
     void downloadFile(CollectionService.getDownloadUrl(fileId, downloadCode), filename, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
       .then(result => handleDownloadResult(result, collectionCode.value))
   }
 
   const downloadCollectionZip = () => {
-    void downloadFile(CollectionService.getZipDownloadUrl(collectionCode.value), `${collectionCode.value}.zip`, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
+    // 使用当前存储的码（管理码或取件码）进行 ZIP 下载
+    const downloadCode = collectionCode.value
+    void downloadFile(CollectionService.getZipDownloadUrl(downloadCode), `${downloadCode}.zip`, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
       .then(result => handleDownloadResult(result, collectionCode.value))
   }
 
@@ -335,7 +329,11 @@ export function useRetrieveFlow() {
       isCollection.value = true
       collectionCode.value = record.code
       collectionRetrieveCode.value = record.collectionRetrieveCode || ''
-      collectionFiles.value = record.collectionFiles || []
+      collectionFiles.value = (record.collectionFiles || []).map(f => ({
+        ...f,
+        status: (f.status === 'uploading' || f.status === 'completed' || f.status === 'failed' ? f.status : 'completed') as 'uploading' | 'completed' | 'failed',
+        created_at: f.created_at || new Date().toISOString(),
+      }))
       collectionTitle.value = record.filename
     } else if (record.isMultiFile) {
       isMultiFile.value = true

@@ -245,7 +245,11 @@ const handleSaveAll = async () => {
     return
   }
   // 验证投件码过期时间不超过收件箱过期时间
-  if (editDeliveryExpireStyle.value !== 'forever' && collectionStore.expireStyle !== 'forever') {
+  if (collectionStore.expireStyle !== 'forever') {
+    if (editDeliveryExpireStyle.value === 'forever') {
+      errorMsg.value = t('collection.create.deliveryCannotBeForever') || '投件码不能设为永久，收件箱将在一段时间后过期'
+      return
+    }
     const deliverySeconds = _expireToSeconds(editDeliveryExpireStyle.value, editDeliveryExpireValue)
     const collectionSeconds = _expireToSeconds(collectionStore.expireStyle, collectionStore.expireValue)
     if (deliverySeconds > collectionSeconds) {
@@ -254,7 +258,11 @@ const handleSaveAll = async () => {
     }
   }
   // 验证取件码过期时间不超过收件箱过期时间
-  if (editRetrieveExpireStyle.value !== 'forever' && collectionStore.expireStyle !== 'forever') {
+  if (collectionStore.expireStyle !== 'forever') {
+    if (editRetrieveExpireStyle.value === 'forever') {
+      errorMsg.value = t('collection.create.retrieveCannotBeForever') || '取件码不能设为永久，收件箱将在一段时间后过期'
+      return
+    }
     const retrieveSeconds = _expireToSeconds(editRetrieveExpireStyle.value, editRetrieveExpireValue)
     const collectionSeconds = _expireToSeconds(collectionStore.expireStyle, collectionStore.expireValue)
     if (retrieveSeconds > collectionSeconds) {

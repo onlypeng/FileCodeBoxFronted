@@ -27,6 +27,7 @@ export interface CreateCollectionResponse {
   title: string
   description: string
   max_files: number
+  created_at: string | null
   expire_style: string
   expire_value: number
   expired_at: string | null
@@ -65,8 +66,14 @@ export interface CollectionFileItem {
   file_name: string
   file_size: number
   uploader_name: string
+  uploader_ip?: string
   status: 'uploading' | 'completed' | 'failed'
   created_at: string
+  code?: string
+  file_type?: string
+  file_code_id?: number | null
+  is_text?: boolean
+  is_chunked?: boolean
 }
 
 /** 收件箱管理/状态响应（通过 collection_code 获取） */
@@ -77,6 +84,7 @@ export interface CollectionManageResponse {
   title: string
   description: string
   max_files: number
+  created_at: string | null
   expire_style: string
   expire_value: number
   expired_at: string | null
@@ -90,11 +98,9 @@ export interface CollectionManageResponse {
   files: CollectionFileItem[]
 }
 
-/** 取件码响应（只读，通过 retrieve_code 获取） */
+/** 取件码响应（只读，通过 retrieve_code 获取，不含管理码和投件码） */
 export interface CollectionRetrieveResponse {
   retrieve_code: string
-  collection_code: string
-  delivery_code: string
   title: string
   description: string
   file_count: number
@@ -107,6 +113,24 @@ export interface CollectionRetrieveResponse {
   retrieve_expire_value: number
   retrieve_expired_at: string | null
   files: CollectionFileItem[]
+}
+
+/** 投件码响应（通过 delivery_code 获取，不含管理码、取件码及取件码过期配置） */
+export interface CollectionDeliveryResponse {
+  delivery_code: string
+  title: string
+  description: string
+  max_files: number
+  file_count: number
+  delivery_count: number
+  delivery_used_count: number
+  created_at: string | null
+  expire_style: string
+  expire_value: number
+  expired_at: string | null
+  delivery_expire_style: string
+  delivery_expire_value: number
+  delivery_expired_at: string | null
 }
 
 /** 投递文件响应 */
@@ -181,22 +205,40 @@ export interface AdminCollectionItem {
   max_files: number
   file_count: number
   is_expired: boolean
-  is_delivery_expired: boolean
-  is_retrieve_expired: boolean
-  expire_style: string
-  expire_value: number
+  expiring_soon?: boolean
+  delivery_is_expired?: boolean
+  retrieve_is_expired?: boolean
+  is_delivery_expired?: boolean
+  is_retrieve_expired?: boolean
+  expire_style?: string
+  expire_value?: number
   expired_at: string | null
-  delivery_expire_style: string
-  delivery_expire_value: number
+  delivery_expire_style?: string
+  delivery_expire_value?: number
   delivery_expired_at: string | null
-  retrieve_expire_style: string
-  retrieve_expire_value: number
+  retrieve_expire_style?: string
+  retrieve_expire_value?: number
   retrieve_expired_at: string | null
+  creator_ip?: string
+  creator_name?: string
   created_at: string
+}
+
+/** 收件箱统计概览 */
+export interface CollectionSummary {
+  totalCollections: number
+  activeCollections: number
+  expiredCollections: number
+  expiringSoonCollections?: number
+  permanentCollections?: number
+  totalFiles: number
+  filteredFiles?: number
 }
 
 /** 更新收件箱配置请求（收件箱过期时间不可更改） */
 export interface UpdateCollectionConfigRequest {
+  title?: string
+  description?: string
   delivery_expire_style?: string
   delivery_expire_value?: number
   retrieve_expire_style?: string

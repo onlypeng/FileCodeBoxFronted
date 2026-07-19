@@ -103,7 +103,7 @@ export const ROUTE_NAMES = {
 export const REGEX_PATTERNS = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   PHONE: /^1[3-9]\d{9}$/,
-  CODE: /^[A-Za-z0-9]{4,8}$/ // 取件码格式
+  CODE: /^[A-Z0-9]+$/ // 取件码格式：大写字母+数字
 } as const
 
 // 默认配置

@@ -11,6 +11,7 @@ import type {
   CollectionUploadResponse,
   AdminCollectionItem,
   CollectionFileItem,
+  CollectionSummary,
   UpdateCollectionConfigRequest,
   UpdateCollectionConfigResponse,
 } from '@/types/collection'
@@ -111,22 +112,38 @@ export class CollectionService {
 
   // ============ 后台管理接口 ============
 
-  /** 获取收件箱列表 */
+  /** 获取收件箱列表（带统计、筛选、排序） */
   static async getAdminCollectionList(params: {
     page: number
     size: number
     keyword?: string
-  }): Promise<ApiResponse<{ page: number; size: number; data: AdminCollectionItem[]; total: number }>> {
+    status?: '' | 'active' | 'expired'
+    sortBy?: 'created_at' | 'expired_at' | 'title' | 'max_files' | 'delivery_expired_at' | 'retrieve_expired_at'
+    sortOrder?: 'asc' | 'desc'
+  }): Promise<ApiResponse<{
+    page: number
+    size: number
+    data: AdminCollectionItem[]
+    total: number
+    summary: CollectionSummary
+  }>> {
     return api.get('/admin/collection/list', { params })
   }
 
   /** 获取收件箱文件列表 */
-  static async getAdminCollectionFiles(collectionId: number): Promise<ApiResponse<CollectionFileItem[]>> {
+  static async getAdminCollectionFiles(collectionId: number): Promise<ApiResponse<{ files: CollectionFileItem[]; total: number }>> {
     return api.get(`/admin/collection/${collectionId}/files`)
   }
 
   /** 删除收件箱 */
   static async deleteCollection(collectionId: number): Promise<ApiResponse> {
     return api.delete(`/admin/collection/${collectionId}`)
+  }
+
+  /** 批量删除收件箱 */
+  static async batchDeleteCollections(ids: number[]): Promise<ApiResponse> {
+    return api.delete('/admin/collection/batch-delete', {
+      data: { ids }
+    })
   }
 }

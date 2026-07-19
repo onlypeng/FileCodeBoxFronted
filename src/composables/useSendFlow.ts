@@ -1,10 +1,11 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useAlertStore } from '@/stores/alertStore'
 import { useAdminStore } from '@/stores/adminStore'
 import { useConfigStore } from '@/stores/configStore'
 import { useFileDataStore } from '@/stores/fileData'
-import type { SendType, SentFileRecord } from '@/types'
+import type { SentFileRecord } from '@/types'
 import { getClipboardFile, insertTextAtSelection } from '@/utils/clipboard-paste'
 import { getErrorMessage } from '@/utils/common'
 import { getStorageUnit } from '@/utils/convert'
@@ -15,12 +16,12 @@ import { useSendSubmit } from './useSendSubmit'
 
 export function useSendFlow() {
   const { t } = useI18n()
+  const router = useRouter()
   const alertStore = useAlertStore()
   const adminStore = useAdminStore()
   const configStore = useConfigStore()
   const fileDataStore = useFileDataStore()
   const config = computed(() => configStore.config)
-  const sendType = ref<SendType>('file')
   const selectedFile = ref<File | null>(null)
   const selectedFiles = ref<File[]>([])
   const textContent = ref('')
@@ -58,7 +59,7 @@ export function useSendFlow() {
     alertStore.showAlert(message, type)
   }
   const sentRecordActions = createSentRecordActions(notifyCopyResult)
-  const { resetPresignUpload, submitFile, submitText } = useSendSubmit({
+  const { resetPresignUpload, submitUnified } = useSendSubmit({
     getMaxFileSize: () => configStore.uploadSizeLimit,
     getUploadCount: () => config.value.uploadCount || 0,
     getUploadMinute: () => config.value.uploadMinute || 10,
@@ -95,14 +96,6 @@ export function useSendFlow() {
   const checkExpirationTime = (method: string, value: string): boolean =>
     isExpirationWithinLimit(method, value, config.value.max_save_seconds || 0)
 
-  const checkUpload = () => {
-    if (!selectedFile.value) return false
-    if (!checkOpenUpload()) return false
-    if (!checkFileSize(selectedFile.value)) return false
-    if (!checkExpirationTime(expirationMethod.value, expirationValue.value)) return false
-    return true
-  }
-
   const handleFileSelected = async (file: File) => {
     selectedFile.value = file
     selectedFiles.value = []
@@ -132,7 +125,8 @@ export function useSendFlow() {
       const file = files[0]
       selectedFile.value = file
       selectedFiles.value = []
-      if (!checkUpload()) return
+      if (!checkOpenUpload()) return
+      if (!checkFileSize(file)) return
       fileHash.value = await calculateFileHash(file)
     } else {
       if (!checkOpenUpload()) return
@@ -161,7 +155,8 @@ export function useSendFlow() {
       }
 
       selectedFile.value = file
-      if (!checkUpload()) return
+      if (!checkOpenUpload()) return
+      if (!checkFileSize(file)) return
 
       try {
         fileHash.value = await calculateFileHash(file)
@@ -179,7 +174,6 @@ export function useSendFlow() {
     const textItem = items[0]
     if (!textItem) return
 
-    sendType.value = 'text'
     textItem.getAsString((str: string) => {
       const trimmedStr = str.trim()
       if (!trimmedStr) return
@@ -227,12 +221,11 @@ export function useSendFlow() {
     isSubmitting.value = true
 
     try {
-      if (sendType.value === 'file' && !selectedFile.value && selectedFiles.value.length === 0) {
+      const hasFiles = selectedFile.value || selectedFiles.value.length > 0
+      const hasText = textContent.value.trim().length > 0
+
+      if (!hasFiles && !hasText) {
         alertStore.showAlert(t('send.messages.selectFile'), 'error')
-        return
-      }
-      if (sendType.value === 'text' && !textContent.value.trim()) {
-        alertStore.showAlert(t('send.messages.enterText'), 'error')
         return
       }
       if (!checkOpenUpload()) {
@@ -250,33 +243,21 @@ export function useSendFlow() {
       }
 
       const expireValue = expirationValue.value ? parseInt(expirationValue.value) : 1
-      let response
-      if (sendType.value === 'file') {
-        response = await submitFile({
-          selectedFile: selectedFile.value,
-          selectedFiles: selectedFiles.value,
-          expireValue,
-          expireStyle: expirationMethod.value,
-          enableChunk: Boolean(config.value.enableChunk),
-          validateFileSize: checkFileSize
-        })
-      } else {
-        response = await submitText({
-          text: textContent.value,
-          expireValue,
-          expireStyle: expirationMethod.value
-        })
-      }
+      const response = await submitUnified({
+        text: textContent.value,
+        selectedFile: selectedFile.value,
+        selectedFiles: selectedFiles.value,
+        expireValue,
+        expireStyle: expirationMethod.value,
+        enableChunk: Boolean(config.value.enableChunk),
+        validateFileSize: checkFileSize
+      })
 
       if (!response) return
 
       if (response?.code === 200) {
-        const detail = response.detail as { code?: string; name?: string; is_multi_file?: boolean } | undefined
-
-        // 统一处理（单文件和多文件共用一个取件码）
         const newRecord = buildSentRecord({
           response,
-          sendType: sendType.value,
           textContent: textContent.value,
           selectedFile: selectedFile.value,
           selectedFiles: selectedFiles.value,
@@ -319,6 +300,13 @@ export function useSendFlow() {
     selectedRecord.value = null
   }
 
+  // 继续投件：跳转到投件上传页面（仅投件记录有效）
+  const continueDelivery = (record: SentFileRecord) => {
+    if (!record.isDelivery || !record.retrieveCode) return
+    selectedRecord.value = null
+    router.push(`/delivery/upload/${record.retrieveCode}`)
+  }
+
   const deleteRecord = (id: number) => {
     const index = fileDataStore.shareData.findIndex((record) => record.id === id)
     if (index !== -1) {
@@ -332,7 +320,6 @@ export function useSendFlow() {
 
   return {
     config,
-    sendType,
     selectedFile,
     selectedFiles,
     textContent,
@@ -346,6 +333,7 @@ export function useSendFlow() {
     uploadDescription,
     expirationOptions,
     closeDetails,
+    continueDelivery,
     deleteRecord,
     copySentRecordCode: sentRecordActions.copyCode,
     copySentRecordLink: sentRecordActions.copyLink,

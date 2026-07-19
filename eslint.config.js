@@ -12,6 +12,11 @@ export default [
     files: ['**/*.{js,mjs,cjs,vue,ts}'],
     rules: {
       // 你可以在这里添加自定义规则
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_'
+      }]
     }
   },
   {

@@ -3,7 +3,7 @@
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
     <div
-      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-lg transition-colors duration-300"
+      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-lg md:max-w-2xl lg:max-w-3xl transition-colors duration-300"
       :class="[
         isDarkMode
           ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-xl border-gray-700'
@@ -184,12 +184,9 @@
           >
             {{ t('collection.manage.downloadAll') }}
           </button>
-          <button
-            @click="toManage"
-            class="flex-1 py-2 px-4 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-center"
-          >
+          <router-link to="/" class="flex-1 py-2 px-4 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-center inline-flex items-center justify-center">
             {{ t('collection.manage.backToHome') }}
-          </button>
+          </router-link>
         </div>
       </div>
     </div>
@@ -213,7 +210,6 @@ import QRCode from 'qrcode.vue'
 import { LoaderIcon, Settings } from 'lucide-vue-next'
 import { useCollectionStore } from '@/stores/collectionStore'
 import { useAlertStore } from '@/stores/alertStore'
-import { useConfigStore } from '@/stores/configStore'
 import { useCollectionWebSocket } from '@/composables/useCollectionWebSocket'
 import { CollectionService } from '@/services/collection'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -227,8 +223,6 @@ const { t } = useI18n()
 const router = useRouter()
 const alertStore = useAlertStore()
 const collectionStore = useCollectionStore()
-const configStore = useConfigStore()
-const config = computed(() => configStore.config)
 const { isConnected: wsConnected, connect, disconnect, onlineUsers } = useCollectionWebSocket()
 
 const showSettings = ref(false)

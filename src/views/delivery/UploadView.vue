@@ -3,7 +3,7 @@
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
     <div
-      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md transition-colors duration-300"
+      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md md:max-w-2xl lg:max-w-3xl transition-colors duration-300"
       :class="[
         isDarkMode
           ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-xl border-gray-700'
@@ -132,7 +132,7 @@
         </div>
 
         <div class="mt-6 text-center">
-          <router-link to="/" class="text-indigo-400 hover:text-indigo-300 transition duration-300 text-sm">
+          <router-link to="/" class="text-sm font-medium transition-colors" :class="[isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700']">
             {{ t('collection.submit.backToHome') }}
           </router-link>
         </div>
@@ -146,7 +146,6 @@ import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import PageHeader from '@/components/common/PageHeader.vue'
-import FormInput from '@/components/common/FormInput.vue'
 import FileUploadArea from '@/components/common/FileUploadArea.vue'
 import { useAlertStore } from '@/stores/alertStore'
 import { useConfigStore } from '@/stores/configStore'
@@ -416,10 +415,9 @@ const handleUploadAll = async () => {
           const uploadedAt = new Date().toLocaleString()
           uploadedFiles.value.push({ filename: file.name, size: file.size, uploadedAt })
           uploadingList.value = uploadingList.value.filter(u => u.id !== upItemId)
-          // 更新当前计数
-          if (deliveryInfo.value) {
-            deliveryInfo.value.file_count += 1
-          }
+          // 注意：currentFileCount 已通过 uploadedFiles.length 自动 +1，
+          // 此处不再手动 deliveryInfo.file_count += 1，否则会导致重复计数
+          // （file_count 是后端初始值，uploadedFiles 是本次会话新增，两者相加即为总数）
           // 持久化上传历史
           saveUploadHistory(deliveryCode.value, uploadedFiles.value)
         } else {
@@ -449,7 +447,9 @@ const handleUploadAll = async () => {
         isDelivery: true,
         collectionTitle: deliveryInfo.value?.title || '',
         fileCount: uploadedFiles.value.length,
-        isMultiFile: uploadedFiles.value.length > 1
+        isMultiFile: uploadedFiles.value.length > 1,
+        // 保存已上传文件列表，便于在记录详情中查看
+        files: uploadedFiles.value.map(f => ({ name: f.filename, size: f.size, uploadTime: f.uploadedAt }))
       }
       fileDataStore.addShareDataRecord(deliveryRecord)
     }

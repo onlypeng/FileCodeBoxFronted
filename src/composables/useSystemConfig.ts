@@ -15,6 +15,58 @@ import {
 
 type ConfigFlagKey = 'enableChunk' | 's3_proxy' | 'openUpload'
 
+/**
+ * 数值配置项验证规则：[min, max]
+ * 与后端 core/settings.py 的 CONFIG_NUMERIC_LIMITS 保持一致
+ */
+const CONFIG_NUMERIC_RULES: Record<string, { min: number; max: number; label: string; allowZero?: boolean }> = {
+  errorMinute: { min: 1, max: 1440, label: '检测时间窗口' },
+  errorCount: { min: 1, max: 1000, label: '允许错误次数' },
+  uploadMinute: { min: 1, max: 1440, label: '上传限流时间窗口' },
+  uploadCount: { min: 1, max: 1000, label: '允许上传文件数' },
+  maxSendFiles: { min: 1, max: 100, label: '发送文件数量上限' },
+  maxCollectionFiles: { min: 1, max: 1000, label: '收件箱最大文件数上限' },
+  maxMultiFileCount: { min: 1, max: 100, label: '多文件分享数量上限' },
+  codeDigitCount: { min: 5, max: 15, label: '码位数' },
+  uploadSize: { min: 1024, max: 1024 * 1024 * 1024 * 10, label: '单文件大小上限' },
+  max_save_seconds: { min: 0, max: 365 * 24 * 3600, label: '最长保存时间', allowZero: true },
+}
+
+/**
+ * 验证配置项数值是否在合法范围内
+ * @returns 错误消息列表（空数组表示全部通过）
+ */
+function validateConfig(config: ConfigState): string[] {
+  const errors: string[] = []
+  for (const [key, rule] of Object.entries(CONFIG_NUMERIC_RULES)) {
+    let value = config[key as keyof ConfigState] as unknown as number
+    // 兜底：若该字段缺失（后端未返回或旧数据），使用 DEFAULT_CONFIG_STATE 中的默认值
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      const defaultVal = (DEFAULT_CONFIG_STATE as unknown as Record<string, number>)[key]
+      if (defaultVal !== undefined && defaultVal !== null && !Number.isNaN(defaultVal)) {
+        value = defaultVal
+        // 同步写回 config，避免后续提交时再次失败
+        ;(config as unknown as Record<string, number>)[key] = defaultVal
+      } else {
+        errors.push(`${rule.label}：必须为数字`)
+        continue
+      }
+    }
+    if (!rule.allowZero && value <= 0) {
+      errors.push(`${rule.label}：不能为 0 或负数`)
+      continue
+    }
+    if (rule.allowZero && value < 0) {
+      errors.push(`${rule.label}：不能为负数`)
+      continue
+    }
+    if (value < rule.min || value > rule.max) {
+      errors.push(`${rule.label}：必须在 ${rule.min} - ${rule.max} 之间`)
+    }
+  }
+  return errors
+}
+
 export function useSystemConfig() {
   const alertStore = useAlertStore()
   const configStore = useConfigStore()
@@ -114,14 +166,20 @@ export function useSystemConfig() {
     }
   }
 
-  const submitConfig = () =>
-    updateConfig(
-      buildConfigSubmitPayload(
-        config.value,
-        { value: fileSize.value, unit: sizeUnit.value },
-        { value: saveTime.value, unit: saveTimeUnit.value }
-      )
+  const submitConfig = () => {
+    const payload = buildConfigSubmitPayload(
+      config.value,
+      { value: fileSize.value, unit: sizeUnit.value },
+      { value: saveTime.value, unit: saveTimeUnit.value }
     )
+    // 提交前验证，避免无效请求
+    const errors = validateConfig(payload)
+    if (errors.length > 0) {
+      alertStore.showAlert(errors.join('；'), 'error')
+      return Promise.resolve(false)
+    }
+    return updateConfig(payload)
+  }
   
   // 初始化配置
   const initConfig = async () => {

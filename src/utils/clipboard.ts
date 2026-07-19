@@ -2,7 +2,7 @@
  * 剪贴板工具函数
  */
 
-import { buildRetrieveUrl, buildWgetCommand } from '@/utils/share-url'
+import { buildRetrieveUrl, buildWgetCommand, buildCollectionManageUrl, buildCollectionRetrieveUrl, buildDeliveryUploadUrl } from '@/utils/share-url'
 
 type CopyNotifyType = 'success' | 'error'
 
@@ -107,6 +107,42 @@ export const copyWgetCommand = (
   void copyToClipboard(command, {
     successMsg: '命令已复制到剪贴板',
     errorMsg: '复制失败，请手动复制命令',
+    ...options
+  })
+}
+
+export const copyCollectionManageLink = async (
+  code: string,
+  options: Pick<CopyOptions, 'notify' | 'showMsg'> = {}
+): Promise<boolean> => {
+  const link = buildCollectionManageUrl(code)
+  return copyToClipboard(link, {
+    successMsg: '管理链接已复制到剪贴板',
+    errorMsg: '复制失败，请手动复制管理链接',
+    ...options
+  })
+}
+
+export const copyCollectionRetrieveLink = async (
+  code: string,
+  options: Pick<CopyOptions, 'notify' | 'showMsg'> = {}
+): Promise<boolean> => {
+  const link = buildCollectionRetrieveUrl(code)
+  return copyToClipboard(link, {
+    successMsg: '取件链接已复制到剪贴板',
+    errorMsg: '复制失败，请手动复制取件链接',
+    ...options
+  })
+}
+
+export const copyDeliveryUploadLink = async (
+  code: string,
+  options: Pick<CopyOptions, 'notify' | 'showMsg'> = {}
+): Promise<boolean> => {
+  const link = buildDeliveryUploadUrl(code)
+  return copyToClipboard(link, {
+    successMsg: '投件链接已复制到剪贴板',
+    errorMsg: '复制失败，请手动复制投件链接',
     ...options
   })
 }

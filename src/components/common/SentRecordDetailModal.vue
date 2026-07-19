@@ -1,230 +1,93 @@
 <template>
-  <transition name="fade">
-    <div
-      v-if="record"
-      class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto"
-    >
-      <div
-        class="w-full max-w-2xl rounded-2xl shadow-2xl transform transition-all duration-300 ease-out overflow-hidden"
-        :class="[isDarkMode ? 'bg-gray-900 bg-opacity-70' : 'bg-white bg-opacity-95']"
-      >
-        <div
-          class="px-4 sm:px-6 py-3 sm:py-4 border-b"
-          :class="[isDarkMode ? 'border-gray-800' : 'border-gray-100']"
-        >
-          <div class="flex items-center justify-between">
-            <h3
-              class="text-lg sm:text-xl font-semibold"
-              :class="[isDarkMode ? 'text-white' : 'text-gray-900']"
-            >
-              {{ t('send.fileDetails') }}
-            </h3>
-            <button
-              @click="$emit('close')"
-              class="p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <XIcon
-                class="w-4 h-4 sm:w-5 sm:h-5"
-                :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
-              />
-            </button>
-          </div>
+  <RecordModalShell
+    :visible="!!record"
+    :title="isDelivery ? t('records.deliveryTitle') : t('send.fileDetails')"
+    :subtitle="isDelivery ? record?.filename : (t('records.badge.file') + ' · ' + record?.filename)"
+    :icon="titleIcon"
+    :icon-tone="isDelivery ? 'amber' : 'indigo'"
+    @close="$emit('close')"
+  >
+    <!-- 内容 -->
+    <div class="px-5 pb-4">
+      <div class="rounded-xl p-5" :class="[isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50']">
+        <div class="flex gap-5">
+          <ModalCodeBlock
+            :code="record?.retrieveCode || ''"
+            :label="isDelivery ? t('collection.manage.deliveryCodeLabel') : t('retrieve.codeInput.label')"
+            :tone="isDelivery ? 'amber' : 'indigo'"
+            :show-copy-link="!isDelivery"
+            :link-text="t('fileRecord.copyLink')"
+            @copy="$emit('copy-code', record!)"
+            @copy-link="$emit('copy-link', record!)"
+          >
+            <ModalInfoRow :label="t('retrieve.createdAt')" :value="record?.date" />
+            <ModalInfoRow :label="t('retrieve.fileSize')" :value="displaySize" />
+            <div v-if="isLoading" class="flex items-baseline gap-2.5">
+              <span class="text-sm shrink-0" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ t('send.expiration.label') }}</span>
+              <span class="text-sm italic" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ t('records.refreshing') }}</span>
+            </div>
+            <div v-else class="flex items-baseline gap-2.5">
+              <span class="text-sm shrink-0" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ t('send.expiration.label') }}</span>
+              <span v-if="isExpired" class="text-sm font-medium text-red-500">{{ t('records.badge.expired') || t('retrieve.expired') }}</span>
+              <span v-else class="text-sm" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">{{ expirationText }}</span>
+            </div>
+            <ModalInfoRow
+              v-if="displayFileCount > 0"
+              :label="t('retrieve.fileCount')"
+              :value="displayFileCount"
+            />
+            <ModalInfoRow
+              v-if="remainingDownloadsText"
+              :label="t('fileManage.expireCount')"
+              :value="remainingDownloadsText"
+            />
+          </ModalCodeBlock>
+          <ModalQrCode
+            :value="qrValue"
+            :caption="isDelivery ? t('retrieve.scanToDeliver') : t('retrieve.scanToRetrieve')"
+          />
         </div>
+      </div>
 
-        <div class="p-4 sm:p-6">
-          <div
-            class="rounded-xl p-3 sm:p-4 mb-4 sm:mb-6"
-            :class="[isDarkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-95']"
-          >
-            <div class="flex items-center mb-3 sm:mb-4">
-              <div class="p-2 sm:p-3 rounded-lg" :class="[isDarkMode ? 'bg-gray-800' : 'bg-white']">
-                <FileIcon
-                  class="w-5 h-5 sm:w-6 sm:h-6"
-                  :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']"
-                />
-              </div>
-              <div class="ml-3 sm:ml-4 min-w-0 flex-1">
-                <h4
-                  class="font-medium text-sm sm:text-base truncate"
-                  :class="[isDarkMode ? 'text-white' : 'text-gray-900']"
-                >
-                  {{ record.filename }}
-                </h4>
-                <p
-                  class="text-xs sm:text-sm truncate"
-                  :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
-                >
-                  {{ record.size }} · {{ record.date }}
-                  <span v-if="record.isMultiFile && record.fileCount" class="ml-1 text-indigo-500">({{ record.fileCount }} {{ t('send.multiFileCount') }})</span>
-                </p>
-              </div>
+      <!-- 文件列表（多文件分享或投件记录） -->
+      <div v-if="displayFiles.length > 0" class="mt-3">
+        <p class="text-sm font-medium mb-2" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+          {{ isDelivery ? t('records.uploadedFiles') : t('retrieve.multiFile.title') }}
+          <span class="ml-1 text-xs">({{ displayFiles.length }})</span>
+        </p>
+        <div class="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+          <div v-for="(file, index) in displayFiles" :key="index" class="flex items-center px-3 py-2 rounded-lg transition-colors" :class="[isDarkMode ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50']">
+            <FileIcon class="w-4 h-4 mr-2 flex-shrink-0" :class="[isDelivery ? (isDarkMode ? 'text-amber-500' : 'text-amber-400') : (isDarkMode ? 'text-indigo-500' : 'text-indigo-400')]" />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm truncate" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">{{ file.name }}</p>
+              <p v-if="file.uploadTime" class="text-xs mt-0.5" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ formatUploadTime(file.uploadTime) }}</p>
             </div>
-            <div class="grid grid-cols-2 gap-3 sm:gap-4">
-              <div class="flex items-center min-w-0">
-                <ClockIcon
-                  class="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 flex-shrink-0"
-                  :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
-                />
-                <span
-                  class="text-xs sm:text-sm truncate"
-                  :class="[isDarkMode ? 'text-gray-300' : 'text-gray-600']"
-                >
-                  {{ record.expiration }}
-                </span>
-              </div>
-              <div class="flex items-center min-w-0">
-                <ShieldCheckIcon
-                  class="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 flex-shrink-0"
-                  :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
-                />
-                <span
-                  class="text-xs sm:text-sm truncate"
-                  :class="[isDarkMode ? 'text-gray-300' : 'text-gray-600']"
-                >
-                  安全加密
-                </span>
-              </div>
-            </div>
+            <span class="text-xs ml-2 flex-shrink-0" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ formatFileSize(file.size) }}</span>
           </div>
-
-          <!-- 多文件列表 -->
-          <div
-            v-if="record.files && record.files.length > 0"
-            class="mb-4 sm:mb-6"
-          >
-            <h4
-              class="text-xs font-medium mb-2"
-              :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
-            >
-              {{ t('send.fileList') }}
-            </h4>
-            <div
-              class="rounded-xl overflow-hidden border"
-              :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']"
-            >
-              <div
-                v-for="(file, index) in record.files"
-                :key="index"
-                class="flex items-center px-3 py-2"
-                :class="[
-                  index < record.files.length - 1 ? (isDarkMode ? 'border-b border-gray-700' : 'border-b border-gray-100') : '',
-                  isDarkMode ? 'bg-gray-800/40' : 'bg-gray-50/60'
-                ]"
-              >
-                <FileIcon
-                  class="w-3.5 h-3.5 mr-2 flex-shrink-0"
-                  :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-500']"
-                />
-                <span
-                  class="text-sm truncate flex-1 min-w-0"
-                  :class="[isDarkMode ? 'text-gray-200' : 'text-gray-800']"
-                >
-                  {{ file.name }}
-                </span>
-                <span
-                  class="text-xs ml-2 flex-shrink-0"
-                  :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']"
-                >
-                  {{ formatFileSize(file.size) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            <div class="space-y-3 sm:space-y-4">
-              <div class="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-4 sm:p-5 text-white">
-                <div class="flex items-center justify-between mb-3 sm:mb-4">
-                  <h4 class="font-medium text-sm sm:text-base">取件码</h4>
-                  <button
-                    @click="$emit('copy-code', record)"
-                    class="p-1.5 sm:p-2 rounded-full hover:bg-white/10 transition-colors"
-                  >
-                    <ClipboardCopyIcon class="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                </div>
-                <p class="text-2xl sm:text-3xl font-bold tracking-wider text-center break-all">
-                  {{ record.retrieveCode }}
-                </p>
-              </div>
-
-              <div
-                class="rounded-xl p-3 sm:p-4"
-                :class="[isDarkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-95']"
-              >
-                <div class="flex items-center justify-between mb-2 sm:mb-3">
-                  <h4
-                    class="font-medium text-sm sm:text-base flex items-center min-w-0"
-                    :class="[isDarkMode ? 'text-white' : 'text-gray-900']"
-                  >
-                    <TerminalIcon class="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-indigo-500 flex-shrink-0" />
-                    <span class="truncate">wget下载</span>
-                  </h4>
-                  <button
-                    @click="$emit('copy-wget', record)"
-                    class="p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
-                  >
-                    <ClipboardCopyIcon
-                      class="w-4 h-4 sm:w-5 sm:h-5"
-                      :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
-                    />
-                  </button>
-                </div>
-                <p
-                  class="text-xs sm:text-sm font-mono break-all line-clamp-2"
-                  :class="[isDarkMode ? 'text-gray-300' : 'text-gray-600']"
-                >
-                  点击复制wget命令
-                </p>
-              </div>
-            </div>
-
-            <div
-              class="rounded-xl p-4 sm:p-5 flex flex-col items-center"
-              :class="[isDarkMode ? 'bg-gray-800 bg-opacity-50' : 'bg-gray-50 bg-opacity-95']"
-            >
-              <div class="bg-white p-3 sm:p-4 rounded-lg shadow-sm mb-3 sm:mb-4">
-                <QRCode :value="qrValue" :size="140" level="M" class="sm:w-[160px] sm:h-[160px]" />
-              </div>
-              <p
-                class="text-xs sm:text-sm truncate max-w-full"
-                :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
-              >
-                扫描二维码快速取件
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="px-4 sm:px-6 py-3 sm:py-4 border-t"
-          :class="[isDarkMode ? 'border-gray-800' : 'border-gray-100']"
-        >
-          <button
-            @click="$emit('copy-link', record)"
-            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-medium transition-colors"
-          >
-            复制取件链接
-          </button>
         </div>
       </div>
     </div>
-  </transition>
+
+    <template #footer>
+      <button v-if="!isDelivery" @click="$emit('copy-link', record!)" class="flex-1 py-2.5 rounded-lg text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700"><LinkIcon class="w-4 h-4" />{{ t('fileRecord.copyLink') }}</button>
+      <button v-if="isDelivery" @click="$emit('continue-delivery', record!)" class="flex-1 py-2.5 rounded-lg text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700"><UploadIcon class="w-4 h-4" />{{ t('records.continueDelivery') }}</button>
+      <button @click="$emit('close')" class="flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors" :class="[isDarkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200']">{{ t('common.close') }}</button>
+    </template>
+  </RecordModalShell>
 </template>
 
 <script setup lang="ts">
-import { computed, inject } from 'vue'
-import {
-  ClipboardCopyIcon,
-  ClockIcon,
-  FileIcon,
-  ShieldCheckIcon,
-  TerminalIcon,
-  XIcon
-} from 'lucide-vue-next'
-import QRCode from 'qrcode.vue'
+import { computed, inject, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { FileIcon, LinkIcon, UploadIcon } from 'lucide-vue-next'
+import RecordModalShell from './RecordModalShell.vue'
+import ModalCodeBlock from './ModalCodeBlock.vue'
+import ModalInfoRow from './ModalInfoRow.vue'
+import ModalQrCode from './ModalQrCode.vue'
 import type { SentFileRecord } from '@/types'
+import { useRecordRefresh } from '@/composables/useRecordRefresh'
+import { formatFileSize } from '@/utils/common'
+import { buildDeliveryUploadUrl } from '@/utils/share-url'
 
 const props = defineProps<{
   record: SentFileRecord | null
@@ -236,31 +99,123 @@ defineEmits<{
   'copy-code': [record: SentFileRecord]
   'copy-link': [record: SentFileRecord]
   'copy-wget': [record: SentFileRecord]
+  'continue-delivery': [record: SentFileRecord]
 }>()
 
 const { t } = useI18n()
 const isDarkMode = inject('isDarkMode')
-const qrValue = computed(() => (props.record ? props.getQRCodeValue(props.record) : ''))
+const isDelivery = computed(() => props.record?.isDelivery === true)
+const titleIcon = computed(() => {
+  if (isDelivery.value) return UploadIcon
+  return FileIcon
+})
+// 投件记录：扫码快速投件（跳转到投件上传页）；其他记录：扫码取件
+const qrValue = computed(() => {
+  if (!props.record) return ''
+  if (isDelivery.value) {
+    return buildDeliveryUploadUrl(props.record.retrieveCode)
+  }
+  return props.getQRCodeValue(props.record)
+})
 
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+// 格式化文件上传时间
+const formatUploadTime = (raw: string): string => {
+  if (!raw) return ''
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return raw
+  const year = d.getFullYear()
+  const month = (d.getMonth() + 1).toString().padStart(2, '0')
+  const day = d.getDate().toString().padStart(2, '0')
+  const hours = d.getHours().toString().padStart(2, '0')
+  const minutes = d.getMinutes().toString().padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}`
 }
+
+// 实时拉取记录信息
+const { refreshInfo, loading: isLoading, refresh, reset } = useRecordRefresh()
+
+watch(
+  () => props.record,
+  (newRecord, oldRecord) => {
+    if (newRecord && newRecord.id !== oldRecord?.id) {
+      refresh(newRecord)
+    } else if (!newRecord) {
+      reset()
+    }
+  },
+  { immediate: true }
+)
+
+// 显示的文件大小
+const displaySize = computed(() => {
+  if (refreshInfo.value?.size != null) {
+    return formatFileSize(refreshInfo.value.size)
+  }
+  return props.record?.size || '-'
+})
+
+const isExpired = computed(() => {
+  if (refreshInfo.value) return refreshInfo.value.expired
+  return false
+})
+
+const expirationText = computed(() => {
+  const info = refreshInfo.value
+  if (!info) {
+    return props.record?.expiration || '-'
+  }
+  if (info.isPermanent) {
+    return t('retrieve.expireForever') || t('send.expiration.forever')
+  }
+  if (info.expiredAt) {
+    try {
+      const d = new Date(info.expiredAt)
+      const year = d.getFullYear()
+      const month = (d.getMonth() + 1).toString().padStart(2, '0')
+      const day = d.getDate().toString().padStart(2, '0')
+      const hours = d.getHours().toString().padStart(2, '0')
+      const minutes = d.getMinutes().toString().padStart(2, '0')
+      return t('send.messages.expiresAt', { date: `${year}-${month}-${day} ${hours}:${minutes}` })
+    } catch {
+      return info.expiredAt
+    }
+  }
+  if (info.expireStyle === 'count' || (info.expiredCount != null && info.expiredCount >= 0)) {
+    if (info.expiredCount != null && info.expiredCount >= 0) {
+      return t('retrieve.expireCount', { count: info.expiredCount })
+    }
+  }
+  return props.record?.expiration || '-'
+})
+
+const displayFileCount = computed(() => {
+  const info = refreshInfo.value
+  if (info && info.fileCount > 0) return info.fileCount
+  return props.record?.fileCount || 0
+})
+
+const displayFiles = computed(() => {
+  if (isDelivery.value) {
+    return props.record?.files || []
+  }
+  if (refreshInfo.value?.files && refreshInfo.value.files.length > 0) {
+    return refreshInfo.value.files
+  }
+  return props.record?.files || []
+})
+
+const remainingDownloadsText = computed(() => {
+  const info = refreshInfo.value
+  if (!info || info.codeType !== 'file') return ''
+  if (info.expiredCount == null || info.expiredCount < 0) {
+    return t('retrieve.expireForever') || t('fileManage.expireCountUnlimited')
+  }
+  return `${info.expiredCount} ${t('common.times')}`
+})
 </script>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition:
-    opacity 0.3s ease,
-    transform 0.3s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
+.custom-scrollbar { scrollbar-width: thin; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.2); border-radius: 2px; }
 </style>

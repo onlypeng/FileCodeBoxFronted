@@ -1,10 +1,9 @@
-import type { ApiResponse, SendType, SentFileRecord, SentRecordType } from '@/types'
+import type { ApiResponse, SentFileRecord, SentRecordType } from '@/types'
 
 type Translate = (key: string, params?: Record<string, string | number>) => string
 
 type BuildSentRecordInput = {
   response: ApiResponse
-  sendType: SendType
   textContent: string
   selectedFile: File | null
   selectedFiles: File[]
@@ -72,12 +71,14 @@ export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
   const detail = input.response.detail as { code?: string; name?: string; is_multi_file?: boolean } | undefined
   const retrieveCode = detail?.code || ''
   const fileName = detail?.name || ''
+  const hasFiles = input.selectedFiles.length > 0 || input.selectedFile !== null
   const isMultiFile = detail?.is_multi_file || input.selectedFiles.length > 1
-  const recordType: SentRecordType = input.sendType === 'text' ? 'text' : (isMultiFile ? 'multiFile' : 'file')
+  // 自动判断记录类型：无文件为文本，多文件为 multiFile，单文件为 file
+  const recordType: SentRecordType = !hasFiles ? 'text' : (isMultiFile ? 'multiFile' : 'file')
 
   const totalSelectedSize = input.selectedFiles.reduce((total, file) => total + file.size, 0)
   const displaySize =
-    input.sendType === 'text'
+    !hasFiles
       ? `${(input.textContent.length / 1024).toFixed(2)} KB`
       : input.selectedFiles.length > 0
         ? `${(totalSelectedSize / (1024 * 1024)).toFixed(1)} MB`
@@ -102,9 +103,9 @@ export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
     isMultiFile,
     fileCount: isMultiFile ? input.selectedFiles.length : undefined,
     files: isMultiFile
-      ? input.selectedFiles.map((f) => ({ name: f.name, size: f.size }))
+      ? input.selectedFiles.map((f) => ({ name: f.name, size: f.size, uploadTime: new Date().toISOString() }))
       : input.selectedFile
-        ? [{ name: input.selectedFile.name, size: input.selectedFile.size }]
+        ? [{ name: input.selectedFile.name, size: input.selectedFile.size, uploadTime: new Date().toISOString() }]
         : undefined,
   }
 }

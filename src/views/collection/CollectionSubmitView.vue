@@ -3,7 +3,7 @@
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
     <div
-      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md transition-colors duration-300"
+      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md md:max-w-2xl lg:max-w-3xl transition-colors duration-300"
       :class="[
         isDarkMode
           ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-xl border-gray-700'
@@ -19,11 +19,11 @@
             v-model="inputCode"
             :label="t('collection.submit.codeLabel')"
             :placeholder="t('collection.submit.codePlaceholder')"
-            :maxlength="6"
+            :maxlength="config.codeDigitCount || 8"
           />
           <button
             @click="lookupDelivery"
-            :disabled="inputCode.length !== 6 || isLooking"
+            :disabled="inputCode.length < 4 || isLooking"
             class="w-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {{ isLooking ? t('collection.submit.looking') : t('collection.submit.lookup') }}
@@ -153,7 +153,7 @@
         </div>
 
         <div class="mt-6 text-center">
-          <router-link to="/" class="text-indigo-400 hover:text-indigo-300 transition duration-300 text-sm">
+          <router-link to="/" class="text-sm font-medium transition-colors" :class="[isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700']">
             {{ t('collection.submit.backToHome') }}
           </router-link>
         </div>

@@ -114,8 +114,8 @@ export async function downloadFile(
 
 /** 需要从错误文本中过滤掉的无关内容（应用名、通用词汇等） */
 const NOISE_PATTERNS = [
-  /文件快递柜[\s\-]*FileCodeBox?/g,
-  /FileCodeBox[\s\-]*文件快递柜/g,
+  /文件快递柜[\s-]*FileCodeBox?/g,
+  /FileCodeBox[\s-]*文件快递柜/g,
   /口令传送箱/g,
   /匿名口令分享/g,
   /^[\s\r\n]{1,5}$/gm,  // 纯空白行

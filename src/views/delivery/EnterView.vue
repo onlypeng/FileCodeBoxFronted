@@ -3,7 +3,7 @@
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
     <div
-      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md transition-colors duration-300"
+      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md md:max-w-2xl lg:max-w-3xl transition-colors duration-300"
       :class="[
         isDarkMode
           ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-xl border-gray-700'
@@ -22,12 +22,12 @@
             v-model="deliveryCode"
             :label="t('delivery.enter.codeLabel')"
             :placeholder="t('delivery.enter.codePlaceholder')"
-            :maxlength="6"
+            :maxlength="config.codeDigitCount || 8"
           />
 
           <button
             @click="handleLookup"
-            :disabled="deliveryCode.length !== 6 || isLoading"
+            :disabled="deliveryCode.length < 4 || isLoading"
             class="w-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             <span class="flex items-center justify-center text-lg">
@@ -74,7 +74,7 @@
         </div>
 
         <div class="mt-6 text-center">
-          <router-link to="/" class="text-indigo-400 hover:text-indigo-300 transition duration-300 text-sm">
+          <router-link to="/" class="text-sm font-medium transition-colors" :class="[isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700']">
             {{ t('delivery.enter.backToHome') }}
           </router-link>
         </div>
@@ -84,12 +84,13 @@
 </template>
 
 <script setup lang="ts">
-import { inject, ref, onMounted } from 'vue'
+import { inject, ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/common/PageHeader.vue'
 import FormInput from '@/components/common/FormInput.vue'
 import { useAlertStore } from '@/stores/alertStore'
+import { useConfigStore } from '@/stores/configStore'
 import { DeliveryService } from '@/services/delivery'
 import { SendHorizonalIcon, XIcon } from 'lucide-vue-next'
 import { STORAGE_KEYS } from '@/constants'
@@ -104,6 +105,8 @@ const isDarkMode = inject('isDarkMode')
 const { t } = useI18n()
 const router = useRouter()
 const alertStore = useAlertStore()
+const configStore = useConfigStore()
+const config = computed(() => configStore.config)
 
 const deliveryCode = ref('')
 const isLoading = ref(false)

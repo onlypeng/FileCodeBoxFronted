@@ -26,11 +26,12 @@
             </div>
             <p class="text-xs mt-0.5" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
               {{ record.date }}<span class="mx-1">·</span>{{ record.size }}
-              <template v-if="record.type === 'multiFile' && record.fileCount"><span class="mx-1">·</span>{{ record.fileCount }} {{ t('records.multiFile') }}</template>
+              <template v-if="record.isMultiFile && record.fileCount"><span class="mx-1">·</span>{{ record.fileCount }} {{ t('records.multiFile') }}</template>
             </p>
           </div>
           <div class="flex-shrink-0 flex items-center gap-1">
             <button
+              v-if="!record.isDelivery"
               @click="$emit('copy-link', record)"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600']"
@@ -71,11 +72,8 @@ import {
   ClipboardCopyIcon,
   EyeIcon,
   FileIcon,
-  FileTextIcon,
-  InboxIcon,
   TrashIcon,
-  UploadIcon,
-  FilesIcon
+  UploadIcon
 } from 'lucide-vue-next'
 import type { SentFileRecord } from '@/types'
 
@@ -94,33 +92,21 @@ const _isDark = () => Boolean(unref(isDarkMode))
 const { t } = useI18n()
 
 function recordIcon(record: SentFileRecord) {
-  const type = record.type || 'file'
-  switch (type) {
-    case 'text':
-      return { icon: FileTextIcon, color: _isDark() ? 'text-teal-400' : 'text-teal-500' }
-    case 'multiFile':
-      if (record.isDelivery) {
-        return { icon: UploadIcon, color: _isDark() ? 'text-amber-400' : 'text-amber-500' }
-      }
-      return { icon: FilesIcon, color: _isDark() ? 'text-violet-400' : 'text-violet-500' }
-    default:
-      return { icon: FileIcon, color: _isDark() ? 'text-sky-400' : 'text-sky-500' }
+  // 投件记录单独显示
+  if (record.isDelivery) {
+    return { icon: UploadIcon, color: _isDark() ? 'text-amber-400' : 'text-amber-500' }
   }
+  // 文件、文本、多文件统一为"文件"类型
+  return { icon: FileIcon, color: _isDark() ? 'text-sky-400' : 'text-sky-500' }
 }
 
 function recordBadge(record: SentFileRecord) {
-  const type = record.type || 'file'
-  switch (type) {
-    case 'text':
-      return { text: t('records.badge.text'), class: _isDark() ? 'bg-teal-900/40 text-teal-200' : 'bg-teal-100 text-gray-900' }
-    case 'multiFile':
-      if (record.isDelivery) {
-        return { text: t('records.badge.delivery'), class: _isDark() ? 'bg-amber-900/40 text-amber-200' : 'bg-amber-100 text-gray-900' }
-      }
-      return { text: t('records.badge.multiFile'), class: _isDark() ? 'bg-violet-900/40 text-violet-200' : 'bg-violet-100 text-gray-900' }
-    default:
-      return { text: t('records.badge.file'), class: _isDark() ? 'bg-sky-900/40 text-sky-200' : 'bg-sky-100 text-gray-900' }
+  // 投件记录单独显示
+  if (record.isDelivery) {
+    return { text: t('records.badge.delivery'), class: _isDark() ? 'bg-amber-900/40 text-amber-200' : 'bg-amber-100 text-gray-900' }
   }
+  // 文件、文本、多文件统一显示为"文件"
+  return { text: t('records.badge.file'), class: _isDark() ? 'bg-sky-900/40 text-sky-200' : 'bg-sky-100 text-gray-900' }
 }
 
 function recordDisplayName(record: SentFileRecord): string {

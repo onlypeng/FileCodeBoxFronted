@@ -2,7 +2,7 @@
   <div
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
-    <div class="w-full max-w-md relative z-10">
+    <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl relative z-10">
       <div
         class="rounded-3xl shadow-2xl overflow-hidden border transform transition-all duration-300"
         :class="[
@@ -16,6 +16,7 @@
 
           <!-- 输入表单（有结果时隐藏） -->
           <template v-if="!showResult">
+            <div class="md:max-w-md md:mx-auto">
             <RetrieveForm
               v-model="code"
               :input-status="inputStatus"
@@ -61,6 +62,7 @@
                 <InboxIcon class="w-4 h-4" />
                 <span class="text-sm font-medium">{{ $t('collection.manage.quickEntry') }}</span>
               </router-link>
+            </div>
             </div>
           </template>
 
@@ -119,19 +121,14 @@
 
           <!-- ========== 收件箱文件结果展示 ========== -->
           <div v-if="showResult && isCollection" class="space-y-4">
-            <!-- 收件箱信息 + 二维码 -->
-            <div class="flex items-center gap-4 p-4 rounded-xl" :class="[isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50']">
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate" :class="[isDarkMode ? 'text-white' : 'text-gray-900']">
-                  {{ collectionTitle || $t('retrieve.collectionFiles.title') }}
-                </p>
-                <p class="text-xs mt-1" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">
-                  {{ collectionFiles.length }} {{ $t('retrieve.multiFile.fileCount') }}
-                </p>
-              </div>
-              <div class="bg-white p-2 rounded-lg shadow-sm">
-                <QRCode :value="collectionQrValue" :size="80" level="M" />
-              </div>
+            <!-- 收件箱信息 -->
+            <div class="p-4 rounded-xl" :class="[isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50']">
+              <p class="text-sm font-medium truncate" :class="[isDarkMode ? 'text-white' : 'text-gray-900']">
+                {{ collectionTitle || $t('retrieve.collectionFiles.title') }}
+              </p>
+              <p class="text-xs mt-1" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">
+                {{ collectionFiles.length }} {{ $t('retrieve.multiFile.fileCount') }}
+              </p>
             </div>
 
             <!-- 文件列表 -->
@@ -271,7 +268,6 @@ const {
   downloadMultiFileZip,
   downloadCollectionFile,
   downloadCollectionZip,
-  goToDeliveryUpload,
   formatFileSize
 } = useRetrieveFlow()
 
@@ -290,11 +286,6 @@ const multiFileQrValue = computed(() => {
   return `${baseUrl}/?code=${multiFileCode.value}`
 })
 
-const collectionQrValue = computed(() => {
-  if (!collectionCode.value) return ''
-  return `${baseUrl}/?code=${collectionCode.value}`
-})
-
 const closeResult = () => {
   selectedRecord.value = null
   isMultiFile.value = false
@@ -305,10 +296,6 @@ const closeResult = () => {
   collectionCode.value = ''
   collectionTitle.value = ''
   collectionDeliveryCode.value = ''
-}
-
-const toSend = () => {
-  router.push('/send')
 }
 
 onMounted(() => {
@@ -325,10 +312,11 @@ watch(code, (newCode) => {
     clearTimeout(autoSubmitTimer)
     autoSubmitTimer = null
   }
-  if (newCode.length >= 6) {
+  const codeLen = config.value?.codeDigitCount || 8
+  if (newCode.length >= codeLen) {
     autoSubmitTimer = setTimeout(() => {
       void handleSubmit()
-    }, 600) // 6位码输入完毕快速自动提交
+    }, 600) // 码输入完毕快速自动提交
   }
 })
 

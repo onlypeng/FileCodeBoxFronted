@@ -22,91 +22,262 @@
       </button>
     </div>
 
-    <!-- 核心指标：2 行 3 列 -->
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-      <StatCard
-        :title="t('admin.dashboard.totalFiles')"
-        :value="dashboardData.totalFiles"
-        :icon="FilesIcon"
-        icon-color="indigo"
-      >
-        <template #description>
-          {{ t('admin.dashboard.todayShares', { count: dashboardData.todayCount }) }}
-        </template>
-      </StatCard>
+    <!-- 文件 + 收件箱并排布局（对称结构：3 统计卡 + 3 小指标盒） -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 items-start">
+      <!-- 文件概览区块 -->
+      <section>
+        <!-- 区块标题 -->
+        <div class="mb-3 flex items-center gap-2.5 pb-2 border-b" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
+          <div class="flex items-center justify-center w-8 h-8 rounded-lg" :class="[isDarkMode ? 'bg-indigo-900/30 text-indigo-400' : 'bg-indigo-50 text-indigo-600']">
+            <FilesIcon class="w-4 h-4" />
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold" :class="[primaryTextClass]">
+              {{ t('admin.dashboard.filesSection') }}
+            </h3>
+            <p class="text-xs" :class="[mutedTextClass]">
+              {{ t('admin.dashboard.filesSectionDesc') }}
+            </p>
+          </div>
+        </div>
 
-      <StatCard
-        :title="t('admin.dashboard.storageSpace')"
-        :value="dashboardData.storageUsedText"
-        :icon="HardDriveIcon"
-        icon-color="purple"
-      >
-        <template #description>
-          {{ t('admin.dashboard.todayIncrease', { count: dashboardData.todaySizeText }) }}
-        </template>
-      </StatCard>
+        <!-- 文件统计卡片：3 列紧凑 -->
+        <div class="grid grid-cols-3 gap-3">
+          <StatCard
+            :title="t('admin.dashboard.totalFiles')"
+            :value="dashboardData.totalFiles"
+            :icon="FilesIcon"
+            icon-color="indigo"
+          >
+            <template #description>
+              {{ t('admin.dashboard.todayShares', { count: dashboardData.todayCount }) }}
+            </template>
+          </StatCard>
 
-      <StatCard
-        :title="t('admin.dashboard.totalRetrievals')"
-        :value="dashboardData.usedCount"
-        :icon="DownloadCloudIcon"
-        icon-color="blue"
-      >
-        <template #description>
-          {{ t('admin.dashboard.serverUptime') }} {{ dashboardData.sysUptimeText }}
-        </template>
-      </StatCard>
+          <StatCard
+            :title="t('admin.dashboard.storageSpace')"
+            :value="dashboardData.storageUsedText"
+            :icon="HardDriveIcon"
+            icon-color="purple"
+          >
+            <template #description>
+              {{ t('admin.dashboard.todayIncrease', { count: dashboardData.todaySizeText }) }}
+            </template>
+          </StatCard>
 
-      <StatCard
-        :title="t('admin.dashboard.totalCollections')"
-        :value="dashboardData.totalCollections || 0"
-        :icon="InboxIcon"
-        icon-color="pink"
-      >
-        <template #description>
-          {{ t('admin.dashboard.activeCollections', { count: dashboardData.activeCollections || 0 }) }}
-        </template>
-      </StatCard>
+          <StatCard
+            :title="t('admin.dashboard.totalRetrievals')"
+            :value="dashboardData.usedCount"
+            :icon="DownloadCloudIcon"
+            icon-color="blue"
+          >
+            <template #description>
+              {{ t('admin.dashboard.serverUptime') }} {{ dashboardData.sysUptimeText }}
+            </template>
+          </StatCard>
+        </div>
 
-      <StatCard
-        :title="t('admin.dashboard.totalDeliveries')"
-        :value="dashboardData.totalDeliveries || 0"
-        :icon="UploadCloudIcon"
-        icon-color="orange"
-      >
-        <template #description>
-          {{ t('admin.dashboard.todayDeliveriesCount', { count: dashboardData.todayDeliveries || 0 }) }}
-        </template>
-      </StatCard>
+        <!-- 文件活跃度概览（与收件箱对称：3 小指标盒） -->
+        <div v-if="dashboardData.hasExtendedStats" class="mt-3 grid grid-cols-3 gap-3">
+          <div class="rounded-lg border p-3" :class="[subtlePanelClass]">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs" :class="[mutedTextClass]">{{ t('admin.dashboard.activeFileRatio') }}</p>
+              <CheckCircleIcon class="w-3.5 h-3.5" :class="[isDarkMode ? 'text-green-400' : 'text-green-500']" />
+            </div>
+            <strong class="text-xl" :class="[primaryTextClass]">
+              {{ dashboardData.activeCount }}
+            </strong>
+            <p class="text-xs mt-0.5" :class="[mutedTextClass]">
+              {{ t('admin.dashboard.activeRatioDesc', { ratio: dashboardData.activeRatio }) }}
+            </p>
+          </div>
 
-      <StatCard
-        :title="t('admin.dashboard.todayDeliverySize')"
-        :value="formatFileSize(Number(dashboardData.todayDeliveriesSize || 0))"
-        :icon="HardDriveIcon"
-        icon-color="teal"
-      >
-        <template #description>
-          {{ t('admin.dashboard.yesterdayDeliveriesCount', { count: dashboardData.yesterdayDeliveries || 0 }) }}
-        </template>
-      </StatCard>
+          <div class="rounded-lg border p-3" :class="[subtlePanelClass]">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs" :class="[mutedTextClass]">{{ t('admin.dashboard.expiredFiles') }}</p>
+              <ActivityIcon class="w-3.5 h-3.5" :class="[isDarkMode ? 'text-orange-400' : 'text-orange-500']" />
+            </div>
+            <strong class="text-xl" :class="[primaryTextClass]">
+              {{ dashboardData.expiredCount }}
+            </strong>
+            <p class="text-xs mt-0.5" :class="[mutedTextClass]">
+              {{ t('admin.dashboard.needCleanup') }}
+            </p>
+          </div>
+
+          <div class="rounded-lg border p-3" :class="[subtlePanelClass]">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs" :class="[mutedTextClass]">{{ t('admin.dashboard.chunkedFiles') }}</p>
+              <LayersIcon class="w-3.5 h-3.5" :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-500']" />
+            </div>
+            <strong class="text-xl" :class="[primaryTextClass]">
+              {{ dashboardData.chunkedCount }}
+            </strong>
+            <p class="text-xs mt-0.5" :class="[mutedTextClass]">
+              {{ dashboardData.enableChunk ? t('common.enabled') : t('common.disabled') }}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 收件箱概览区块 -->
+      <section>
+        <!-- 区块标题 -->
+        <div class="mb-3 flex items-center gap-2.5 pb-2 border-b" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
+          <div class="flex items-center justify-center w-8 h-8 rounded-lg" :class="[isDarkMode ? 'bg-pink-900/30 text-pink-400' : 'bg-pink-50 text-pink-600']">
+            <InboxIcon class="w-4 h-4" />
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold" :class="[primaryTextClass]">
+              {{ t('admin.dashboard.collectionsSection') }}
+            </h3>
+            <p class="text-xs" :class="[mutedTextClass]">
+              {{ t('admin.dashboard.collectionsSectionDesc') }}
+            </p>
+          </div>
+        </div>
+
+        <!-- 收件箱统计卡片：3 列紧凑 -->
+        <div class="grid grid-cols-3 gap-3">
+          <StatCard
+            :title="t('admin.dashboard.totalCollections')"
+            :value="dashboardData.totalCollections || 0"
+            :icon="InboxIcon"
+            icon-color="pink"
+          >
+            <template #description>
+              {{ t('admin.dashboard.activeCollections', { count: dashboardData.activeCollections || 0 }) }}
+            </template>
+          </StatCard>
+
+          <StatCard
+            :title="t('admin.dashboard.totalDeliveries')"
+            :value="dashboardData.totalDeliveries || 0"
+            :icon="UploadCloudIcon"
+            icon-color="orange"
+          >
+            <template #description>
+              {{ t('admin.dashboard.todayDeliveriesCount', { count: dashboardData.todayDeliveries || 0 }) }}
+            </template>
+          </StatCard>
+
+          <StatCard
+            :title="t('admin.dashboard.todayDeliverySize')"
+            :value="formatFileSize(Number(dashboardData.todayDeliveriesSize || 0))"
+            :icon="HardDriveIcon"
+            icon-color="teal"
+          >
+            <template #description>
+              {{ t('admin.dashboard.yesterdayDeliveriesCount', { count: dashboardData.yesterdayDeliveries || 0 }) }}
+            </template>
+          </StatCard>
+        </div>
+
+        <!-- 收件箱活跃度概览（3 小指标盒，与文件对称） -->
+        <div class="mt-3 grid grid-cols-3 gap-3">
+          <div class="rounded-lg border p-3" :class="[subtlePanelClass]">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs" :class="[mutedTextClass]">{{ t('admin.unifiedManage.active') }}</p>
+              <CheckCircleIcon class="w-3.5 h-3.5" :class="[isDarkMode ? 'text-green-400' : 'text-green-500']" />
+            </div>
+            <strong class="text-xl" :class="[primaryTextClass]">
+              {{ dashboardData.activeCollections || 0 }}
+            </strong>
+            <p class="text-xs mt-0.5" :class="[mutedTextClass]">
+              {{ t('admin.dashboard.activeCollectionsDesc') }}
+            </p>
+          </div>
+
+          <div class="rounded-lg border p-3" :class="[subtlePanelClass]">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs" :class="[mutedTextClass]">{{ t('admin.dashboard.todayDeliveriesCount', { count: '' }).replace('{count}', '').trim() || t('admin.dashboard.totalDeliveries') }}</p>
+              <UploadCloudIcon class="w-3.5 h-3.5" :class="[isDarkMode ? 'text-orange-400' : 'text-orange-500']" />
+            </div>
+            <strong class="text-xl" :class="[primaryTextClass]">
+              {{ dashboardData.todayDeliveries || 0 }}
+            </strong>
+            <p class="text-xs mt-0.5" :class="[mutedTextClass]">
+              {{ t('admin.dashboard.yesterdayDeliveriesCount', { count: dashboardData.yesterdayDeliveries || 0 }) }}
+            </p>
+          </div>
+
+          <div class="rounded-lg border p-3" :class="[subtlePanelClass]">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs" :class="[mutedTextClass]">{{ t('admin.dashboard.todayDeliverySize') }}</p>
+              <HardDriveIcon class="w-3.5 h-3.5" :class="[isDarkMode ? 'text-teal-400' : 'text-teal-500']" />
+            </div>
+            <strong class="text-xl" :class="[primaryTextClass]">
+              {{ formatFileSize(Number(dashboardData.todayDeliveriesSize || 0)) }}
+            </strong>
+            <p class="text-xs mt-0.5" :class="[mutedTextClass]">
+              {{ t('admin.dashboard.yesterdayDeliverySize') }}: {{ formatFileSize(Number(dashboardData.yesterdayDeliveriesSize || 0)) }}
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- 扩展统计 -->
-    <div v-if="dashboardData.hasExtendedStats" class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-      <section class="xl:col-span-2 rounded-lg p-5 shadow-sm" :class="[panelClass]">
-        <div class="mb-5 flex items-center justify-between">
+    <!-- 通用概览：存储策略 + 文件健康指标（移到下方全宽） -->
+    <div v-if="dashboardData.hasExtendedStats" class="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <!-- 存储策略（左侧 1 列） -->
+      <section class="rounded-lg p-5 shadow-sm" :class="[panelClass]">
+        <div class="mb-3">
+          <h3 class="text-sm font-semibold" :class="[primaryTextClass]">
+            {{ t('admin.dashboard.storagePolicy') }}
+          </h3>
+          <p class="text-xs" :class="[mutedTextClass]">
+            {{ t('admin.dashboard.storagePolicyDesc') }}
+          </p>
+        </div>
+
+        <div class="space-y-2.5">
+          <PolicyRow
+            :label="t('admin.dashboard.storageBackend')"
+            :value="dashboardData.storageBackend"
+          />
+          <PolicyRow
+            :label="t('admin.dashboard.singleFileLimit')"
+            :value="dashboardData.uploadSizeLimitText"
+          />
+          <PolicyRow
+            :label="t('admin.dashboard.guestUpload')"
+            :value="dashboardData.openUpload ? t('common.enabled') : t('common.disabled')"
+          />
+          <PolicyRow
+            :label="t('admin.dashboard.maxSaveTime')"
+            :value="maxSaveTimeText"
+          />
+        </div>
+
+        <div class="mt-3">
+          <div class="mb-1.5 flex items-center justify-between text-xs">
+            <span :class="[mutedTextClass]">{{ t('admin.dashboard.todayCapacityReference') }}</span>
+            <span :class="[primaryTextClass]">{{ dashboardData.todaySizeRatio }}%</span>
+          </div>
+          <div class="h-1.5 overflow-hidden rounded-full" :class="[isDarkMode ? 'bg-gray-700' : 'bg-gray-100']">
+            <div
+              class="h-full rounded-full bg-indigo-500"
+              :style="{ width: `${dashboardData.todaySizeRatio}%` }"
+            ></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 文件健康指标（中间 1 列） -->
+      <section class="rounded-lg p-5 shadow-sm" :class="[panelClass]">
+        <div class="mb-3 flex items-center justify-between">
           <div>
-            <h3 class="text-lg font-semibold" :class="[primaryTextClass]">
+            <h3 class="text-sm font-semibold" :class="[primaryTextClass]">
               {{ t('admin.dashboard.fileHealth') }}
             </h3>
-            <p class="text-sm" :class="[mutedTextClass]">
+            <p class="text-xs" :class="[mutedTextClass]">
               {{ t('admin.dashboard.fileHealthDesc') }}
             </p>
           </div>
-          <ActivityIcon class="h-5 w-5" :class="[isDarkMode ? 'text-indigo-300' : 'text-indigo-500']" />
+          <ActivityIcon class="h-4 w-4" :class="[isDarkMode ? 'text-indigo-300' : 'text-indigo-500']" />
         </div>
 
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div class="space-y-3">
           <MetricProgress
             :label="t('admin.dashboard.activeFileRatio')"
             :value="dashboardData.activeRatio"
@@ -126,89 +297,14 @@
             tone="purple"
           />
         </div>
-
-        <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div class="rounded-lg border p-4" :class="[subtlePanelClass]">
-            <p class="text-sm" :class="[mutedTextClass]">
-              {{ t('admin.dashboard.expiredFiles') }}
-            </p>
-            <div class="mt-2 flex items-end justify-between">
-              <strong class="text-3xl" :class="[primaryTextClass]">
-                {{ dashboardData.expiredCount }}
-              </strong>
-              <span class="text-sm" :class="[mutedTextClass]">
-                {{ t('admin.dashboard.needCleanup') }}
-              </span>
-            </div>
-          </div>
-
-          <div class="rounded-lg border p-4" :class="[subtlePanelClass]">
-            <p class="text-sm" :class="[mutedTextClass]">
-              {{ t('admin.dashboard.chunkedFiles') }}
-            </p>
-            <div class="mt-2 flex items-end justify-between">
-              <strong class="text-3xl" :class="[primaryTextClass]">
-                {{ dashboardData.chunkedCount }}
-              </strong>
-              <span class="text-sm" :class="[mutedTextClass]">
-                {{ dashboardData.enableChunk ? t('common.enabled') : t('common.disabled') }}
-              </span>
-            </div>
-          </div>
-        </div>
       </section>
 
+      <!-- 文件类型分布（右侧 1 列） -->
       <section class="rounded-lg p-5 shadow-sm" :class="[panelClass]">
-        <div class="mb-5">
-          <h3 class="text-lg font-semibold" :class="[primaryTextClass]">
-            {{ t('admin.dashboard.storagePolicy') }}
-          </h3>
-          <p class="text-sm" :class="[mutedTextClass]">
-            {{ t('admin.dashboard.storagePolicyDesc') }}
-          </p>
-        </div>
-
-        <div class="space-y-4">
-          <PolicyRow
-            :label="t('admin.dashboard.storageBackend')"
-            :value="dashboardData.storageBackend"
-          />
-          <PolicyRow
-            :label="t('admin.dashboard.singleFileLimit')"
-            :value="dashboardData.uploadSizeLimitText"
-          />
-          <PolicyRow
-            :label="t('admin.dashboard.guestUpload')"
-            :value="dashboardData.openUpload ? t('common.enabled') : t('common.disabled')"
-          />
-          <PolicyRow
-            :label="t('admin.dashboard.maxSaveTime')"
-            :value="maxSaveTimeText"
-          />
-        </div>
-
-        <div class="mt-5">
-          <div class="mb-2 flex items-center justify-between text-sm">
-            <span :class="[mutedTextClass]">{{ t('admin.dashboard.todayCapacityReference') }}</span>
-            <span :class="[primaryTextClass]">{{ dashboardData.todaySizeRatio }}%</span>
-          </div>
-          <div class="h-2 overflow-hidden rounded-full" :class="[isDarkMode ? 'bg-gray-700' : 'bg-gray-100']">
-            <div
-              class="h-full rounded-full bg-indigo-500"
-              :style="{ width: `${dashboardData.todaySizeRatio}%` }"
-            ></div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <!-- 文件类型分布 + 最近文件 -->
-    <div v-if="dashboardData.hasExtendedStats" class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-      <section class="rounded-lg p-5 shadow-sm" :class="[panelClass]">
-        <h3 class="text-lg font-semibold" :class="[primaryTextClass]">
+        <h3 class="text-sm font-semibold" :class="[primaryTextClass]">
           {{ t('admin.dashboard.fileTypeDistribution') }}
         </h3>
-        <div class="mt-4 space-y-3">
+        <div class="mt-3 space-y-3">
           <div v-if="dashboardData.topSuffixes.length === 0" class="text-sm" :class="[mutedTextClass]">
             {{ t('common.noData') }}
           </div>
@@ -226,8 +322,11 @@
           </div>
         </div>
       </section>
+    </div>
 
-      <section class="xl:col-span-2 rounded-lg p-5 shadow-sm" :class="[panelClass]">
+    <!-- 最近文件表格（全宽） -->
+    <div v-if="dashboardData.hasExtendedStats" class="mb-6">
+      <section class="rounded-lg p-5 shadow-sm" :class="[panelClass]">
         <div class="mb-4 flex items-center justify-between">
           <div>
             <h3 class="text-lg font-semibold" :class="[primaryTextClass]">
@@ -316,12 +415,14 @@ import { computed, defineComponent, h, onMounted } from 'vue'
 import type { PropType } from 'vue'
 import {
   ActivityIcon,
+  CheckCircleIcon,
   DownloadCloudIcon,
   FileIcon,
   FilesIcon,
   FileTextIcon,
   HardDriveIcon,
   InboxIcon,
+  LayersIcon,
   RefreshCwIcon,
   UploadCloudIcon
 } from 'lucide-vue-next'

@@ -80,6 +80,7 @@ export function useCollectionWebSocket(options: UseCollectionWebSocketOptions = 
             file_name: msg.filename || '',
             file_size: msg.file_size || 0,
             uploader_name: msg.uploader || '',
+            status: 'completed' as const,
             created_at: new Date().toISOString(),
           })
           // 移除对应的上传进度（优先用 file_id）

@@ -124,19 +124,35 @@
 
             <!-- 底部 -->
             <div class="px-6 py-4 border-t space-y-2" :class="[isDarkMode ? 'border-gray-700 bg-gray-900/30' : 'border-gray-200 bg-gray-50']">
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  @click="copyCollectionLink"
+                  class="py-2 rounded-lg text-xs font-medium transition-colors"
+                  :class="[isDarkMode ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-indigo-500 text-white hover:bg-indigo-600']"
+                >
+                  {{ t('collection.create.copyManageLink') }}
+                </button>
+                <button
+                  @click="copyRetrieveLinkAction"
+                  class="py-2 rounded-lg text-xs font-medium transition-colors"
+                  :class="[isDarkMode ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-emerald-500 text-white hover:bg-emerald-600']"
+                >
+                  {{ t('collection.create.copyRetrieveLink') }}
+                </button>
+                <button
+                  @click="copyDeliveryLink"
+                  class="py-2 rounded-lg text-xs font-medium transition-colors"
+                  :class="[isDarkMode ? 'bg-amber-600 text-white hover:bg-amber-500' : 'bg-amber-500 text-white hover:bg-amber-600']"
+                >
+                  {{ t('collection.create.copyDeliveryLink') }}
+                </button>
+              </div>
               <button
                 @click="goToManage"
                 class="w-full py-2.5 rounded-lg text-sm font-medium transition-colors"
-                :class="[isDarkMode ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-indigo-500 text-white hover:bg-indigo-600']"
+                :class="[isDarkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']"
               >
                 {{ t('collection.create.manage') }}
-              </button>
-              <button
-                @click="copyRetrieveLink"
-                class="w-full py-2 rounded-lg text-sm font-medium transition-colors border"
-                :class="[isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-300 text-gray-600 hover:bg-gray-100']"
-              >
-                {{ t('collection.create.copyRetrieveLink') }}
               </button>
             </div>
           </div>
@@ -152,7 +168,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import QRCode from 'qrcode.vue'
 import { XIcon } from 'lucide-vue-next'
-import { copyToClipboard } from '@/utils/clipboard'
+import { copyToClipboard, copyCollectionManageLink, copyCollectionRetrieveLink, copyDeliveryUploadLink } from '@/utils/clipboard'
 import { useAlertStore } from '@/stores/alertStore'
 import type { CreateCollectionResponse } from '@/types/collection'
 
@@ -215,12 +231,23 @@ const copyDeliveryCode = async () => {
   })
 }
 
-const copyRetrieveLink = async () => {
+const copyRetrieveLinkAction = async () => {
   if (!props.result) return
-  const link = `${baseUrl}/collection/retrieve/${props.result.retrieve_code}`
-  await copyToClipboard(link, {
-    successMsg: t('collection.create.linkCopied'),
-    errorMsg: t('collection.create.copyFailed'),
+  await copyCollectionRetrieveLink(props.result.retrieve_code, {
+    notify: (message, type) => alertStore.showAlert(message, type),
+  })
+}
+
+const copyCollectionLink = async () => {
+  if (!props.result) return
+  await copyCollectionManageLink(props.result.collection_code, {
+    notify: (message, type) => alertStore.showAlert(message, type),
+  })
+}
+
+const copyDeliveryLink = async () => {
+  if (!props.result) return
+  await copyDeliveryUploadLink(props.result.delivery_code, {
     notify: (message, type) => alertStore.showAlert(message, type),
   })
 }

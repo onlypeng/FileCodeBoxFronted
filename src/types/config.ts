@@ -55,4 +55,5 @@ export interface ConfigState {
   maxCollectionFiles: number
   maxSendFiles: number
   maxMultiFileCount: number
+  codeDigitCount: number
 }

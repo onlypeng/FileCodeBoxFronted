@@ -2,7 +2,7 @@
   <div
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
-    <div class="w-full max-w-md relative z-10">
+    <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl relative z-10">
       <div
         class="rounded-3xl shadow-2xl overflow-hidden border transform transition-all duration-300"
         :class="[
@@ -36,30 +36,30 @@
             </button>
           </div>
 
-          <!-- ========== 取件 Tab ========== -->
-          <template v-if="activeTab === 'retrieve'">
-            <RetrieveForm
-              v-model="retrieveCode"
-              :input-status="retrieveInputStatus"
-              :error="!!retrieveError"
-              :label="t('home.codeInput.label')"
-              :placeholder="t('home.codeInput.placeholder')"
-              :button-text="t('home.codeInput.submit')"
-              @submit="handleRetrieveSubmit"
-              ref="retrieveFormRef"
-            />
-          </template>
+          <!-- ========== 取件 / 发送 Tab 内容（统一容器，最小高度防止切换抖动） ========== -->
+          <div class="min-h-[420px] flex flex-col">
+            <!-- ========== 取件 Tab ========== -->
+            <template v-if="activeTab === 'retrieve'">
+              <div class="flex-1 flex flex-col justify-center">
+                <div class="md:max-w-md md:mx-auto md:w-full">
+                  <RetrieveForm
+                    v-model="retrieveCode"
+                    :input-status="retrieveInputStatus"
+                    :error="!!retrieveError"
+                    :label="t('home.codeInput.label')"
+                    :placeholder="t('home.codeInput.placeholder')"
+                    :button-text="t('home.codeInput.submit')"
+                    @submit="handleRetrieveSubmit"
+                    ref="retrieveFormRef"
+                  />
+                </div>
+              </div>
+            </template>
 
-          <!-- ========== 发送 Tab ========== -->
-          <template v-if="activeTab === 'send'">
-            <form @submit.prevent="handleSendSubmit" class="space-y-8">
-              <SendTypeSelector
-                :selected-type="sendType"
-                @update:selected-type="sendType = $event"
-              />
-
-              <transition name="fade" mode="out-in">
-                <div v-if="sendType === 'file'" key="file" class="grid grid-cols-1 gap-8">
+            <!-- ========== 发送 Tab ========== -->
+            <template v-if="activeTab === 'send'">
+              <form @submit.prevent="handleSendSubmit" class="space-y-5 flex-1 flex flex-col md:grid md:grid-cols-12 md:gap-5 md:space-y-0">
+                <div class="md:col-span-7 md:flex md:flex-col md:space-y-5">
                   <FileUploadArea
                     :selected-file="selectedFile"
                     :selected-files="selectedFiles"
@@ -72,42 +72,43 @@
                     @file-remove="removeFile"
                   />
                 </div>
-                <div v-else key="text" class="grid grid-cols-1 gap-8">
-                  <TextInputArea v-model="textContent" :placeholder="t('send.uploadArea.textInput')" />
-                </div>
-              </transition>
 
-              <ExpirationSelector
-                v-model:expiration-method="expirationMethod"
-                v-model:expiration-value="expirationValue"
-                :options="expirationOptions"
-              />
+                <div class="space-y-5 md:col-span-5 md:flex md:flex-col md:space-y-5">
+                  <TextInputArea v-model="textContent" placeholder="添加文本备注（可选，无文件时作为纯文本发送）" />
 
-              <button
-                type="submit"
-                :disabled="isSubmitting"
-                class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:scale-100"
-              >
-                <span
-                  class="absolute top-0 left-0 w-full h-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
-                ></span>
-                <span class="relative z-10 flex items-center justify-center text-lg">
-                  <svg
-                    v-if="isSubmitting"
-                    class="w-6 h-6 mr-2 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
+                  <ExpirationSelector
+                    v-model:expiration-method="expirationMethod"
+                    v-model:expiration-value="expirationValue"
+                    :options="expirationOptions"
+                  />
+
+                  <button
+                    type="submit"
+                    :disabled="isSubmitting"
+                    class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:scale-100 md:mt-auto"
                   >
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <SendIcon v-else class="w-6 h-6 mr-2" />
-                  <span>{{ isSubmitting ? t('send.submitting') : t('send.submit') }}</span>
-                </span>
-              </button>
-            </form>
-          </template>
+                  <span
+                    class="absolute top-0 left-0 w-full h-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
+                  ></span>
+                  <span class="relative z-10 flex items-center justify-center text-lg">
+                    <svg
+                      v-if="isSubmitting"
+                      class="w-6 h-6 mr-2 animate-spin"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <SendIcon v-else class="w-6 h-6 mr-2" />
+                    <span>{{ isSubmitting ? t('send.submitting') : t('send.submit') }}</span>
+                  </span>
+                </button>
+                </div>
+              </form>
+            </template>
+          </div>
         </div>
 
         <!-- 统一底部 -->
@@ -156,54 +157,71 @@
 
     <!-- 统一记录抽屉 -->
     <SideDrawer :visible="showDrawer" :title="t('records.title')" @close="toggleDrawer">
-      <div class="flex border-b" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
+      <!-- 记录类型 Tab -->
+      <div class="flex gap-1 px-6 pt-4 pb-2 border-b" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
         <button
-          v-for="tab in drawerTabs"
+          v-for="tab in recordTabs"
           :key="tab.key"
-          @click="drawerTab = tab.key"
-          class="flex-1 py-3 text-sm font-medium transition-colors relative"
+          @click="activeRecordTab = tab.key"
+          class="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1.5"
           :class="[
-            drawerTab === tab.key
-              ? isDarkMode ? 'text-indigo-400' : 'text-indigo-600'
-              : isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+            activeRecordTab === tab.key
+              ? isDarkMode
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'bg-white text-indigo-600 shadow-sm'
+              : isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
           ]"
         >
+          <component :is="tab.icon" class="w-3.5 h-3.5" />
           {{ tab.label }}
           <span
-            v-if="drawerTab === tab.key"
-            class="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-indigo-500 rounded-full"
-          ></span>
+            v-if="tab.count > 0"
+            class="text-[10px] px-1.5 py-0.5 rounded-full"
+            :class="[
+              activeRecordTab === tab.key
+                ? 'bg-white/20'
+                : isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+            ]"
+          >{{ tab.count }}</span>
         </button>
       </div>
+
+      <!-- 取件记录 -->
       <FileRecordList
-        v-if="drawerTab === 'retrieve'"
+        v-if="activeRecordTab === 'received'"
         :records="records"
         @view-details="viewDetails"
         @download-record="downloadRecord"
         @delete-record="deleteRecord"
       />
+      <!-- 发件记录 -->
       <SentRecordList
-        v-if="drawerTab === 'send'"
+        v-else-if="activeRecordTab === 'sent'"
         :records="sendRecords"
         @copy-link="copySentRecordLink"
         @view-details="viewSendDetails"
         @delete-record="deleteSendRecord"
       />
-      <CollectionRecordList
-        v-if="drawerTab === 'collection'"
-        :records="collectionRecords"
+      <!-- 收件箱记录 -->
+      <CollectionRecordList v-else-if="activeRecordTab === 'collection'" :records="collectionRecords"
+        @view-details="viewCollectionDetails"
         @go-manage="goCollectionManage"
         @go-retrieve="goCollectionRetrieve"
+        @copy-link="copyCollectionRecordLink"
         @delete-record="deleteCollectionRecord"
       />
     </SideDrawer>
 
-    <!-- 取件文件详情弹窗 -->
+    <!-- 取件文件详情弹窗（统一文件/文本/多文件/收件箱） -->
     <FileDetailModal
-      :visible="!!selectedRecord && !isMultiFile"
+      :visible="!!selectedRecord"
       :record="selectedRecord"
       @close="closeDetails"
       @preview-content="showContentPreview"
+      @download-zip="downloadSelectedRecordZip"
+      @download-item="downloadSelectedRecordItem"
     />
 
     <!-- 发送记录详情弹窗 -->
@@ -214,6 +232,7 @@
       @copy-code="copySentRecordCode"
       @copy-link="copySentRecordLink"
       @copy-wget="copySentRecordWgetCommand"
+      @continue-delivery="continueSendDelivery"
     />
 
     <!-- 内容预览弹窗 -->
@@ -245,11 +264,19 @@
       :code="collectionModalCode"
       @close="closeCollectionModal"
     />
+
+    <!-- 收件箱记录详情弹窗（显示三码） -->
+    <CollectionRecordDetailModal
+      :record="selectedCollectionRecord"
+      @close="closeCollectionDetails"
+      @go-manage="goCollectionManage"
+      @go-retrieve="goCollectionRetrieve"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { inject, ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { inject, ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -264,7 +291,6 @@ import {
 } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
 import RetrieveForm from '@/components/common/RetrieveForm.vue'
-import SendTypeSelector from '@/components/common/SendTypeSelector.vue'
 import FileUploadArea from '@/components/common/FileUploadArea.vue'
 import ExpirationSelector from '@/components/common/ExpirationSelector.vue'
 import TextInputArea from '@/components/common/TextInputArea.vue'
@@ -276,8 +302,8 @@ import CollectionRecordList from '@/components/common/CollectionRecordList.vue'
 import MultiFileRetrieveModal from '@/components/common/MultiFileRetrieveModal.vue'
 import CollectionRetrieveModal from '@/components/common/CollectionRetrieveModal.vue'
 import SentRecordDetailModal from '@/components/common/SentRecordDetailModal.vue'
+import CollectionRecordDetailModal from '@/components/common/CollectionRecordDetailModal.vue'
 import ContentPreviewModal from '@/components/common/ContentPreviewModal.vue'
-import { useRetrieveFlow } from '@/composables/useRetrieveFlow'
 import { useSendFlow } from '@/composables/useSendFlow'
 import { useConfigStore } from '@/stores/configStore'
 import { FileService } from '@/services'
@@ -286,7 +312,7 @@ import { useAlertStore } from '@/stores/alertStore'
 import { useFileDataStore } from '@/stores/fileData'
 import type { ReceivedFileRecord, CollectionRecord } from '@/types'
 import type { MultiFileItem } from '@/types/collection'
-import { copyToClipboard } from '@/utils/clipboard'
+import { copyToClipboard, copyCollectionRetrieveLink } from '@/utils/clipboard'
 import { getErrorMessage } from '@/utils/common'
 import { isRecordExpired } from '@/utils/common'
 import { renderMarkdownPreview } from '@/utils/content-preview'
@@ -353,9 +379,10 @@ const collectionCodeForDownload = ref('')
 const showCollectionModal = ref(false)
 const collectionModalCode = ref('')
 
-const { receiveData: records } = storeToRefs(fileStore)
+// 收件箱记录详情弹窗
+const selectedCollectionRecord = ref<CollectionRecord | null>(null)
 
-const baseUrl = window.location.origin + '/#'
+const { receiveData: records } = storeToRefs(fileStore)
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 ' + t('fileSize.bytes')
@@ -369,6 +396,7 @@ const createRecord = (detail: {
   code: string
   name: string
   text: string
+  text_note?: string
   size: number
   is_multi_file?: boolean
   items?: MultiFileItem[]
@@ -385,6 +413,7 @@ const createRecord = (detail: {
     size: formatFileSize(detail.size),
     downloadUrl: isFile ? detail.text : null,
     content: isFile ? null : detail.text,
+    textNote: detail.text_note || undefined,
     date: new Date().toLocaleString(),
     type: recordType,
     expiredAt: detail.expired_at,
@@ -394,7 +423,7 @@ const createRecord = (detail: {
 }
 
 // 智能码输入：自动识别码类型并路由
-const CODE_REGEX = /^[A-Z0-9]{6}$/
+const CODE_REGEX = /^[A-Z0-9]+$/
 let isRetrieving = false
 
 const handleRetrieveSubmit = async () => {
@@ -423,13 +452,13 @@ const handleRetrieveSubmit = async () => {
         // 取件码 → 用收件箱取件弹窗展示
         const res = await CollectionService.getRetrieveInfo(retrieveCode.value)
         if (res.code === 200 && res.detail) {
-          const files = res.detail.files.filter((f: any) => f.status === 'completed')
-          const totalSize = files.reduce((sum: number, f: any) => sum + f.file_size, 0)
+          const files = res.detail.files.filter((f) => f.status === 'completed')
+          const totalSize = files.reduce((sum, f) => sum + f.file_size, 0)
 
-          // 保存到取件记录（code 存管理码用于 ZIP 下载，collectionRetrieveCode 存取件码用于单文件下载校验）
+          // 保存到取件记录（取件码入口，不存储管理码和投件码）
           const collectionRecord: ReceivedFileRecord = {
             id: Date.now(),
-            code: res.detail.collection_code || retrieveCode.value,
+            code: retrieveCode.value,  // 存取件码用于下载
             filename: res.detail.title || t('retrieve.collectionFiles.title'),
             size: formatFileSize(totalSize),
             downloadUrl: null,
@@ -437,17 +466,29 @@ const handleRetrieveSubmit = async () => {
             date: new Date().toLocaleString(),
             type: 'multiFile',
             isCollection: true,
-            collectionDeliveryCode: res.detail.delivery_code || '',
+            isRetrieveCode: true,  // 标记为取件码入口
+            collectionDeliveryCode: '',  // 不存储投件码
             collectionRetrieveCode: retrieveCode.value,
-            collectionFiles: files.map((f: any) => ({
+            collectionFiles: files.map((f) => ({
               id: f.id,
               file_name: f.file_name,
               file_size: f.file_size,
               uploader_name: f.uploader_name || '',
             })),
+            expiredAt: res.detail.retrieve_expired_at,
+            expireStyle: res.detail.retrieve_expire_style,
+            expireValue: res.detail.retrieve_expire_value,
           }
           if (!fileStore.receiveData.some((f) => f.code === collectionRecord.code)) {
             fileStore.addReceiveData(collectionRecord)
+          } else {
+            // 已存在记录，刷新过期信息（管理员可能延长了过期时间）
+            fileStore.updateRecordExpiry(
+              collectionRecord.code,
+              res.detail.retrieve_expired_at,
+              res.detail.retrieve_expire_style,
+              res.detail.retrieve_expire_value,
+            )
           }
 
           collectionModalCode.value = retrieveCode.value
@@ -488,14 +529,15 @@ const handleRetrieveSubmit = async () => {
         expired_at?: string | null
         expire_style?: string
         expire_value?: number
+        created_at?: string
       }
 
       if (detail.is_multi_file && detail.items) {
         isMultiFile.value = true
         multiFileItems.value = detail.items
         multiFileCode.value = detail.code
-        multiFileDate.value = (detail as any).created_at
-          ? new Date((detail as any).created_at).toLocaleString()
+        multiFileDate.value = detail.created_at
+          ? new Date(detail.created_at).toLocaleString()
           : new Date().toLocaleString()
         multiFileTotalSize.value = formatFileSize(detail.size)
         multiFileExpiredAt.value = detail.expired_at || null
@@ -542,13 +584,6 @@ const handleRetrieveSubmit = async () => {
   }
 }
 
-const closeResult = () => {
-  selectedRecord.value = null
-  isMultiFile.value = false
-  multiFileItems.value = []
-  multiFileCode.value = ''
-}
-
 const closeMultiFileModal = () => {
   showMultiFileModal.value = false
   isCollectionRetrieve.value = false
@@ -584,6 +619,32 @@ const downloadMultiFileZip = () => {
   }
 }
 
+// 统一详情弹窗：下载单个文件项（多文件分享）
+const downloadSelectedRecordItem = (itemId: number) => {
+  const rec = selectedRecord.value
+  if (!rec) return
+  const item = rec.multiFileItems?.find(i => i.id === itemId)
+  const filename = item?.file_name || undefined
+  void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, rec.code), filename, {
+    isExpired: isRecordExpired(rec.expiredAt, rec.expireStyle, rec.expireValue),
+    expiredMessage: t('fileDetail.expired')
+  })
+}
+
+// 统一详情弹窗：打包下载（多文件分享 / 收件箱）
+const downloadSelectedRecordZip = () => {
+  const rec = selectedRecord.value
+  if (!rec) return
+  if (rec.isCollection) {
+    void downloadFile(CollectionService.getZipDownloadUrl(rec.code), `${rec.filename}.zip`, { expiredMessage: t('fileDetail.expired') })
+  } else {
+    void downloadFile(CollectionService.getMultiFileZipUrl(rec.code), `${rec.code}.zip`, {
+      isExpired: isRecordExpired(rec.expiredAt, rec.expireStyle, rec.expireValue),
+      expiredMessage: t('fileDetail.expired')
+    })
+  }
+}
+
 const copyContent = async () => {
   if (selectedRecord.value?.content) {
     await copyToClipboard(selectedRecord.value.content, {
@@ -597,35 +658,20 @@ const copyContent = async () => {
 const viewDetails = (record: ReceivedFileRecord) => {
   showDrawer.value = false
 
+  // 收件箱记录：不预检过期，由 CollectionRetrieveModal 从后端实时验证
+  if (record.isCollection) {
+    collectionModalCode.value = record.code
+    showCollectionModal.value = true
+    return
+  }
+
   // 前端预检：记录已过期则提示（但不阻止查看）
   if (isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue)) {
     alertStore.showAlert(t('fileDetail.expired'), 'warning')
   }
 
-  if (record.isCollection) {
-    // 收件箱 → 用收件箱取件弹窗展示
-    collectionModalCode.value = record.code
-    showCollectionModal.value = true
-  } else if (record.isMultiFile) {
-    // 多文件 → 弹窗
-    isMultiFile.value = true
-    multiFileCode.value = record.code
-    multiFileItems.value = record.multiFileItems || []
-    multiFileDate.value = record.date
-    multiFileTotalSize.value = record.size
-    multiFileExpiredAt.value = record.expiredAt || null
-    multiFileExpireStyle.value = record.expireStyle || ''
-    multiFileExpireValue.value = record.expireValue || 0
-    nextTick(() => { showMultiFileModal.value = true })
-  } else if (record.content) {
-    // 文本 → 详情弹窗（含预览按钮）
-    isMultiFile.value = false
-    selectedRecord.value = record
-  } else {
-    // 单文件 → 详情弹窗
-    isMultiFile.value = false
-    selectedRecord.value = record
-  }
+  // 文件、文本、多文件统一进入详情弹窗
+  selectedRecord.value = record
 }
 
 const closeDetails = () => {
@@ -707,7 +753,7 @@ watch(
   { immediate: true }
 )
 
-// 自动提交：6位码输入完毕快速自动提交
+// 自动提交：码输入完毕快速自动提交
 let autoSubmitTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(retrieveCode, (newCode) => {
@@ -715,7 +761,8 @@ watch(retrieveCode, (newCode) => {
     clearTimeout(autoSubmitTimer)
     autoSubmitTimer = null
   }
-  if (newCode.length >= 6) {
+  const codeLen = config.value?.codeDigitCount || 8
+  if (newCode.length >= codeLen) {
     autoSubmitTimer = setTimeout(() => {
       void handleRetrieveSubmit()
     }, 600)
@@ -730,7 +777,6 @@ onUnmounted(() => {
 
 // ==================== 发送逻辑 ====================
 const {
-  sendType,
   selectedFile,
   selectedFiles,
   textContent,
@@ -743,6 +789,7 @@ const {
   uploadDescription,
   expirationOptions,
   closeDetails: closeSendDetails,
+  continueDelivery: continueSendDelivery,
   deleteRecord: deleteSendRecord,
   copySentRecordCode,
   copySentRecordLink,
@@ -759,42 +806,53 @@ const {
 
 // ==================== 通用 ====================
 const showDrawer = ref(false)
-const drawerTab = ref<'retrieve' | 'send' | 'collection'>('retrieve')
 
 const collectionRecords = computed(() => fileStore.collectionData)
 
-const drawerTabs = computed(() => [
-  { key: 'retrieve' as const, label: t('records.tabs.retrieve') },
-  { key: 'send' as const, label: t('records.tabs.send') },
-  { key: 'collection' as const, label: t('records.tabs.collection') }
+// 记录抽屉 Tab
+type RecordTabKey = 'received' | 'sent' | 'collection'
+const activeRecordTab = ref<RecordTabKey>('received')
+
+const recordTabs = computed(() => [
+  { key: 'received' as RecordTabKey, label: t('records.tabs.retrieve'), icon: ArrowRightIcon, count: records.value.length },
+  { key: 'sent' as RecordTabKey, label: t('records.tabs.send'), icon: SendIcon, count: sendRecords.value.length },
+  { key: 'collection' as RecordTabKey, label: t('records.tabs.collection'), icon: InboxIcon, count: collectionRecords.value.length }
 ])
 
 const toggleDrawer = () => {
-  if (!showDrawer.value) {
-    // 打开时默认切换到当前 Tab 对应的记录
-    drawerTab.value = activeTab.value
-  }
   showDrawer.value = !showDrawer.value
+}
+
+// ==================== 记录列表事件处理（直接分发） ====================
+const viewCollectionDetails = (record: CollectionRecord) => {
+  showDrawer.value = false
+  selectedCollectionRecord.value = record
+}
+
+const closeCollectionDetails = () => {
+  selectedCollectionRecord.value = null
 }
 
 const goCollectionManage = (record: CollectionRecord) => {
   showDrawer.value = false
+  selectedCollectionRecord.value = null
   router.push(`/collection/manage/${record.collectionCode}`)
 }
 
 const goCollectionRetrieve = async (record: CollectionRecord) => {
   showDrawer.value = false
+  selectedCollectionRecord.value = null
   // 通过取件码获取收件箱数据，用收件箱取件弹窗展示
   try {
     const res = await CollectionService.getRetrieveInfo(record.retrieveCode)
     if (res.code === 200 && res.detail) {
-      const files = res.detail.files.filter((f: any) => f.status === 'completed')
-      const totalSize = files.reduce((sum: number, f: any) => sum + f.file_size, 0)
+      const files = res.detail.files.filter((f) => f.status === 'completed')
+      const totalSize = files.reduce((sum, f) => sum + f.file_size, 0)
 
-      // 保存到取件记录（code 存管理码用于 ZIP 下载，collectionRetrieveCode 存取件码用于单文件下载校验）
+      // 保存到取件记录（取件码入口，不存储管理码和投件码）
       const collectionRecord: ReceivedFileRecord = {
         id: Date.now(),
-        code: res.detail.collection_code || record.retrieveCode,
+        code: record.retrieveCode,  // 存取件码用于下载
         filename: res.detail.title || t('retrieve.collectionFiles.title'),
         size: formatFileSize(totalSize),
         downloadUrl: null,
@@ -802,17 +860,28 @@ const goCollectionRetrieve = async (record: CollectionRecord) => {
         date: new Date().toLocaleString(),
         type: 'multiFile',
         isCollection: true,
-        collectionDeliveryCode: res.detail.delivery_code || '',
+        isRetrieveCode: true,
+        collectionDeliveryCode: '',
         collectionRetrieveCode: record.retrieveCode,
-        collectionFiles: files.map((f: any) => ({
+        collectionFiles: files.map((f) => ({
           id: f.id,
           file_name: f.file_name,
           file_size: f.file_size,
           uploader_name: f.uploader_name || '',
         })),
+        expiredAt: res.detail.retrieve_expired_at,
+        expireStyle: res.detail.retrieve_expire_style,
+        expireValue: res.detail.retrieve_expire_value,
       }
       if (!fileStore.receiveData.some((f) => f.code === collectionRecord.code)) {
         fileStore.addReceiveData(collectionRecord)
+      } else {
+        fileStore.updateRecordExpiry(
+          collectionRecord.code,
+          res.detail.retrieve_expired_at,
+          res.detail.retrieve_expire_style,
+          res.detail.retrieve_expire_value,
+        )
       }
 
       collectionModalCode.value = record.retrieveCode
@@ -837,6 +906,12 @@ const goCollectionRetrieve = async (record: CollectionRecord) => {
 
 const deleteCollectionRecord = (id: number) => {
   fileStore.removeCollectionRecord(id)
+}
+
+const copyCollectionRecordLink = async (record: CollectionRecord) => {
+  await copyCollectionRetrieveLink(record.retrieveCode, {
+    notify: (message, type) => alertStore.showAlert(message, type),
+  })
 }
 </script>
 

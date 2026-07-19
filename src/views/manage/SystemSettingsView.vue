@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ShieldIcon, GaugeIcon } from 'lucide-vue-next'
 import SettingNumberInput from '@/components/common/SettingNumberInput.vue'
 import SettingSwitch from '@/components/common/SettingSwitch.vue'
 import { useSystemConfig } from '@/composables'
@@ -369,29 +370,78 @@ onMounted(() => {
             {{ t('manage.settings.uploadLimits') }}
           </h3>
 
+          <!-- 当前生效规则说明 -->
+          <div class="mb-4 p-3 rounded-lg border" :class="[
+            isDarkMode
+              ? 'bg-emerald-900/20 border-emerald-700/50'
+              : 'bg-emerald-50 border-emerald-200'
+          ]">
+            <div class="flex items-start gap-2">
+              <GaugeIcon class="w-4 h-4 mt-0.5 flex-shrink-0" :class="[isDarkMode ? 'text-emerald-400' : 'text-emerald-600']" />
+              <p class="text-xs leading-relaxed" :class="[isDarkMode ? 'text-emerald-300' : 'text-emerald-700']">
+                {{ t('manage.settings.uploadLimitsHint', {
+                  window: config.uploadMinute,
+                  count: config.uploadCount,
+                  maxSend: config.maxSendFiles,
+                  maxCollection: config.maxCollectionFiles
+                }) }}
+              </p>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SettingNumberInput
               v-model="config.uploadMinute"
               :label="t('manage.settings.uploadPerMinute')"
               :suffix="t('common.minute')"
+              :min="1"
+              :max="1440"
+              :show-range-hint="true"
             />
 
             <SettingNumberInput
               v-model="config.uploadCount"
               :label="t('manage.settings.uploadCountLimit')"
               :suffix="t('common.files')"
+              :min="1"
+              :max="1000"
+              :show-range-hint="true"
             />
 
             <SettingNumberInput
               v-model="config.maxSendFiles"
               :label="t('manage.settings.maxSendFiles')"
               :suffix="t('common.files')"
+              :min="1"
+              :max="100"
+              :show-range-hint="true"
             />
 
             <SettingNumberInput
               v-model="config.maxCollectionFiles"
               :label="t('manage.settings.maxCollectionFiles')"
               :suffix="t('common.files')"
+              :min="1"
+              :max="1000"
+              :show-range-hint="true"
+            />
+
+            <SettingNumberInput
+              v-model="config.maxMultiFileCount"
+              :label="t('manage.settings.maxMultiFileCount')"
+              :suffix="t('common.files')"
+              :min="1"
+              :max="100"
+              :show-range-hint="true"
+            />
+
+            <SettingNumberInput
+              v-model="config.codeDigitCount"
+              :label="t('manage.settings.codeDigitCount')"
+              :suffix="t('manage.settings.codeDigitCountUnit')"
+              :min="5"
+              :max="15"
+              :show-range-hint="true"
             />
 
             <div class="space-y-2">
@@ -399,7 +449,7 @@ onMounted(() => {
                 {{ t('manage.settings.fileSizeLimit') }}
               </label>
               <div class="flex items-center space-x-2">
-                <input type="number" v-model="fileSize"
+                <input type="number" v-model="fileSize" min="1"
                   class="w-24 rounded-md shadow-sm px-4 py-2.5 transition-all duration-200 ease-in-out border focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   :class="[
                     isDarkMode
@@ -418,6 +468,9 @@ onMounted(() => {
               <option value="GB">{{ t('manage.settings.fileSizeUnits.gb') }}</option>
                 </select>
               </div>
+              <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                {{ t('manage.settings.fileSizeLimitHint') }}
+              </p>
             </div>
 
             <div class="space-y-2">
@@ -448,7 +501,7 @@ onMounted(() => {
                 {{ t('manage.settings.maxSaveTime') }}
               </label>
               <div class="flex items-center space-x-2">
-                <input type="number" v-model="saveTime"
+                <input type="number" v-model="saveTime" min="0"
                   class="w-24 rounded-md shadow-sm px-4 py-2.5 transition-all duration-200 ease-in-out border focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   :class="[
                     isDarkMode
@@ -468,6 +521,9 @@ onMounted(() => {
                   <option value="天">{{ t('common.day') }}</option>
                 </select>
               </div>
+              <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                {{ t('manage.settings.maxSaveTimeHint') }}
+              </p>
             </div>
 
             <SettingSwitch
@@ -486,17 +542,40 @@ onMounted(() => {
             {{ t('manage.settings.errorLimits') }}
           </h3>
 
+          <!-- 当前生效规则说明 -->
+          <div class="mb-4 p-3 rounded-lg border" :class="[
+            isDarkMode
+              ? 'bg-indigo-900/20 border-indigo-700/50'
+              : 'bg-indigo-50 border-indigo-200'
+          ]">
+            <div class="flex items-start gap-2">
+              <ShieldIcon class="w-4 h-4 mt-0.5 flex-shrink-0" :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']" />
+              <p class="text-xs leading-relaxed" :class="[isDarkMode ? 'text-indigo-300' : 'text-indigo-700']">
+                {{ t('manage.settings.errorLimitsHint', {
+                  window: config.errorMinute,
+                  count: config.errorCount
+                }) }}
+              </p>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SettingNumberInput
               v-model="config.errorMinute"
               :label="t('manage.settings.errorPerMinute')"
               :suffix="t('common.minute')"
+              :min="1"
+              :max="1440"
+              :show-range-hint="true"
             />
 
             <SettingNumberInput
               v-model="config.errorCount"
               :label="t('manage.settings.errorCountLimit')"
               :suffix="t('common.times')"
+              :min="1"
+              :max="1000"
+              :show-range-hint="true"
             />
           </div>
         </div>

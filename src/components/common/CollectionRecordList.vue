@@ -31,6 +31,22 @@
           </div>
           <div class="flex-shrink-0 flex items-center gap-1">
             <button
+              @click="$emit('view-details', record)"
+              class="p-1.5 rounded-md transition duration-200"
+              :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-indigo-400' : 'hover:bg-gray-200 text-gray-400 hover:text-indigo-600']"
+              :title="t('common.fileDetails')"
+            >
+              <EyeIcon class="w-4 h-4" />
+            </button>
+            <button
+              @click="$emit('copy-link', record)"
+              class="p-1.5 rounded-md transition duration-200"
+              :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-indigo-400' : 'hover:bg-gray-200 text-gray-400 hover:text-indigo-600']"
+              :title="t('fileRecord.copyLink')"
+            >
+              <LinkIcon class="w-4 h-4" />
+            </button>
+            <button
               @click="$emit('go-manage', record)"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600']"
@@ -44,7 +60,7 @@
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-emerald-400' : 'hover:bg-gray-200 text-gray-400 hover:text-emerald-600']"
               :title="t('collection.create.retrieveHint')"
             >
-              <EyeIcon class="w-4 h-4" />
+              <ExternalLinkIcon class="w-4 h-4" />
             </button>
             <button
               @click="$emit('delete-record', record.id)"
@@ -73,7 +89,9 @@ import {
   InboxIcon,
   EyeIcon,
   TrashIcon,
-  SettingsIcon
+  SettingsIcon,
+  LinkIcon,
+  ExternalLinkIcon
 } from 'lucide-vue-next'
 import type { CollectionRecord } from '@/types'
 
@@ -82,8 +100,10 @@ defineProps<{
 }>()
 
 defineEmits<{
+  'view-details': [record: CollectionRecord]
   'go-manage': [record: CollectionRecord]
   'go-retrieve': [record: CollectionRecord]
+  'copy-link': [record: CollectionRecord]
   'delete-record': [id: number]
 }>()
 

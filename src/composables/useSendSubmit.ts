@@ -33,6 +33,16 @@ type SubmitTextOptions = {
   expireStyle: string
 }
 
+type SubmitUnifiedOptions = {
+  text: string
+  selectedFile: File | null
+  selectedFiles: File[]
+  expireValue: number
+  expireStyle: string
+  enableChunk: boolean
+  validateFileSize: (file: File) => boolean
+}
+
 export function useSendSubmit(options: UseSendSubmitOptions) {
   const { uploadFile: presignUploadFile, reset: resetPresignUpload } = usePresignedUpload({
     getMaxFileSize: options.getMaxFileSize,
@@ -159,9 +169,76 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
   const submitText = ({ text, expireValue, expireStyle }: SubmitTextOptions) =>
     FileService.uploadText(text, expireValue, expireStyle)
 
+  const submitUnified = async ({
+    text,
+    selectedFile,
+    selectedFiles,
+    expireValue,
+    expireStyle,
+    validateFileSize
+  }: SubmitUnifiedOptions): Promise<ApiResponse | null> => {
+    const hasFiles = selectedFile || selectedFiles.length > 0
+    const hasText = text.trim().length > 0
+
+    if (!hasFiles && !hasText) {
+      throw new Error(options.translate('send.messages.selectFile'))
+    }
+
+    // 无文件 → 纯文本
+    if (!hasFiles) {
+      return await submitText({ text, expireValue, expireStyle })
+    }
+
+    // 有文件 → 走分块/预签名上传（支持文本备注）
+    // 注：分块和预签名上传暂不支持文本备注，回退到统一接口
+    const allFiles = selectedFiles.length > 0 ? selectedFiles : (selectedFile ? [selectedFile] : [])
+
+    // 限流检查
+    const uploadCount = options.getUploadCount()
+    const uploadMinute = options.getUploadMinute()
+    if (uploadCount > 0 && allFiles.length > uploadCount) {
+      throw new Error(`每${uploadMinute}分钟最多上传${uploadCount}个文件`)
+    }
+
+    // 校验文件大小
+    for (const file of allFiles) {
+      if (!validateFileSize(file)) return null
+    }
+
+    // 计算第一个文件的哈希
+    options.onHashCalculated(await calculateFileHash(allFiles[0]))
+
+    // 使用统一接口上传（文件+可选文本备注）
+    const res = await FileService.uploadUnified(
+      {
+        text: hasText ? text : undefined,
+        files: allFiles,
+        expireValue,
+        expireStyle
+      },
+      (progress: UploadProgress) => {
+        options.onProgress(progress.percentage)
+      }
+    )
+
+    if (res.code === 200 && res.detail) {
+      return {
+        code: 200,
+        detail: {
+          code: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).code,
+          name: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).name,
+          is_multi_file: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).is_multi_file || allFiles.length > 1
+        }
+      }
+    } else {
+      throw new Error(options.translate('send.messages.sendFailed'))
+    }
+  }
+
   return {
     resetPresignUpload,
     submitFile,
-    submitText
+    submitText,
+    submitUnified
   }
 }

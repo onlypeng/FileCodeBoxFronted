@@ -3,7 +3,7 @@
     class="min-h-screen flex items-center justify-center p-4 overflow-hidden transition-colors duration-300"
   >
     <div
-      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md transition-colors duration-300"
+      class="rounded-3xl shadow-2xl overflow-hidden border w-full max-w-md md:max-w-2xl lg:max-w-3xl transition-colors duration-300"
       :class="[
         isDarkMode
           ? 'bg-white bg-opacity-10 backdrop-filter backdrop-blur-xl border-gray-700'
@@ -98,13 +98,9 @@
         />
 
         <div class="mt-6 text-center">
-          <button
-            @click="router.push('/')"
-            class="text-sm transition-colors"
-            :class="[isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700']"
-          >
+          <router-link to="/" class="text-sm font-medium transition-colors" :class="[isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700']">
             {{ t('collection.create.backToHome') }}
-          </button>
+          </router-link>
         </div>
       </div>
     </div>
@@ -138,7 +134,7 @@ const config = computed(() => configStore.config)
 
 const title = ref('')
 const description = ref('')
-const maxFiles = ref(20)
+const maxFiles = ref('20')
 
 // 收件箱过期配置 - 受后台设置控制
 const expireStyle = ref(config.value.expireStyle[0] || 'day')
@@ -221,7 +217,7 @@ const handleCreate = async () => {
   try {
     // 检查最大文件数是否超出后台限制
     const maxCollectionFiles = config.value.maxCollectionFiles || 100
-    if (maxFiles.value > maxCollectionFiles) {
+    if (parseInt(maxFiles.value) > maxCollectionFiles) {
       alertStore.showAlert(t('collection.detail.maxFilesExceed', { max: maxCollectionFiles }), 'error')
       return
     }
@@ -265,7 +261,7 @@ const handleCreate = async () => {
     const result = await collectionStore.createCollection({
       title: title.value,
       description: description.value,
-      max_files: maxFiles.value,
+      max_files: parseInt(maxFiles.value) || 20,
       expire_style: expireStyle.value,
       expire_value: parseInt(expireValue.value) || 7,
       delivery_expire_style: deliveryExpireStyle.value,
@@ -285,7 +281,7 @@ const handleCreate = async () => {
       deliveryCode: result.delivery_code,
       retrieveCode: result.retrieve_code || '',
       date: new Date().toISOString().split('T')[0],
-      maxFiles: maxFiles.value,
+      maxFiles: parseInt(maxFiles.value) || 20,
       expireInfo: getUnit(expireStyle.value) + ' ' + (expireValue.value || ''),
     }
     fileDataStore.addCollectionRecord(collectionRecord)

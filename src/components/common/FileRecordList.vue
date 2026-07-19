@@ -31,7 +31,7 @@
             </div>
             <p class="text-xs mt-0.5" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
               {{ record.date }}<span class="mx-1">·</span>{{ record.size }}
-              <template v-if="record.type === 'multiFile'"><span class="mx-1">·</span>{{ fileCountText(record) }} {{ t('records.multiFile') }}</template>
+              <template v-if="record.isMultiFile && fileCountText(record) > 0"><span class="mx-1">·</span>{{ fileCountText(record) }} {{ t('records.multiFile') }}</template>
             </p>
           </div>
           <div class="flex-shrink-0 flex items-center gap-1">
@@ -77,12 +77,10 @@ import { inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   FileIcon,
-  FileTextIcon,
   InboxIcon,
   EyeIcon,
   DownloadIcon,
-  TrashIcon,
-  FilesIcon
+  TrashIcon
 } from 'lucide-vue-next'
 import type { ReceivedFileRecord } from '@/types'
 import { isRecordExpired } from '@/utils/common'
@@ -114,33 +112,21 @@ function fileCountText(record: ReceivedFileRecord): number {
 }
 
 function recordIcon(record: ReceivedFileRecord) {
-  const type = record.type || (record.content ? 'text' : 'file')
-  switch (type) {
-    case 'text':
-      return { icon: FileTextIcon, color: _isDark() ? 'text-teal-400' : 'text-teal-500' }
-    case 'multiFile':
-      if (record.isCollection) {
-        return { icon: InboxIcon, color: _isDark() ? 'text-indigo-400' : 'text-indigo-500' }
-      }
-      return { icon: FilesIcon, color: _isDark() ? 'text-violet-400' : 'text-violet-500' }
-    default:
-      return { icon: FileIcon, color: _isDark() ? 'text-sky-400' : 'text-sky-500' }
+  // 收件箱单独显示
+  if (record.isCollection) {
+    return { icon: InboxIcon, color: _isDark() ? 'text-indigo-400' : 'text-indigo-500' }
   }
+  // 文件、文本、多文件统一为"文件"类型
+  return { icon: FileIcon, color: _isDark() ? 'text-sky-400' : 'text-sky-500' }
 }
 
 function recordBadge(record: ReceivedFileRecord) {
-  const type = record.type || (record.content ? 'text' : 'file')
-  switch (type) {
-    case 'text':
-      return { text: t('records.badge.text'), class: _isDark() ? 'bg-teal-900/40 text-teal-200' : 'bg-teal-100 text-gray-900' }
-    case 'multiFile':
-      if (record.isCollection) {
-        return { text: t('records.badge.collection'), class: _isDark() ? 'bg-indigo-900/40 text-indigo-200' : 'bg-indigo-100 text-gray-900' }
-      }
-      return { text: t('records.badge.multiFile'), class: _isDark() ? 'bg-violet-900/40 text-violet-200' : 'bg-violet-100 text-gray-900' }
-    default:
-      return { text: t('records.badge.file'), class: _isDark() ? 'bg-sky-900/40 text-sky-200' : 'bg-sky-100 text-gray-900' }
+  // 收件箱单独显示
+  if (record.isCollection) {
+    return { text: t('records.badge.collection'), class: _isDark() ? 'bg-indigo-900/40 text-indigo-200' : 'bg-indigo-100 text-gray-900' }
   }
+  // 文件、文本、多文件统一显示为"文件"
+  return { text: t('records.badge.file'), class: _isDark() ? 'bg-sky-900/40 text-sky-200' : 'bg-sky-100 text-gray-900' }
 }
 </script>
 
