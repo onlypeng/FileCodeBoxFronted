@@ -13,6 +13,36 @@
   <link rel="manifest" href="/assets/manifest.json" />
   <meta name="github" content="https://github.com/vastsa/FileCodeBox" />
   <title>{{title}}</title>
+  <script>
+    // 首帧前应用主题，防止切换/刷新时样式闪烁（FOUC）
+    (function () {
+      try {
+        var ALLOWED = ['light', 'dark', 'enterprise']
+        var id = null
+        var stored = localStorage.getItem('filecodebox:themeId')
+        if (stored && ALLOWED.indexOf(stored) !== -1) {
+          id = stored
+        } else {
+          // 用户未显式选择时，回退到本地缓存的站点默认主题
+          var cached = localStorage.getItem('config')
+          if (cached) {
+            try {
+              var config = JSON.parse(cached)
+              var siteTheme = config && config.spaTheme
+              if (typeof siteTheme === 'string') {
+                var key = siteTheme.indexOf('/') !== -1 ? siteTheme.split('/').pop() : siteTheme
+                if (ALLOWED.indexOf(key) !== -1) id = key
+              }
+            } catch (e) {}
+          }
+        }
+        id = id || 'light'
+        var el = document.documentElement
+        el.setAttribute('data-theme', id)
+        if (id === 'dark') el.classList.add('dark')
+      } catch (e) {}
+    })()
+  </script>
 </head>
 <body>
 <div id="app"></div>

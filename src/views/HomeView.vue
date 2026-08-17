@@ -14,101 +14,42 @@
         <div class="p-8">
           <PageHeader :title="config.name" />
 
-          <!-- Tab 切换 -->
-          <div class="flex mb-6 rounded-xl p-1" :class="[isDarkMode ? 'bg-gray-700/50' : 'bg-gray-100']">
-            <button
-              v-for="tab in tabs"
-              :key="tab.key"
-              @click="activeTab = tab.key"
-              class="flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2"
-              :class="[
-                activeTab === tab.key
-                  ? isDarkMode
-                    ? 'bg-indigo-600 text-white shadow-lg'
-                    : 'bg-white text-indigo-600 shadow-md'
-                  : isDarkMode
-                    ? 'text-gray-400 hover:text-gray-200'
-                    : 'text-gray-500 hover:text-gray-700'
-              ]"
-            >
-              <component :is="tab.icon" class="w-4 h-4" />
-              {{ tab.label }}
-            </button>
-          </div>
+          <!-- ========== 查码（取件） ========== -->
+          <RetrieveForm
+            v-model="retrieveCode"
+            :input-status="retrieveInputStatus"
+            :error="!!retrieveError"
+            :label="t('home.codeInput.label')"
+            :placeholder="t('home.codeInput.placeholder')"
+            :button-text="t('home.codeInput.submit')"
+            @submit="handleRetrieveSubmit"
+            ref="retrieveFormRef"
+          />
 
-          <!-- ========== 取件 Tab ========== -->
-          <template v-if="activeTab === 'retrieve'">
-            <RetrieveForm
-              v-model="retrieveCode"
-              :input-status="retrieveInputStatus"
-              :error="!!retrieveError"
-              :label="t('home.codeInput.label')"
-              :placeholder="t('home.codeInput.placeholder')"
-              :button-text="t('home.codeInput.submit')"
-              @submit="handleRetrieveSubmit"
-              ref="retrieveFormRef"
-            />
-          </template>
-
-          <!-- ========== 发送 Tab ========== -->
-          <template v-if="activeTab === 'send'">
-            <form @submit.prevent="handleSendSubmit" class="space-y-8">
-              <SendTypeSelector
-                :selected-type="sendType"
-                @update:selected-type="sendType = $event"
-              />
-
-              <transition name="fade" mode="out-in">
-                <div v-if="sendType === 'file'" key="file" class="grid grid-cols-1 gap-8">
-                  <FileUploadArea
-                    :selected-file="selectedFile"
-                    :selected-files="selectedFiles"
-                    :progress="uploadProgress"
-                    :description="uploadDescription"
-                    @file-selected="handleFileSelected"
-                    @files-selected="handleFilesSelected"
-                    @file-drop="handleFileDrop"
-                    @paste="handlePaste"
-                    @file-remove="removeFile"
-                  />
-                </div>
-                <div v-else key="text" class="grid grid-cols-1 gap-8">
-                  <TextInputArea v-model="textContent" :placeholder="t('send.uploadArea.textInput')" />
-                </div>
-              </transition>
-
-              <ExpirationSelector
-                v-model:expiration-method="expirationMethod"
-                v-model:expiration-value="expirationValue"
-                :options="expirationOptions"
-              />
-
-              <button
-                type="submit"
-                :disabled="isSubmitting"
-                class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:scale-100"
-              >
-                <span
-                  class="absolute top-0 left-0 w-full h-full bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
-                ></span>
-                <span class="relative z-10 flex items-center justify-center text-lg">
-                  <svg
-                    v-if="isSubmitting"
-                    class="w-6 h-6 mr-2 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <SendIcon v-else class="w-6 h-6 mr-2" />
-                  <span>{{ isSubmitting ? t('send.submitting') : t('send.submit') }}</span>
-                </span>
-              </button>
-            </form>
-          </template>
+          <!-- 发件入口：跳转到发件页面 -->
+          <button
+            type="button"
+            @click="router.push('/send')"
+            class="mt-6 w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all duration-300 border"
+            :class="[
+              isDarkMode
+                ? 'border-gray-600 text-gray-400 hover:text-indigo-400 hover:border-indigo-500 bg-gray-800/40'
+                : 'border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-400 bg-gray-50'
+            ]"
+          >
+            <SendIcon class="w-4 h-4" />
+            {{ t('retrieve.needSendFile') }}
+          </button>
         </div>
+
+        <!-- 页面说明（后台可配置，展示在首页底部） -->
+        <p
+          v-if="config.page_explain"
+          class="px-8 py-3 text-center text-xs leading-relaxed"
+          :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']"
+        >
+          {{ config.page_explain }}
+        </p>
 
         <!-- 统一底部 -->
         <div
@@ -124,7 +65,14 @@
           </span>
           <div class="flex items-center space-x-3">
             <router-link
-              v-if="activeTab === 'retrieve'"
+              to="/direct"
+              class="hover:text-indigo-300 transition duration-300 flex items-center"
+              :class="[isDarkMode ? 'text-gray-400 hover:text-amber-400' : 'text-gray-500 hover:text-amber-500']"
+              :title="t('home.createDirect')"
+            >
+              <HouseIcon class="w-4 h-4" />
+            </router-link>
+            <router-link
               to="/collection/create"
               class="hover:text-indigo-300 transition duration-300 flex items-center"
               :class="[isDarkMode ? 'text-gray-400 hover:text-indigo-400' : 'text-gray-500 hover:text-indigo-600']"
@@ -133,7 +81,6 @@
               <InboxIcon class="w-4 h-4" />
             </router-link>
             <router-link
-              v-if="activeTab === 'retrieve'"
               to="/login"
               class="hover:text-indigo-300 transition duration-300 flex items-center"
               :class="[isDarkMode ? 'text-gray-400 hover:text-indigo-400' : 'text-gray-500 hover:text-indigo-600']"
@@ -196,24 +143,24 @@
         @go-retrieve="goCollectionRetrieve"
         @delete-record="deleteCollectionRecord"
       />
+      <DirectRecordList
+        v-if="drawerTab === 'direct'"
+        :records="directRecords"
+        @view-details="viewDirectRoomDetails"
+        @go-room="goDirectRoom"
+        @delete-record="deleteDirectRecord"
+      />
     </SideDrawer>
 
-    <!-- 取件文件详情弹窗 -->
-    <FileDetailModal
-      :visible="!!selectedRecord && !isMultiFile"
-      :record="selectedRecord"
-      @close="closeDetails"
-      @preview-content="showContentPreview"
-    />
-
-    <!-- 发送记录详情弹窗 -->
-    <SentRecordDetailModal
-      :record="selectedSendRecord"
-      :get-q-r-code-value="getQRCodeValue"
+    <!-- 成功/详情弹窗（发件成功、投件详情） -->
+    <SuccessModal
+      :visible="!!selectedSendRecord"
+      :title="t('send.fileDetails')"
+      :subtitle="selectedSendRecord?.filename"
+      :codes="sendSuccessCodes"
+      :wget-command="sendSuccessWget"
+      :files="sendSuccessFiles"
       @close="closeSendDetails"
-      @copy-code="copySentRecordCode"
-      @copy-link="copySentRecordLink"
-      @copy-wget="copySentRecordWgetCommand"
     />
 
     <!-- 内容预览弹窗 -->
@@ -224,7 +171,7 @@
       @copy-content="copyContent"
     />
 
-    <!-- 多文件取件弹窗 -->
+    <!-- 统一查看弹窗（取件结果 / 记录-收件查看 / 单文件 / 多文件 / 文本 / 收件箱） -->
     <MultiFileRetrieveModal
       :visible="showMultiFileModal"
       :code="multiFileCode"
@@ -234,22 +181,52 @@
       :expired-at="multiFileExpiredAt"
       :expire-style="multiFileExpireStyle"
       :expire-value="multiFileExpireValue"
+      :expire-text="multiFileExpireText"
+      :is-expired="multiFileIsExpired"
+      :single="isSingleFileModal"
+      :remark="multiFileRemark"
+      :text="multiFileText"
+      :show-preview="multiFileShowPreview"
+      :collection="collectionModalData"
       @close="closeMultiFileModal"
       @download-item="downloadMultiFileItem"
       @download-zip="downloadMultiFileZip"
+      @download-single="downloadSingleFileRecord"
+      @download-collection-item="downloadCollectionItem"
+      @download-collection-zip="downloadCollectionZip"
+      @preview-content="showContentPreview"
     />
 
-    <!-- 收件箱取件弹窗 -->
-    <CollectionRetrieveModal
-      :visible="showCollectionModal"
-      :code="collectionModalCode"
-      @close="closeCollectionModal"
+    <!-- 发件记录查看弹窗（文件/多文件统一使用多文件弹窗，仅查看无下载） -->
+    <MultiFileRetrieveModal
+      :visible="sentModal.visible"
+      :code="sentModal.code"
+      :files="sentModal.items"
+      :date="sentModal.date"
+      :total-size="sentModal.totalSize"
+      :single="sentModal.single"
+      :text="sentModal.text"
+      :remark="sentModal.remark"
+      :show-downloads="false"
+      :show-retrieve-time="false"
+      :created-date="sentModal.createdDate"
+      :expire-text="sentModal.expireText"
+      :is-expired="sentModal.isExpired"
+      @close="closeSentModal"
+    />
+
+    <!-- 直连房间信息弹窗（记录-直连-查看） -->
+    <DirectRoomInfoModal
+      :visible="!!directRoomModalCode"
+      :room-code="directRoomModalCode"
+      @close="directRoomModalCode = ''"
+      @enter-room="enterDirectRoomFromModal"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { inject, ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { inject, ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -259,40 +236,31 @@ import {
   ShieldCheckIcon,
   InboxIcon,
   UserIcon,
-  ArrowRightIcon,
-  UploadIcon
+  HouseIcon
 } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
 import RetrieveForm from '@/components/common/RetrieveForm.vue'
-import SendTypeSelector from '@/components/common/SendTypeSelector.vue'
-import FileUploadArea from '@/components/common/FileUploadArea.vue'
-import ExpirationSelector from '@/components/common/ExpirationSelector.vue'
-import TextInputArea from '@/components/common/TextInputArea.vue'
 import SideDrawer from '@/components/common/SideDrawer.vue'
-import FileDetailModal from '@/components/common/FileDetailModal.vue'
 import FileRecordList from '@/components/common/FileRecordList.vue'
 import SentRecordList from '@/components/common/SentRecordList.vue'
 import CollectionRecordList from '@/components/common/CollectionRecordList.vue'
+import DirectRecordList from '@/components/common/DirectRecordList.vue'
+import DirectRoomInfoModal from '@/components/common/DirectRoomInfoModal.vue'
 import MultiFileRetrieveModal from '@/components/common/MultiFileRetrieveModal.vue'
-import CollectionRetrieveModal from '@/components/common/CollectionRetrieveModal.vue'
-import SentRecordDetailModal from '@/components/common/SentRecordDetailModal.vue'
+import SuccessModal from '@/components/common/SuccessModal.vue'
 import ContentPreviewModal from '@/components/common/ContentPreviewModal.vue'
-import { useRetrieveFlow } from '@/composables/useRetrieveFlow'
-import { useSendFlow } from '@/composables/useSendFlow'
+import { useRetrieveFlow, useRetrieveUrls, useSendFlow, useClipboard } from '@/composables'
+import type { ApiResponse } from '@/types'
 import { useConfigStore } from '@/stores/configStore'
-import { FileService } from '@/services'
-import { CollectionService } from '@/services/collection'
 import { useAlertStore } from '@/stores/alertStore'
+import { useConfirmStore } from '@/stores/confirmStore'
 import { useFileDataStore } from '@/stores/fileData'
-import type { ReceivedFileRecord, CollectionRecord } from '@/types'
-import type { MultiFileItem } from '@/types/collection'
-import { copyToClipboard } from '@/utils/clipboard'
-import { getErrorMessage } from '@/utils/common'
-import { isRecordExpired } from '@/utils/common'
+import type { DirectRecord, ReceivedFileRecord, CollectionRecord } from '@/types'
+import type { MultiFileItem, CollectionManageResponse, CollectionRetrieveResponse } from '@/types/collection'
+import { getErrorMessage, isRecordExpired, formatFileSize } from '@/utils/common'
 import { renderMarkdownPreview } from '@/utils/content-preview'
-import { buildDownloadUrl } from '@/utils/share-url'
-import { downloadFile } from '@/utils/download-action'
-import { saveAs } from 'file-saver'
+import { buildAppUrl, buildDownloadUrl, buildRetrieveUrl, buildWgetCommand } from '@/utils/share-url'
+import { downloadFile, downloadBlob } from '@/utils/download-action'
 
 const isDarkMode = inject('isDarkMode')
 const { t } = useI18n()
@@ -300,31 +268,21 @@ const route = useRoute()
 const router = useRouter()
 const configStore = useConfigStore()
 const alertStore = useAlertStore()
+const confirmStore = useConfirmStore()
 const fileStore = useFileDataStore()
 const { config } = storeToRefs(configStore)
+const retrieveFlow = useRetrieveFlow()
+const retrieveUrls = useRetrieveUrls()
+const { copy: copyText } = useClipboard()
 
-// ==================== Tab 管理 ====================
-type TabKey = 'retrieve' | 'send'
-const activeTab = ref<TabKey>('retrieve')
-
-const tabs = computed(() => [
-  { key: 'retrieve' as TabKey, label: t('home.tabs.retrieve'), icon: ArrowRightIcon },
-  { key: 'send' as TabKey, label: t('home.tabs.send'), icon: UploadIcon }
-])
-
-// URL query 参数控制初始 Tab 和取件码弹窗
+// URL query 参数控制初始取件码：仅链接/二维码带码时自动查询一次；手动输入码需点击查询
 onMounted(() => {
-  const queryCode = route.query.code
-  if (queryCode && typeof queryCode === 'string') {
-    retrieveCode.value = queryCode
-  }
-  if (route.query.tab === 'send') {
-    activeTab.value = 'send'
-  }
-  // QR码扫描取件码 → 自动提交
   const retrieveParam = route.query.retrieve
-  if (retrieveParam && typeof retrieveParam === 'string') {
-    retrieveCode.value = retrieveParam
+  const queryCode = route.query.code
+  const code = (typeof retrieveParam === 'string' && retrieveParam) || (typeof queryCode === 'string' && queryCode)
+  if (code) {
+    retrieveCode.value = code
+    void handleRetrieveSubmit()
   }
 })
 
@@ -336,7 +294,7 @@ const selectedRecord = ref<ReceivedFileRecord | null>(null)
 const showPreview = ref(false)
 const renderedContent = ref('')
 const isMultiFile = ref(false)
-const multiFileItems = ref<MultiFileItem[]>([])
+const multiFileItems = ref<Array<MultiFileItem & { sizeText?: string }>>([])
 const multiFileCode = ref('')
 
 // 多文件弹窗
@@ -346,24 +304,41 @@ const multiFileTotalSize = ref('')
 const multiFileExpiredAt = ref<string | null>(null)
 const multiFileExpireStyle = ref('')
 const multiFileExpireValue = ref(0)
+/** 取件弹窗强制过期状态（后端确认过期但本地无过期时间时置 true，驱动过期横幅） */
+const multiFileIsExpired = ref(false)
+/** 取件弹窗实时剩余次数（count 模式，后端 selectFile 每次取件后返回最新值） */
+const multiFileExpiredCount = ref<number | null>(null)
+/** 取件弹窗过期时间文案（时间型→到期时间；次数型→实时剩余次数；永久→永久） */
+const multiFileExpireText = computed(() =>
+  formatExpireText(multiFileExpireStyle.value, multiFileExpireValue.value, multiFileExpiredAt.value, multiFileExpiredCount.value)
+)
+// 文件备注
+const multiFileRemark = ref<string | null>(null)
+// 文本查看状态（统一查看弹窗文本模式）
+const multiFileText = ref<string | null | undefined>(undefined)
+const multiFileShowPreview = ref(false)
+// 收件箱查看状态（统一查看弹窗收件箱模式；取件人视角不携带投件码，仅管理视角可选传入）
+const collectionModalData = ref<{
+  title: string
+  /** 管理码：创建者/收件人视角传入，展示管理卡片 */
+  collectionCode?: string
+  deliveryCode?: string
+  files: Array<{ id: number; file_name: string; file_size: number; uploader_name?: string }>
+  /** 收件箱（管理码）过期时间文案 */
+  collectionExpire?: string
+  deliveryExpire?: string
+  retrieveExpire?: string
+} | null>(null)
+const collectionZipCode = ref('')
+// 单文件记录复用多文件弹窗（single 模式）
+const isSingleFileModal = ref(false)
+const singleFileRecord = ref<ReceivedFileRecord | null>(null)
 const isCollectionRetrieve = ref(false)
 const collectionCodeForDownload = ref('')
 
-// 收件箱取件弹窗
-const showCollectionModal = ref(false)
-const collectionModalCode = ref('')
-
 const { receiveData: records } = storeToRefs(fileStore)
 
-const baseUrl = window.location.origin + '/#'
-
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return '0 ' + t('fileSize.bytes')
-  const k = 1024
-  const sizes = [t('fileSize.bytes'), t('fileSize.kb'), t('fileSize.mb'), t('fileSize.gb'), t('fileSize.tb')]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
+const baseUrl = buildAppUrl()
 
 const createRecord = (detail: {
   code: string
@@ -375,21 +350,32 @@ const createRecord = (detail: {
   expired_at?: string | null
   expire_style?: string
   expire_value?: number
+  expired_count?: number | null
+  remark?: string | null
 }): ReceivedFileRecord => {
-  const isFile = detail.is_multi_file || detail.text.startsWith('/share/download') || detail.name !== 'Text'
+  // 文件判定：多文件，或 text 为可下载 URL（/share/download 或 http(s)）。
+  // 仅备注分享（无文件）text=remark 纯文本 → 归为文本；不再依赖 name/prefix 判定（prefix 已统一为空）
+  const textVal = detail.text || ''
+  const isFile = detail.is_multi_file || textVal.startsWith('/share/download') || /^https?:\/\//.test(textVal)
   const recordType = detail.is_multi_file ? 'multiFile' : (isFile ? 'file' : 'text')
+  // 多文件与单文件名称保持一致：多文件显示"第一个文件名 + 等N个文件"
+  const recordName = detail.is_multi_file && detail.items && detail.items.length > 0
+    ? t('records.multiFileName', { name: detail.items[0].file_name, count: detail.items.length })
+    : detail.name
   return {
     id: Date.now(),
     code: detail.code,
-    filename: detail.name,
+    filename: recordName,
     size: formatFileSize(detail.size),
     downloadUrl: isFile ? detail.text : null,
     content: isFile ? null : detail.text,
     date: new Date().toLocaleString(),
     type: recordType,
+    remark: detail.remark ?? null,
     expiredAt: detail.expired_at,
     expireStyle: detail.expire_style,
     expireValue: detail.expire_value,
+    expiredCount: typeof detail.expired_count === 'number' ? detail.expired_count : null,
   }
 }
 
@@ -409,7 +395,7 @@ const handleRetrieveSubmit = async () => {
   retrieveInputStatus.value.loading = true
 
   try {
-    const checkRes = await FileService.checkCodeType(retrieveCode.value)
+    const checkRes = await retrieveFlow.checkCodeType(retrieveCode.value)
     if (checkRes.code === 200 && checkRes.detail) {
       const codeType = checkRes.detail.type
 
@@ -421,15 +407,15 @@ const handleRetrieveSubmit = async () => {
 
       if (codeType === 'retrieve') {
         // 取件码 → 用收件箱取件弹窗展示
-        const res = await CollectionService.getRetrieveInfo(retrieveCode.value)
+        const res = await retrieveFlow.getRetrieveInfo(retrieveCode.value)
         if (res.code === 200 && res.detail) {
           const files = res.detail.files.filter((f: any) => f.status === 'completed')
           const totalSize = files.reduce((sum: number, f: any) => sum + f.file_size, 0)
 
-          // 保存到取件记录（code 存管理码用于 ZIP 下载，collectionRetrieveCode 存取件码用于单文件下载校验）
+          // 保存到取件记录（code 存取件码，ZIP/单文件下载均支持取件码）
           const collectionRecord: ReceivedFileRecord = {
             id: Date.now(),
-            code: res.detail.collection_code || retrieveCode.value,
+            code: retrieveCode.value,
             filename: res.detail.title || t('retrieve.collectionFiles.title'),
             size: formatFileSize(totalSize),
             downloadUrl: null,
@@ -437,7 +423,6 @@ const handleRetrieveSubmit = async () => {
             date: new Date().toLocaleString(),
             type: 'multiFile',
             isCollection: true,
-            collectionDeliveryCode: res.detail.delivery_code || '',
             collectionRetrieveCode: retrieveCode.value,
             collectionFiles: files.map((f: any) => ({
               id: f.id,
@@ -450,8 +435,28 @@ const handleRetrieveSubmit = async () => {
             fileStore.addReceiveData(collectionRecord)
           }
 
-          collectionModalCode.value = retrieveCode.value
-          showCollectionModal.value = true
+          // 打开统一收件箱查看弹窗（取件码用于二维码与 ZIP/单文件下载）
+          multiFileCode.value = retrieveCode.value
+          collectionZipCode.value = res.detail.retrieve_code || retrieveCode.value
+          collectionModalData.value = {
+            title: res.detail.title || t('retrieve.collectionFiles.title'),
+            retrieveExpire: formatExpireText(res.detail.retrieve_expire_style, res.detail.retrieve_expire_value, res.detail.retrieve_expired_at),
+            files: files.map((f: any) => ({
+              id: f.id,
+              file_name: f.file_name,
+              file_size: f.file_size,
+              uploader_name: f.uploader_name || '',
+            })),
+          }
+          multiFileDate.value = res.detail.created_at
+            ? new Date(res.detail.created_at).toLocaleString()
+            : new Date().toLocaleString()
+          multiFileTotalSize.value = formatFileSize(totalSize)
+          isMultiFile.value = false
+          isSingleFileModal.value = false
+          multiFileText.value = undefined
+          multiFileRemark.value = null
+          showMultiFileModal.value = true
         } else {
           const detail = String(res.detail || '')
           if (detail.includes('过期') || detail.includes('expired') || res.code === 410) {
@@ -469,6 +474,12 @@ const handleRetrieveSubmit = async () => {
         return
       }
 
+      if (codeType === 'direct') {
+        // 临时房间房间码 → 直接跳转到直连房间
+        router.push(`/direct/room/${retrieveCode.value}`)
+        return
+      }
+
       if (codeType === 'unknown') {
         alertStore.showAlert(t('retrieve.messages.retrieveFailure') + t('retrieve.messages.codeNotFound'), 'error')
         return
@@ -476,7 +487,7 @@ const handleRetrieveSubmit = async () => {
     }
 
     // 普通文件码 → 内联展示结果
-    const res = await FileService.selectFile(retrieveCode.value)
+    const res = await retrieveFlow.selectFile(retrieveCode.value)
     if (res.code === 200 && res.detail) {
       const detail = res.detail as {
         code: string
@@ -488,6 +499,8 @@ const handleRetrieveSubmit = async () => {
         expired_at?: string | null
         expire_style?: string
         expire_value?: number
+        expired_count?: number | null
+        remark?: string | null
       }
 
       if (detail.is_multi_file && detail.items) {
@@ -501,10 +514,19 @@ const handleRetrieveSubmit = async () => {
         multiFileExpiredAt.value = detail.expired_at || null
         multiFileExpireStyle.value = detail.expire_style || ''
         multiFileExpireValue.value = detail.expire_value || 0
+        multiFileExpiredCount.value = typeof detail.expired_count === 'number' ? detail.expired_count : null
+        multiFileRemark.value = detail.remark || null
+        multiFileText.value = undefined
+        multiFileShowPreview.value = false
+        collectionModalData.value = null
         showMultiFileModal.value = true
       } else {
         isMultiFile.value = false
         multiFileItems.value = []
+        multiFileRemark.value = detail.remark || null
+        multiFileText.value = undefined
+        multiFileShowPreview.value = false
+        collectionModalData.value = null
       }
 
       const newFileData = createRecord(detail)
@@ -515,7 +537,47 @@ const handleRetrieveSubmit = async () => {
       if (!fileStore.receiveData.some((file) => file.code === newFileData.code)) {
         fileStore.addReceiveData(newFileData)
       }
-      selectedRecord.value = newFileData
+      // 与"记录-收件-查看"一致，共用 MultiFileRetrieveModal：
+      // 文本 → 文本模式（含预览按钮），单文件/多文件 → single / 列表模式
+      if (isMultiFile.value) {
+        // 多文件已在上方填充数据并打开弹窗，无需处理
+      } else if (newFileData.content) {
+        // 文本 → 统一查看弹窗文本模式
+        selectedRecord.value = newFileData
+        isMultiFile.value = false
+        isSingleFileModal.value = false
+        multiFileCode.value = newFileData.code
+        multiFileItems.value = []
+        multiFileDate.value = newFileData.date
+        multiFileTotalSize.value = newFileData.size
+        multiFileExpiredAt.value = newFileData.expiredAt || null
+        multiFileExpireStyle.value = newFileData.expireStyle || ''
+        multiFileExpireValue.value = newFileData.expireValue || 0
+        multiFileExpiredCount.value = newFileData.expiredCount ?? null
+        multiFileRemark.value = null
+        multiFileText.value = newFileData.content
+        multiFileShowPreview.value = true
+        collectionModalData.value = null
+        nextTick(() => { showMultiFileModal.value = true })
+      } else {
+        // 单文件 → 复用多文件弹窗（single 模式）
+        selectedRecord.value = null
+        isMultiFile.value = false
+        isSingleFileModal.value = true
+        singleFileRecord.value = newFileData
+        multiFileCode.value = newFileData.code
+        multiFileItems.value = [{ id: 0, file_name: newFileData.filename, file_size: 0, sizeText: newFileData.size }]
+        multiFileDate.value = newFileData.date
+        multiFileTotalSize.value = newFileData.size
+        multiFileExpiredAt.value = newFileData.expiredAt || null
+        multiFileExpireStyle.value = newFileData.expireStyle || ''
+        multiFileExpireValue.value = newFileData.expireValue || 0
+        multiFileRemark.value = newFileData.remark || null
+        multiFileText.value = undefined
+        multiFileShowPreview.value = false
+        collectionModalData.value = null
+        nextTick(() => { showMultiFileModal.value = true })
+      }
       alertStore.showAlert(t('retrieve.messages.retrieveSuccess'), 'success')
     } else {
       // 识别过期错误，给出明确提示
@@ -551,22 +613,54 @@ const closeResult = () => {
 
 const closeMultiFileModal = () => {
   showMultiFileModal.value = false
+  multiFileIsExpired.value = false
   isCollectionRetrieve.value = false
   collectionCodeForDownload.value = ''
+  isSingleFileModal.value = false
+  singleFileRecord.value = null
+  multiFileRemark.value = null
+  multiFileText.value = undefined
+  multiFileShowPreview.value = false
+  collectionModalData.value = null
+  collectionZipCode.value = ''
+  selectedRecord.value = null
 }
 
-const closeCollectionModal = () => {
-  showCollectionModal.value = false
-  collectionModalCode.value = ''
+/** 收件箱模式：单文件下载（取件码用于校验） */
+const downloadCollectionItem = (itemId: number) => {
+  const file = collectionModalData.value?.files?.find((f) => f.id === itemId)
+  const filename = file?.file_name || undefined
+  void downloadFile(retrieveUrls.getDownloadUrl(itemId, multiFileCode.value), filename, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
+}
+
+/** 收件箱模式：ZIP 打包下载（使用管理码更可靠） */
+const downloadCollectionZip = () => {
+  const zipCode = collectionZipCode.value || multiFileCode.value
+  void downloadFile(retrieveUrls.getZipDownloadUrl(zipCode), `${zipCode}.zip`, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
+}
+
+const downloadSingleFileRecord = () => {
+  const record = singleFileRecord.value
+  if (!record?.downloadUrl) {
+    alertStore.showAlert(t('fileDetail.expired'), 'error')
+    return
+  }
+  const expired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue) || record.isExpired
+  void downloadFile(buildDownloadUrl(record.downloadUrl), record.filename || undefined, { isExpired: expired, expiredMessage: t('fileDetail.expired') })
 }
 
 const downloadMultiFileItem = (itemId: number) => {
+  // 单文件记录：直接下载
+  if (isSingleFileModal.value) {
+    downloadSingleFileRecord()
+    return
+  }
   const item = multiFileItems.value.find(i => i.id === itemId)
   const filename = item?.file_name || undefined
   if (isCollectionRetrieve.value && collectionCodeForDownload.value) {
-    void downloadFile(CollectionService.getDownloadUrl(itemId, collectionCodeForDownload.value), filename, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
+    void downloadFile(retrieveUrls.getDownloadUrl(itemId, collectionCodeForDownload.value), filename, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
   } else {
-    void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, multiFileCode.value), filename, {
+    void downloadFile(retrieveUrls.getMultiFileDownloadUrl(itemId, multiFileCode.value), filename, {
       isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value, multiFileExpireValue.value),
       expiredMessage: t('fileDetail.expired')
     })
@@ -574,10 +668,11 @@ const downloadMultiFileItem = (itemId: number) => {
 }
 
 const downloadMultiFileZip = () => {
+  // 单文件记录也统一打包下载
   if (isCollectionRetrieve.value && collectionCodeForDownload.value) {
-    void downloadFile(CollectionService.getZipDownloadUrl(collectionCodeForDownload.value), undefined, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
+    void downloadFile(retrieveUrls.getZipDownloadUrl(collectionCodeForDownload.value), undefined, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
   } else {
-    void downloadFile(CollectionService.getMultiFileZipUrl(multiFileCode.value), `${multiFileCode.value}.zip`, {
+    void downloadFile(retrieveUrls.getMultiFileZipUrl(multiFileCode.value), `${multiFileCode.value}.zip`, {
       isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value, multiFileExpireValue.value),
       expiredMessage: t('fileDetail.expired')
     })
@@ -586,28 +681,65 @@ const downloadMultiFileZip = () => {
 
 const copyContent = async () => {
   if (selectedRecord.value?.content) {
-    await copyToClipboard(selectedRecord.value.content, {
+    await copyText(selectedRecord.value.content, {
       successMsg: t('fileRecord.contentCopied'),
-      errorMsg: t('fileRecord.copyFailed'),
-      notify: (message, type) => alertStore.showAlert(message, type)
+      errorMsg: t('fileRecord.copyFailed')
     })
   }
 }
 
-const viewDetails = (record: ReceivedFileRecord) => {
-  showDrawer.value = false
+const viewDetails = async (record: ReceivedFileRecord) => {
+  // 打开记录查看时保持记录抽屉打开，不自动关闭
 
-  // 前端预检：记录已过期则提示（但不阻止查看）
-  if (isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue)) {
-    alertStore.showAlert(t('fileDetail.expired'), 'warning')
+  // 前端预检：本地已过期 → 标记"已过期"，弹窗内展示过期横幅并继续用本地缓存展示
+  const localExpired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue)
+  if (localExpired) {
+    record.isExpired = true
   }
 
   if (record.isCollection) {
-    // 收件箱 → 用收件箱取件弹窗展示
-    collectionModalCode.value = record.code
-    showCollectionModal.value = true
-  } else if (record.isMultiFile) {
+    if (localExpired) {
+      // 收件箱已过期：直接用本地缓存的文件列表展示
+      openCollectionFromCache(record)
+    } else {
+      // 收件箱 → 统一查看弹窗（收件箱模式），拉取最新文件列表
+      void openCollectionRetrieve(record.collectionRetrieveCode || record.code, record.code)
+    }
+    return
+  }
+
+  // 普通文件/多文件/文本记录：本地未过期时才拉后台刷新最新状态（本地已过期则直接用缓存展示）
+  if (!localExpired) {
+    try {
+      const res = await retrieveFlow.getFileInfo(record.code)
+      if (res.code === 410 || (res.code !== 200 && String(res.detail || '').includes('过期'))) {
+        // 后端确认已过期 → 标记"已过期"，弹窗内展示过期横幅并继续用本地缓存展示
+        fileStore.markRecordExpired(record.code)
+        record.isExpired = true
+      } else if (res.code === 200 && res.detail) {
+        const detail = res.detail as any
+        record.expiredAt = detail.expired_at ?? null
+        record.expireStyle = detail.expire_style || record.expireStyle
+        record.expireValue = detail.expire_value ?? record.expireValue
+        record.expiredCount = typeof detail.expired_count === 'number' ? detail.expired_count : null
+        if (detail.is_multi_file && Array.isArray(detail.items)) {
+          record.multiFileItems = detail.items
+        }
+        // 同步弹窗数据源
+        multiFileExpiredAt.value = record.expiredAt ?? null
+        multiFileExpireStyle.value = record.expireStyle || ''
+        multiFileExpireValue.value = record.expireValue || 0
+        multiFileExpiredCount.value = record.expiredCount ?? null
+      }
+    } catch {
+      // 网络失败：回退本地快照展示
+    }
+  }
+
+  if (record.isMultiFile) {
     // 多文件 → 弹窗
+    isSingleFileModal.value = false
+    singleFileRecord.value = null
     isMultiFile.value = true
     multiFileCode.value = record.code
     multiFileItems.value = record.multiFileItems || []
@@ -616,20 +748,141 @@ const viewDetails = (record: ReceivedFileRecord) => {
     multiFileExpiredAt.value = record.expiredAt || null
     multiFileExpireStyle.value = record.expireStyle || ''
     multiFileExpireValue.value = record.expireValue || 0
+    multiFileIsExpired.value = !!record.isExpired
+    multiFileRemark.value = record.remark || null
+    multiFileText.value = undefined
+    multiFileShowPreview.value = false
+    collectionModalData.value = null
     nextTick(() => { showMultiFileModal.value = true })
   } else if (record.content) {
-    // 文本 → 详情弹窗（含预览按钮）
+    // 文本 → 统一用文件弹窗（文本内容作为备注展示），不再单独文本弹窗
     isMultiFile.value = false
-    selectedRecord.value = record
+    selectedRecord.value = null
+    isSingleFileModal.value = true
+    singleFileRecord.value = null
+    multiFileCode.value = record.code
+    multiFileItems.value = [{ id: 0, file_name: record.filename || record.content || '', file_size: 0, sizeText: record.size }]
+    multiFileDate.value = record.date
+    multiFileTotalSize.value = record.size
+    multiFileExpiredAt.value = record.expiredAt || null
+    multiFileExpireStyle.value = record.expireStyle || ''
+    multiFileExpireValue.value = record.expireValue || 0
+    multiFileIsExpired.value = !!record.isExpired
+    multiFileRemark.value = record.content
+    multiFileText.value = undefined
+    multiFileShowPreview.value = false
+    collectionModalData.value = null
+    nextTick(() => { showMultiFileModal.value = true })
   } else {
-    // 单文件 → 详情弹窗
+    // 单文件 → 复用多文件弹窗（single 模式）
     isMultiFile.value = false
-    selectedRecord.value = record
+    selectedRecord.value = null
+    isSingleFileModal.value = true
+    singleFileRecord.value = record
+    multiFileCode.value = record.code
+    multiFileItems.value = [{ id: 0, file_name: record.filename, file_size: 0, sizeText: record.size }]
+    multiFileDate.value = record.date
+    multiFileTotalSize.value = record.size
+    multiFileExpiredAt.value = record.expiredAt || null
+    multiFileExpireStyle.value = record.expireStyle || ''
+    multiFileExpireValue.value = record.expireValue || 0
+    multiFileIsExpired.value = !!record.isExpired
+    multiFileRemark.value = record.remark || null
+    multiFileText.value = undefined
+    multiFileShowPreview.value = false
+    collectionModalData.value = null
+    nextTick(() => { showMultiFileModal.value = true })
   }
 }
 
-const closeDetails = () => {
-  selectedRecord.value = null
+/** 格式化码过期时间文案（style/value/expiredAt 三选一即可；count 模式优先显示实时剩余次数 count） */
+const formatExpireText = (style?: string, value?: number, expiredAt?: string | null, count?: number | null): string => {
+  if (!style) return ''
+  if (style === 'forever') return t('retrieve.expireForever')
+  if (style === 'count') return t('retrieve.expireCount', { count: count ?? value ?? 0 })
+  if (expiredAt) return new Date(expiredAt).toLocaleString()
+  if (value) {
+    const units: Record<string, string> = {
+      day: t('retrieve.unitDay'),
+      hour: t('retrieve.unitHour'),
+      minute: t('retrieve.unitMinute')
+    }
+    return t('retrieve.expireAfter', { value, unit: units[style] || style })
+  }
+  return ''
+}
+
+/** 收件箱过期时：用本地缓存的文件列表直接展示（不再依赖后台拉取） */
+const openCollectionFromCache = (record: ReceivedFileRecord) => {
+  const files = record.collectionFiles || []
+  const totalSize = files.reduce((sum, f) => sum + (f.file_size || 0), 0)
+  multiFileCode.value = record.code
+  collectionZipCode.value = record.collectionRetrieveCode || record.code
+  collectionModalData.value = {
+    title: record.filename || t('retrieve.collectionFiles.title'),
+    retrieveExpire: t('fileDetail.expired') || '该取件码已过期',
+    files: files.map((f) => ({
+      id: f.id,
+      file_name: f.file_name,
+      file_size: f.file_size,
+      uploader_name: f.uploader_name || '',
+    })),
+  }
+  multiFileDate.value = record.date
+  multiFileTotalSize.value = formatFileSize(totalSize)
+  multiFileIsExpired.value = true
+  isMultiFile.value = false
+  isSingleFileModal.value = false
+  multiFileText.value = undefined
+  multiFileRemark.value = null
+  showMultiFileModal.value = true
+}
+
+/** 通过取件码拉取收件箱信息并用统一查看弹窗展示 */
+const openCollectionRetrieve = async (retrieveCode: string, zipCode: string) => {
+  try {
+    const res = await retrieveFlow.getRetrieveInfo(retrieveCode)
+    if (res.code === 200 && res.detail) {
+      const files = res.detail.files.filter((f: any) => f.status === 'completed')
+      const totalSize = files.reduce((sum: number, f: any) => sum + f.file_size, 0)
+      multiFileCode.value = retrieveCode
+      // 取件码视角：ZIP/单文件下载均使用取件码，不携带投件码信息
+      collectionZipCode.value = zipCode || res.detail.retrieve_code || retrieveCode
+      collectionModalData.value = {
+        title: res.detail.title || t('retrieve.collectionFiles.title'),
+        retrieveExpire: formatExpireText(res.detail.retrieve_expire_style, res.detail.retrieve_expire_value, res.detail.retrieve_expired_at),
+        files: files.map((f: any) => ({
+          id: f.id,
+          file_name: f.file_name,
+          file_size: f.file_size,
+          uploader_name: f.uploader_name || '',
+        })),
+      }
+      multiFileDate.value = res.detail.created_at
+        ? new Date(res.detail.created_at).toLocaleString()
+        : new Date().toLocaleString()
+      multiFileTotalSize.value = formatFileSize(totalSize)
+      isMultiFile.value = false
+      isSingleFileModal.value = false
+      multiFileText.value = undefined
+      multiFileRemark.value = null
+      showMultiFileModal.value = true
+    } else {
+      const detail = String(res.detail || '')
+      if (detail.includes('过期') || detail.includes('expired') || res.code === 410) {
+        alertStore.showAlert(t('collection.retrieve.expired') || '收件箱已过期', 'error')
+      } else {
+        alertStore.showAlert(t('collection.retrieve.notFound'), 'error')
+      }
+    }
+  } catch (err: unknown) {
+    const msg = getErrorMessage(err, t('collection.retrieve.loadFailed'))
+    if (String(msg).includes('过期') || String(msg).includes('410')) {
+      alertStore.showAlert(t('collection.retrieve.expired') || '收件箱已过期', 'error')
+    } else {
+      alertStore.showAlert(msg, 'error')
+    }
+  }
 }
 
 const deleteRecord = (id: number) => {
@@ -648,7 +901,7 @@ const downloadRecord = (record: ReceivedFileRecord) => {
       return
     }
     const blob = new Blob([record.content], { type: 'text/plain;charset=utf-8' })
-    saveAs(blob, `${record.filename}.txt`)
+    downloadBlob(blob, `${record.filename}.txt`)
     return
   }
 
@@ -662,7 +915,7 @@ const downloadRecord = (record: ReceivedFileRecord) => {
       alertStore.showAlert(t('retrieve.collectionFiles.noFiles'), 'error')
       return
     }
-    void downloadFile(CollectionService.getZipDownloadUrl(record.code), `${record.filename}.zip`, { expiredMessage: t('fileDetail.expired') })
+    void downloadFile(retrieveUrls.getZipDownloadUrl(record.code), `${record.filename}.zip`, { expiredMessage: t('fileDetail.expired') })
     return
   }
 
@@ -676,7 +929,7 @@ const downloadRecord = (record: ReceivedFileRecord) => {
       alertStore.showAlert(t('retrieve.collectionFiles.noFiles'), 'error')
       return
     }
-    void downloadFile(CollectionService.getMultiFileZipUrl(record.code), `${record.code}.zip`, { expiredMessage: t('fileDetail.expired') })
+    void downloadFile(retrieveUrls.getMultiFileZipUrl(record.code), `${record.code}.zip`, { expiredMessage: t('fileDetail.expired') })
     return
   }
 
@@ -707,72 +960,59 @@ watch(
   { immediate: true }
 )
 
-// 自动提交：6位码输入完毕快速自动提交
-let autoSubmitTimer: ReturnType<typeof setTimeout> | null = null
-
-watch(retrieveCode, (newCode) => {
-  if (autoSubmitTimer) {
-    clearTimeout(autoSubmitTimer)
-    autoSubmitTimer = null
-  }
-  if (newCode.length >= 6) {
-    autoSubmitTimer = setTimeout(() => {
-      void handleRetrieveSubmit()
-    }, 600)
-  }
-})
-
-onUnmounted(() => {
-  if (autoSubmitTimer) {
-    clearTimeout(autoSubmitTimer)
-  }
-})
-
 // ==================== 发送逻辑 ====================
 const {
-  sendType,
-  selectedFile,
-  selectedFiles,
-  textContent,
-  expirationMethod,
-  expirationValue,
-  uploadProgress,
   selectedRecord: selectedSendRecord,
-  isSubmitting,
   sendRecords,
-  uploadDescription,
-  expirationOptions,
   closeDetails: closeSendDetails,
   deleteRecord: deleteSendRecord,
-  copySentRecordCode,
+  sentModal,
+  closeSentModal,
   copySentRecordLink,
-  copySentRecordWgetCommand,
-  getQRCodeValue,
-  handleFileDrop,
-  handleFileSelected,
-  handleFilesSelected,
-  handlePaste,
-  handleSubmit: handleSendSubmit,
-  removeFile,
   viewDetails: viewSendDetails
 } = useSendFlow()
 
+// 发件成功 / 投件详情 → 统一成功弹窗
+const sendSuccessCodes = computed(() => {
+  const r = selectedSendRecord.value
+  if (!r) return []
+  const link = buildRetrieveUrl(r.retrieveCode)
+  return [{
+    label: t('retrieve.codeInput.label'),
+    code: r.retrieveCode,
+    qrValue: link,
+    hint: t('retrieve.scanToRetrieve'),
+    copyLinkText: t('collection.create.copyRetrieveLink'),
+    copyLinkUrl: link
+  }]
+})
+const sendSuccessWget = computed(() => {
+  const r = selectedSendRecord.value
+  return r ? buildWgetCommand(r.retrieveCode, r.filename) : null
+})
+const sendSuccessFiles = computed(() => {
+  const r = selectedSendRecord.value
+  return (r?.files || []).map((f) => ({ name: f.name, size: formatFileSize(f.size) }))
+})
+
 // ==================== 通用 ====================
 const showDrawer = ref(false)
-const drawerTab = ref<'retrieve' | 'send' | 'collection'>('retrieve')
+const drawerTab = ref<'retrieve' | 'send' | 'collection' | 'direct'>('retrieve')
 
 const collectionRecords = computed(() => fileStore.collectionData)
+const directRecords = computed(() => fileStore.directData)
 
 const drawerTabs = computed(() => [
   { key: 'retrieve' as const, label: t('records.tabs.retrieve') },
   { key: 'send' as const, label: t('records.tabs.send') },
-  { key: 'collection' as const, label: t('records.tabs.collection') }
+  { key: 'collection' as const, label: t('records.tabs.collection') },
+  { key: 'direct' as const, label: t('records.tabs.direct') }
 ])
 
 const toggleDrawer = () => {
   if (!showDrawer.value) {
-    // 打开时默认切换到当前 Tab 对应的记录
-    drawerTab.value = activeTab.value
+    // 打开时默认切换到取件记录
+    drawerTab.value = 'retrieve'
   }
   showDrawer.value = !showDrawer.value
 }
@@ -783,18 +1023,31 @@ const goCollectionManage = (record: CollectionRecord) => {
 }
 
 const goCollectionRetrieve = async (record: CollectionRecord) => {
-  showDrawer.value = false
-  // 通过取件码获取收件箱数据，用收件箱取件弹窗展示
+  // 保持记录抽屉打开，仅弹出查看窗口
   try {
-    const res = await CollectionService.getRetrieveInfo(record.retrieveCode)
+    // 收件箱记录持有管理码：优先拉取管理信息以展示完整三码及各自过期时间
+    let manageDetail: CollectionManageResponse | null = null
+    let res: ApiResponse<CollectionRetrieveResponse>
+    try {
+      const manageRes = await retrieveFlow.getManageInfo(record.collectionCode)
+      if (manageRes.code === 200 && manageRes.detail) {
+        manageDetail = manageRes.detail
+        res = manageRes as unknown as ApiResponse<CollectionRetrieveResponse>
+      } else {
+        res = await retrieveFlow.getRetrieveInfo(record.retrieveCode)
+      }
+    } catch {
+      res = await retrieveFlow.getRetrieveInfo(record.retrieveCode)
+    }
+
     if (res.code === 200 && res.detail) {
       const files = res.detail.files.filter((f: any) => f.status === 'completed')
       const totalSize = files.reduce((sum: number, f: any) => sum + f.file_size, 0)
 
-      // 保存到取件记录（code 存管理码用于 ZIP 下载，collectionRetrieveCode 存取件码用于单文件下载校验）
+      // 保存到取件记录（code 存取件码，ZIP/单文件下载均支持取件码）
       const collectionRecord: ReceivedFileRecord = {
         id: Date.now(),
-        code: res.detail.collection_code || record.retrieveCode,
+        code: record.retrieveCode,
         filename: res.detail.title || t('retrieve.collectionFiles.title'),
         size: formatFileSize(totalSize),
         downloadUrl: null,
@@ -802,7 +1055,6 @@ const goCollectionRetrieve = async (record: CollectionRecord) => {
         date: new Date().toLocaleString(),
         type: 'multiFile',
         isCollection: true,
-        collectionDeliveryCode: res.detail.delivery_code || '',
         collectionRetrieveCode: record.retrieveCode,
         collectionFiles: files.map((f: any) => ({
           id: f.id,
@@ -815,12 +1067,45 @@ const goCollectionRetrieve = async (record: CollectionRecord) => {
         fileStore.addReceiveData(collectionRecord)
       }
 
-      collectionModalCode.value = record.retrieveCode
-      showCollectionModal.value = true
+      // 打开统一收件箱查看弹窗：管理视角展示完整三码及各自过期时间
+      multiFileCode.value = record.retrieveCode
+      collectionZipCode.value = res.detail.retrieve_code || record.retrieveCode
+      collectionModalData.value = {
+        title: res.detail.title || t('retrieve.collectionFiles.title'),
+        // 管理码信息（记录-收件箱-查看）：展示管理卡片与收件箱过期时间
+        collectionCode: manageDetail?.collection_code || record.collectionCode,
+        deliveryCode: manageDetail?.delivery_code || record.deliveryCode || undefined,
+        collectionExpire: manageDetail
+          ? formatExpireText(manageDetail.expire_style, manageDetail.expire_value, manageDetail.expired_at)
+          : record.collectionExpire,
+        deliveryExpire: manageDetail
+          ? formatExpireText(manageDetail.delivery_expire_style, manageDetail.delivery_expire_value, manageDetail.delivery_expired_at)
+          : record.deliveryExpire,
+        retrieveExpire: formatExpireText(res.detail.retrieve_expire_style, res.detail.retrieve_expire_value, res.detail.retrieve_expired_at),
+        files: files.map((f: any) => ({
+          id: f.id,
+          file_name: f.file_name,
+          file_size: f.file_size,
+          uploader_name: f.uploader_name || '',
+        })),
+      }
+      multiFileDate.value = res.detail.created_at
+        ? new Date(res.detail.created_at).toLocaleString()
+        : new Date().toLocaleString()
+      multiFileTotalSize.value = formatFileSize(totalSize)
+      isMultiFile.value = false
+      isSingleFileModal.value = false
+      multiFileText.value = undefined
+      multiFileRemark.value = null
+      showMultiFileModal.value = true
     } else {
       const detail = String(res.detail || '')
       if (detail.includes('过期') || detail.includes('expired') || res.code === 410) {
         alertStore.showAlert(t('collection.retrieve.expired') || '收件箱已过期', 'error')
+        // 记录已失效 → 询问是否删除该记录
+        if (await confirmStore.confirm({ message: t('fileDetail.expiredConfirm') })) {
+          deleteCollectionRecord(record.id)
+        }
       } else {
         alertStore.showAlert(t('collection.retrieve.notFound'), 'error')
       }
@@ -829,6 +1114,9 @@ const goCollectionRetrieve = async (record: CollectionRecord) => {
     const msg = getErrorMessage(err, t('collection.retrieve.loadFailed'))
     if (String(msg).includes('过期') || String(msg).includes('410')) {
       alertStore.showAlert(t('collection.retrieve.expired') || '收件箱已过期', 'error')
+      if (await confirmStore.confirm({ message: t('fileDetail.expiredConfirm') })) {
+        deleteCollectionRecord(record.id)
+      }
     } else {
       alertStore.showAlert(msg, 'error')
     }
@@ -837,6 +1125,27 @@ const goCollectionRetrieve = async (record: CollectionRecord) => {
 
 const deleteCollectionRecord = (id: number) => {
   fileStore.removeCollectionRecord(id)
+}
+
+const goDirectRoom = (roomCode: string) => {
+  showDrawer.value = false
+  router.push(`/direct/room/${roomCode}`)
+}
+
+const deleteDirectRecord = (id: number) => {
+  fileStore.deleteDirectRecord(id)
+}
+
+// ==================== 记录-直连-查看（房间信息弹窗） ====================
+const directRoomModalCode = ref('')
+
+const viewDirectRoomDetails = (record: DirectRecord) => {
+  directRoomModalCode.value = record.roomCode
+}
+
+const enterDirectRoomFromModal = (roomCode: string) => {
+  directRoomModalCode.value = ''
+  goDirectRoom(roomCode)
 }
 </script>
 

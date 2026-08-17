@@ -3,6 +3,7 @@ import { RouterView } from 'vue-router'
 import ThemeToggle from './components/common/ThemeToggle.vue'
 import LanguageSwitcher from './components/common/LanguageSwitcher.vue'
 import AlertComponent from '@/components/common/AlertComponent.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useAppShell } from '@/composables'
 
 const { isDarkMode, isLoading, route, showGlobalControls } = useAppShell()
@@ -10,9 +11,10 @@ const { isDarkMode, isLoading, route, showGlobalControls } = useAppShell()
 
 <template>
   <div :class="['app-container', isDarkMode ? 'dark' : 'light']">
-    <div v-if="showGlobalControls" class="fixed top-4 right-4 z-50 flex items-center space-x-3">
+    <!-- 语言 / 主题切换：位于页面顶部文档流内，随页面滚动（不再固定悬浮在视口角落） -->
+    <div v-if="showGlobalControls" class="flex items-center justify-end space-x-3 px-6 pt-5">
       <LanguageSwitcher />
-      <ThemeToggle v-model="isDarkMode" />
+      <ThemeToggle />
     </div>
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-spinner"></div>
@@ -24,6 +26,7 @@ const { isDarkMode, isLoading, route, showGlobalControls } = useAppShell()
     </RouterView>
 
     <AlertComponent />
+    <ConfirmDialog />
   </div>
 </template>
 
@@ -31,15 +34,8 @@ const { isDarkMode, isLoading, route, showGlobalControls } = useAppShell()
 .app-container {
   min-height: 100vh;
   width: 100%;
-  transition: background-color 0.5s ease;
-}
-
-.light {
-  @apply bg-gradient-to-br from-blue-50 via-indigo-50 to-white;
-}
-
-.dark {
-  @apply bg-gradient-to-br from-gray-900 via-indigo-900 to-black;
+  background: var(--app-bg);
+  transition: background 0.5s ease;
 }
 
 .fade-enter-active,

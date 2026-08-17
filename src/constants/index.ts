@@ -3,13 +3,16 @@
 // 存储键名
 export const STORAGE_KEYS = {
   COLOR_MODE: 'colorMode',
-  ADMIN_PASSWORD: 'adminPassword',
+  THEME_ID: 'filecodebox:themeId',
   TOKEN: 'token',
   CONFIG: 'config',
   NOTIFY: 'notify',
   UPLOADER_NICKNAME: 'uploaderNickname',
   RECENT_DELIVERY_CODES: 'recentDeliveryCodes',
-  DELIVERY_UPLOAD_HISTORY: 'deliveryUploadHistory'
+  DELIVERY_UPLOAD_HISTORY: 'deliveryUploadHistory',
+  DIRECT_NICKNAME: 'directNickname',
+  DIRECT_CLIENT_ID: 'directClientId',
+  RECENT_DIRECT_ROOMS: 'recentDirectRooms'
 } as const
 
 // 主题模式
@@ -19,10 +22,9 @@ export const THEME_MODES = {
   SYSTEM: 'system'
 } as const
 
-// 发送类型
+// 发送类型（文本已合并为文件，仅保留文件类型）
 export const SEND_TYPES = {
-  FILE: 'file',
-  TEXT: 'text'
+  FILE: 'file'
 } as const
 
 // 警告类型
@@ -59,7 +61,7 @@ export const FILE_SIZE_LIMITS = {
 // 时间相关常量
 export const TIME_CONSTANTS = {
   ALERT_DURATION: 5000, // 5秒
-  REQUEST_TIMEOUT: 300000000,
+  REQUEST_TIMEOUT: 30000, // 30秒（此前误写为 300000000ms≈83小时）
   PROGRESS_UPDATE_INTERVAL: 100 // 100毫秒
 } as const
 
@@ -75,9 +77,9 @@ export const ROUTES = {
   COLLECTION_MANAGE: '/collection/manage',
   COLLECTION_RETRIEVE: '/collection/retrieve',
   COLLECTION_DETAIL: '/collection/manage',
-  COLLECTION_SUBMIT: '/collection/submit',
-  DELIVERY_ENTER: '/delivery/enter',
   DELIVERY_UPLOAD: '/delivery/upload',
+  DIRECT: '/direct',
+  DIRECT_ROOM: '/direct/room',
   UNIFIED_MANAGE: '/admin/unified'
 } as const
 
@@ -93,9 +95,9 @@ export const ROUTE_NAMES = {
   COLLECTION_MANAGE: 'CollectionManage',
   COLLECTION_RETRIEVE: 'CollectionRetrieve',
   COLLECTION_DETAIL: 'CollectionDetail',
-  COLLECTION_SUBMIT: 'CollectionSubmit',
-  DELIVERY_ENTER: 'DeliveryEnter',
   DELIVERY_UPLOAD: 'DeliveryUpload',
+  DIRECT_HOME: 'DirectHome',
+  DIRECT_ROOM: 'DirectRoom',
   UNIFIED_MANAGE: 'UnifiedManage'
 } as const
 
@@ -103,7 +105,7 @@ export const ROUTE_NAMES = {
 export const REGEX_PATTERNS = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   PHONE: /^1[3-9]\d{9}$/,
-  CODE: /^[A-Za-z0-9]{4,8}$/ // 取件码格式
+  CODE: /^[A-Za-z0-9]{4,12}$/ // 口令/码格式（兼容码位数配置调整前的旧码）
 } as const
 
 // 默认配置

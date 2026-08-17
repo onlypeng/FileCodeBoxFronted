@@ -31,18 +31,30 @@ export function formatTimestamp(timestamp: string, format: 'datetime' | 'date' |
 
 /**
  * 格式化文件大小
+ * - 统一保留两位小数
+ * - 自动选择单位；当数值在当前单位下会显示为 0.00 时，自动降级到更小单位
+ * - 仅当文件大小本身为 0 时才显示 0
  * @param bytes 字节数
  * @param decimals 小数位数
  * @returns 格式化后的文件大小字符串
  */
 export function formatFileSize(bytes: number, decimals: number = 2): string {
-  if (bytes === 0) return '0 Bytes'
+  if (!bytes || bytes < 0) return '0 B'
 
   const k = 1024
   const dm = decimals < 0 ? 0 : decimals
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
 
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  // 小于 1 字节（非 0）时按字节显示，避免出现 0.00
+  if (bytes < 1) {
+    return parseFloat(bytes.toFixed(dm)) + ' B'
+  }
+
+  let i = Math.floor(Math.log(bytes) / Math.log(k))
+  // 数值过小导致在当前单位下显示为 0.00 时，自动降级到更小单位
+  while (i > 0 && bytes / Math.pow(k, i) < 0.01) {
+    i -= 1
+  }
 
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
 }

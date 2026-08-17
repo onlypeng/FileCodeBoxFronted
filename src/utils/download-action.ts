@@ -1,7 +1,6 @@
 import { saveAs } from 'file-saver'
 import type { ReceivedFileRecord } from '@/types'
 import { buildDownloadUrl } from '@/utils/share-url'
-import { useAlertStore } from '@/stores/alertStore'
 import { CollectionService } from '@/services/collection'
 
 /** 非文件类 Content-Type（遇到这些类型视为错误响应） */
@@ -15,6 +14,14 @@ export interface DownloadResult {
   success: boolean
   reason?: DownloadFailReason
   errorMessage?: string
+}
+
+/** 提示回调（由调用方注入，避免工具层直接依赖 store） */
+export type DownloadNotify = (message: string, type: 'success' | 'error') => void
+
+/** 将 Blob 保存为本地文件（统一走 file-saver，saveAs 只允许出现在本文件内） */
+export function downloadBlob(blob: Blob, filename: string) {
+  saveAs(blob, filename)
 }
 
 /**
@@ -33,15 +40,24 @@ export async function downloadFile(
     expiredMessage?: string
     /** 是否静默模式（不弹 toast），由调用方自行处理提示 */
     silent?: boolean
+    /** 提示回调（未传入且非静默时，仅输出到控制台） */
+    notify?: DownloadNotify
   }
 ): Promise<DownloadResult> {
-  const alertStore = useAlertStore()
+  const notify = options?.notify
   const showToast = !options?.silent
+
+  const showMessage = (message: string, type: 'success' | 'error') => {
+    if (showToast) {
+      if (notify) notify(message, type)
+      else console.error(message)
+    }
+  }
 
   // 前端过期预检
   if (options?.isExpired) {
     const msg = options.expiredMessage || '该取件码已过期，无法下载'
-    if (showToast) alertStore.showAlert(msg, 'error')
+    showMessage(msg, 'error')
     return { success: false, reason: 'expired', errorMessage: msg }
   }
 
@@ -51,7 +67,7 @@ export async function downloadFile(
     // 1) 状态码检查：非 2xx 直接拦截
     if (!response.ok) {
       const { message, reason } = await extractErrorMessage(response, options)
-      if (showToast) alertStore.showAlert(message, 'error')
+      showMessage(message, 'error')
       return { success: false, reason, errorMessage: message }
     }
 
@@ -62,11 +78,11 @@ export async function downloadFile(
       const errorMsg = await tryReadErrorBody(response)
       if (errorMsg) {
         const reason = detectFailReason(errorMsg)
-        if (showToast) alertStore.showAlert(errorMsg, 'error')
+        showMessage(errorMsg, 'error')
         return { success: false, reason, errorMessage: errorMsg }
       } else {
         const msg = options?.expiredMessage || '下载失败：服务器返回了非文件内容'
-        if (showToast) alertStore.showAlert(msg, 'error')
+        showMessage(msg, 'error')
         return { success: false, reason: 'other', errorMessage: msg }
       }
     }
@@ -88,7 +104,7 @@ export async function downloadFile(
     const blob = await response.blob()
     if (blob.size < 10) {
       const msg = '下载失败：文件为空'
-      if (showToast) alertStore.showAlert(msg, 'error')
+      showMessage(msg, 'error')
       return { success: false, reason: 'other', errorMessage: msg }
     }
 
@@ -107,15 +123,15 @@ export async function downloadFile(
     } else {
       displayMsg = '下载失败，请稍后重试'
     }
-    if (showToast) alertStore.showAlert(displayMsg, 'error')
+    showMessage(displayMsg, 'error')
     return { success: false, reason, errorMessage: displayMsg }
   }
 }
 
 /** 需要从错误文本中过滤掉的无关内容（应用名、通用词汇等） */
 const NOISE_PATTERNS = [
-  /文件快递柜[\s\-]*FileCodeBox?/g,
-  /FileCodeBox[\s\-]*文件快递柜/g,
+  /驿码[\s\-]*FileCodeBox?/g,
+  /FileCodeBox[\s\-]*驿码/g,
   /口令传送箱/g,
   /匿名口令分享/g,
   /^[\s\r\n]{1,5}$/gm,  // 纯空白行
@@ -217,12 +233,14 @@ async function tryReadErrorBody(response: Response): Promise<string | null> {
 }
 
 /** 兼容旧接口：根据记录类型自动选择下载方式 */
-export function downloadReceivedRecord(record: ReceivedFileRecord): Promise<DownloadResult> {
-  const alertStore = useAlertStore()
+export function downloadReceivedRecord(
+  record: ReceivedFileRecord,
+  notify?: DownloadNotify
+): Promise<DownloadResult> {
   // 过期检查
   if (record.isExpired) {
     const msg = '该取件码已过期，无法下载'
-    alertStore.showAlert(msg, 'error')
+    notify?.(msg, 'error')
     return Promise.resolve({ success: false, reason: 'expired', errorMessage: msg })
   }
 
@@ -237,25 +255,25 @@ export function downloadReceivedRecord(record: ReceivedFileRecord): Promise<Down
   if (record.isCollection) {
     if (!record.collectionFiles || record.collectionFiles.length === 0) {
       const msg = '没有文件可下载'
-      alertStore.showAlert(msg, 'error')
+      notify?.(msg, 'error')
       return Promise.resolve({ success: false, reason: 'not_found', errorMessage: msg })
     }
-    return downloadFile(CollectionService.getZipDownloadUrl(record.code), `${record.filename}.zip`)
+    return downloadFile(CollectionService.getZipDownloadUrl(record.code), `${record.filename}.zip`, { notify })
   }
 
   // 多文件：打包下载
   if (record.isMultiFile) {
     if (!record.multiFileItems || record.multiFileItems.length === 0) {
       const msg = '没有文件可下载'
-      alertStore.showAlert(msg, 'error')
+      notify?.(msg, 'error')
       return Promise.resolve({ success: false, reason: 'not_found', errorMessage: msg })
     }
-    return downloadFile(CollectionService.getMultiFileZipUrl(record.code), `${record.code}.zip`)
+    return downloadFile(CollectionService.getMultiFileZipUrl(record.code), `${record.code}.zip`, { notify })
   }
 
   if (record.downloadUrl) {
     const url = buildDownloadUrl(record.downloadUrl)
-    return downloadFile(url, record.filename || undefined)
+    return downloadFile(url, record.filename || undefined, { notify })
   }
 
   return Promise.resolve({ success: false, reason: 'other', errorMessage: '无可下载内容' })

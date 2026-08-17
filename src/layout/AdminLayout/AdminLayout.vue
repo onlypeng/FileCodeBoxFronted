@@ -58,7 +58,7 @@
               ]"
             >
               <component :is="item.icon" class="w-5 h-5 mr-3" />
-              {{ item.name }}
+              {{ t(item.key) }}
             </RouterLink>
           </li>
         </ul>
@@ -92,6 +92,9 @@
           <button @click="toggleSidebar" class="lg:hidden">
             <MenuIcon class="w-6 h-6" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-600']" />
           </button>
+          <div class="flex items-center lg:ml-auto">
+            <LanguageSwitcher />
+          </div>
         </div>
       </header>
 
@@ -121,10 +124,12 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ROUTE_NAMES, ROUTES } from '@/constants'
 import { useAdminStore } from '@/stores/adminStore'
+import { AuthService } from '@/services'
+import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 
 interface MenuItem {
   id: string
-  name: string
+  key: string
   icon: typeof LayoutDashboardIcon
   redirect: string
 }
@@ -137,19 +142,19 @@ const adminStore = useAdminStore()
 const menuItems: MenuItem[] = [
   {
     id: ROUTE_NAMES.DASHBOARD,
-    name: t('admin.dashboard.title'),
+    key: 'admin.dashboard.title',
     icon: LayoutDashboardIcon,
     redirect: ROUTES.DASHBOARD
   },
   {
     id: ROUTE_NAMES.UNIFIED_MANAGE,
-    name: t('admin.unifiedManage.title'),
+    key: 'admin.unifiedManage.title',
     icon: LayersIcon,
     redirect: ROUTES.UNIFIED_MANAGE
   },
   {
     id: ROUTE_NAMES.SETTINGS,
-    name: t('admin.settings.title'),
+    key: 'admin.settings.title',
     icon: CogIcon,
     redirect: ROUTES.SETTINGS
   }
@@ -180,6 +185,8 @@ onUnmounted(() => {
 
 // 登出处理
 const handleLogout = () => {
+  // 通知后端记录审计日志（无状态 JWT，服务端无会话可撤；失败不影响本地登出）
+  AuthService.logout().catch(() => {})
   adminStore.logout()
   router.push(ROUTES.LOGIN)
 }

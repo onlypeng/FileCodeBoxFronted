@@ -5,18 +5,35 @@ export type PublicConfig = SystemConfig & {
   uploadSize: number
   expireStyle: string[]
   openUpload: number
-  max_save_seconds: number
   enableChunk: number
-  uploadCount: number
+  uploadRateLimitCount: number
   uploadMinute: number
   maxCollectionFiles: number
   maxSendFiles: number
   maxMultiFileCount: number
+  /** 文本分享/备注的最大字符数 */
+  maxTextLength: number
+  /** 过期保存时间：记录/收件箱/房间过期后再保留该时长，到期由后台任务自动清理（含文件） */
+  expiredRetentionStyle: string
+  expiredRetentionValue: number
+  /** 收件箱默认配置（创建收件箱时的默认值） */
+  collectionDefaultMaxFiles?: number
+  collectionDefaultExpireDays?: number
+  /** 口令/码位数（文件分享码、收件箱三码、房间码统一长度，范围 4~12） */
+  codeLength: number
+  directRelayEnabled: number
+  directRelaySpeedLimit: number
+  defaultMaxMembers: number
+  /** 共享视频流默认质量档位（low/sd/hd/auto） */
+  mediaDefaultQuality: string
+  directTurnServers: Array<{ urls: string; username?: string; credential?: string }>
   notify_title?: string
   notify_content?: string
   page_explain?: string
   showAdminAddr?: number
   themesSelect?: string
+  /** 前端 SPA 站点默认主题（light / dark / enterprise） */
+  spaTheme?: string
   background?: string
   opacity?: number
 }
@@ -24,15 +41,27 @@ export type PublicConfig = SystemConfig & {
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   ...DEFAULT_CONFIG,
   uploadSize: FILE_SIZE_LIMITS.MAX_FILE_SIZE,
-  expireStyle: ['day'],
+  // 与后端 DEFAULT_CONFIG 保持一致：即使远程配置加载失败（如移动端局域网访问），
+  // 过期单位选项也保持完整，而不是只回退到 ['day']
+  expireStyle: ['day', 'hour', 'minute', 'forever', 'count'],
   openUpload: 1,
-  max_save_seconds: 0,
   enableChunk: 0,
-  uploadCount: 10,
+  uploadRateLimitCount: 10,
   uploadMinute: 1,
   maxCollectionFiles: 100,
   maxSendFiles: 20,
-  maxMultiFileCount: 20
+  maxMultiFileCount: 20,
+  maxTextLength: 200000,
+  expiredRetentionStyle: 'day',
+  expiredRetentionValue: 1,
+  collectionDefaultMaxFiles: 20,
+  collectionDefaultExpireDays: 7,
+  codeLength: 6,
+  directRelayEnabled: 1,
+  directRelaySpeedLimit: 0,
+  defaultMaxMembers: 10,
+  mediaDefaultQuality: 'auto',
+  directTurnServers: []
 }
 
 export const DEFAULT_CONFIG_STATE: ConfigState = {
@@ -50,7 +79,6 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   uploadSize: DEFAULT_PUBLIC_CONFIG.uploadSize,
   storage_path: '',
   uploadMinute: 1,
-  max_save_seconds: DEFAULT_PUBLIC_CONFIG.max_save_seconds,
   opacity: 0.9,
   enableChunk: DEFAULT_PUBLIC_CONFIG.enableChunk,
   s3_access_key_id: '',
@@ -64,17 +92,36 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   s3_bucket_name: '',
   s3_endpoint_url: '',
   s3_hostname: '',
-  uploadCount: 1,
+  uploadRateLimitCount: 1,
   errorMinute: 1,
   errorCount: 1,
   s3_proxy: 0,
   themesSelect: '',
+  spaTheme: '',
   webdav_url: '',
   webdav_username: '',
   webdav_password: '',
+  onedrive_domain: '',
+  onedrive_client_id: '',
+  onedrive_username: '',
+  onedrive_password: '',
+  onedrive_root_path: 'filebox_storage',
+  onedrive_proxy: 0,
+  collectionDefaultMaxFiles: 20,
+  collectionDefaultExpireDays: 7,
+  codeLength: 6,
   maxCollectionFiles: 100,
   maxSendFiles: 20,
-  maxMultiFileCount: 20
+  maxMultiFileCount: 20,
+  maxTextLength: 200000,
+  expiredRetentionStyle: 'day',
+  expiredRetentionValue: 1,
+  directRelayEnabled: 1,
+  directRelaySpeedLimit: 0,
+  defaultMaxMembers: 10,
+  mediaDefaultQuality: 'auto',
+  directTurnServers: [],
+  fileTypeWhitelist: ''
 }
 
 export function readStoredConfig<T extends object = Partial<ConfigState>>(): T | null {
@@ -95,18 +142,29 @@ export function toPublicConfig(config: Partial<ConfigState> | null | undefined):
     uploadSize: config.uploadSize,
     expireStyle: config.expireStyle,
     openUpload: config.openUpload,
-    max_save_seconds: config.max_save_seconds,
     enableChunk: config.enableChunk,
-    uploadCount: config.uploadCount,
+    uploadRateLimitCount: config.uploadRateLimitCount,
     uploadMinute: config.uploadMinute,
     maxCollectionFiles: config.maxCollectionFiles,
     maxSendFiles: config.maxSendFiles,
     maxMultiFileCount: config.maxMultiFileCount,
+    maxTextLength: config.maxTextLength,
+    expiredRetentionStyle: config.expiredRetentionStyle,
+    expiredRetentionValue: config.expiredRetentionValue,
+    collectionDefaultMaxFiles: config.collectionDefaultMaxFiles,
+    collectionDefaultExpireDays: config.collectionDefaultExpireDays,
+    directRelayEnabled: config.directRelayEnabled,
+    directRelaySpeedLimit: config.directRelaySpeedLimit,
+    defaultMaxMembers: config.defaultMaxMembers,
+    mediaDefaultQuality: config.mediaDefaultQuality,
+    directTurnServers: config.directTurnServers,
     notify_title: config.notify_title,
     notify_content: config.notify_content,
-    page_explain: config.page_explain,
+    // 兼容旧后端返回 explain 字段名的情况
+    page_explain: config.page_explain ?? (config as ConfigState & { explain?: string }).explain,
     showAdminAddr: config.showAdminAddr,
     themesSelect: config.themesSelect,
+    spaTheme: config.spaTheme,
     background: config.background,
     opacity: config.opacity
   }

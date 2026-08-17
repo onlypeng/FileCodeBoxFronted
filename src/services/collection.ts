@@ -1,14 +1,11 @@
 import api from './client'
-import { multipartUploadConfig } from './shared'
 import { buildAbsoluteUrl } from '@/utils/share-url'
-import type { ApiResponse, UploadProgress } from '@/types'
+import type { ApiResponse } from '@/types'
 import type {
   CreateCollectionRequest,
   CreateCollectionResponse,
-  DeliveryPageInfo,
   CollectionManageResponse,
   CollectionRetrieveResponse,
-  CollectionUploadResponse,
   AdminCollectionItem,
   CollectionFileItem,
   UpdateCollectionConfigRequest,
@@ -28,31 +25,6 @@ export class CollectionService {
     retrieveCode: string
   ): Promise<ApiResponse<CollectionRetrieveResponse>> {
     return api.get(`/collection/retrieve/${retrieveCode}`)
-  }
-
-  /** 获取投递页面信息（使用 delivery_code） */
-  static async getDeliveryPage(
-    deliveryCode: string
-  ): Promise<ApiResponse<DeliveryPageInfo>> {
-    return api.get(`/delivery/${deliveryCode}`)
-  }
-
-  /** 投递文件（使用 delivery_code 认证） */
-  static async uploadFile(
-    deliveryCode: string,
-    file: File,
-    uploaderName: string = '',
-    onProgress?: (progress: UploadProgress) => void
-  ): Promise<ApiResponse<CollectionUploadResponse>> {
-    const formData = new FormData()
-    formData.append('delivery_code', deliveryCode)
-    formData.append('file', file)
-    formData.append('uploader_name', uploaderName)
-    return api.post(
-      '/delivery/upload/',
-      formData,
-      multipartUploadConfig(onProgress)
-    )
   }
 
   /** 获取收件箱管理信息（使用 collection_code） */
@@ -87,8 +59,8 @@ export class CollectionService {
   }
 
   /** 删除收件箱中的文件 */
-  static async deleteFile(fileId: number): Promise<ApiResponse> {
-    return api.delete(`/collection/delete/${fileId}`)
+  static async deleteFile(fileId: number, code: string): Promise<ApiResponse> {
+    return api.delete(`/collection/delete/${fileId}`, { params: { code } })
   }
 
   /** 更新收件箱配置 */
@@ -116,6 +88,7 @@ export class CollectionService {
     page: number
     size: number
     keyword?: string
+    status?: string
   }): Promise<ApiResponse<{ page: number; size: number; data: AdminCollectionItem[]; total: number }>> {
     return api.get('/admin/collection/list', { params })
   }
@@ -128,5 +101,33 @@ export class CollectionService {
   /** 删除收件箱 */
   static async deleteCollection(collectionId: number): Promise<ApiResponse> {
     return api.delete(`/admin/collection/${collectionId}`)
+  }
+
+  /** 延长收件箱过期：target=manage/deliver/retrieve */
+  static async extendAdminCollection(
+    collectionId: number,
+    expireStyle: string,
+    expireValue: number,
+    target: string
+  ): Promise<ApiResponse> {
+    return api.post(`/admin/collection/${collectionId}/extend`, {
+      expire_style: expireStyle,
+      expire_value: expireValue,
+      target,
+    })
+  }
+
+  /** 保存收件箱过期（target=manage(整箱)/deliver/retrieve，按当前时间重设） */
+  static async saveAdminCollectionExpire(
+    collectionId: number,
+    expireStyle: string,
+    expireValue: number,
+    target: string
+  ): Promise<ApiResponse> {
+    return api.patch(`/admin/collection/${collectionId}/expire`, {
+      expire_style: expireStyle,
+      expire_value: expireValue,
+      target,
+    })
   }
 }

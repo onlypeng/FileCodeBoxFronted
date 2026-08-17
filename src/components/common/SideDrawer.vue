@@ -4,6 +4,8 @@
       v-if="visible"
       class="fixed inset-y-0 right-0 w-full sm:w-120 bg-opacity-70 backdrop-filter backdrop-blur-xl shadow-2xl z-50 overflow-hidden flex flex-col"
       :class="[isDarkMode ? 'bg-gray-900' : 'bg-white']"
+      role="dialog"
+      aria-modal="true"
     >
       <div
         class="flex justify-between items-center p-6 border-b"

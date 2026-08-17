@@ -1,4 +1,4 @@
-import { FileService, uploadChunkedFile } from '@/services'
+import { FileService, uploadChunkedFile, CollectionService } from '@/services'
 import type { AlertType, ApiResponse, ExpireStyle, UploadProgress } from '@/types'
 import { calculateFileHash } from '@/utils/file-processing'
 import { usePresignedUpload } from './usePresignedUpload'
@@ -10,8 +10,6 @@ type Translate = (
 
 type UseSendSubmitOptions = {
   getMaxFileSize: () => number
-  getUploadCount: () => number
-  getUploadMinute: () => number
   notify: (message: string, type: AlertType) => void
   translate: Translate
   onProgress: (progress: number) => void
@@ -25,12 +23,8 @@ type SubmitFileOptions = {
   expireStyle: string
   enableChunk: boolean
   validateFileSize: (file: File) => boolean
-}
-
-type SubmitTextOptions = {
-  text: string
-  expireValue: number
-  expireStyle: string
+  /** 文件备注（可选）；仅备注分享（无文件）时也走此接口 */
+  remark?: string
 }
 
 export function useSendSubmit(options: UseSendSubmitOptions) {
@@ -42,11 +36,13 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
   const handleChunkUpload = async (
     file: File,
     expireValue: number,
-    expireStyle: string
+    expireStyle: string,
+    remark?: string
   ): Promise<ApiResponse> => {
     return uploadChunkedFile(file, {
       expireValue,
       expireStyle,
+      remark,
       onHashCalculated: options.onHashCalculated,
       onProgress: (progress: UploadProgress) => {
         options.onProgress(progress.percentage)
@@ -62,11 +58,13 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
   const handlePresignedUpload = async (
     file: File,
     expireValue: number,
-    expireStyle: string
+    expireStyle: string,
+    remark?: string
   ): Promise<ApiResponse<{ code?: string; name?: string }>> => {
     const code = await presignUploadFile(file, {
       expireValue,
       expireStyle: expireStyle as ExpireStyle,
+      remark,
       onProgress: (progress) => {
         options.onProgress(progress.percentage)
       }
@@ -91,15 +89,9 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     expireValue,
     expireStyle,
     enableChunk,
-    validateFileSize
+    validateFileSize,
+    remark
   }: SubmitFileOptions): Promise<ApiResponse | null> => {
-    // 限流检查
-    const uploadCount = options.getUploadCount()
-    const uploadMinute = options.getUploadMinute()
-    if (uploadCount > 0 && selectedFiles.length > uploadCount) {
-      throw new Error(`每${uploadMinute}分钟最多上传${uploadCount}个文件`)
-    }
-
     // 多文件共用一个取件码上传
     if (selectedFiles.length > 1) {
       // 校验每个文件大小
@@ -117,7 +109,8 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
         expireStyle,
         (progress: UploadProgress) => {
           options.onProgress(progress.percentage)
-        }
+        },
+        remark
       )
 
       if (res.code === 200 && res.detail) {
@@ -141,8 +134,24 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
       options.onHashCalculated(await calculateFileHash(file))
 
       return enableChunk
-        ? handleChunkUpload(file, expireValue, expireStyle)
-        : handlePresignedUpload(file, expireValue, expireStyle)
+        ? handleChunkUpload(file, expireValue, expireStyle, remark)
+        : handlePresignedUpload(file, expireValue, expireStyle, remark)
+    }
+
+    // 仅备注分享（无文件）：走发送文件接口，后端创建仅备注记录
+    if (!selectedFiles.length && !selectedFile) {
+      const res = await FileService.uploadFiles([], expireValue, expireStyle, () => {}, remark)
+      if (res.code === 200 && res.detail) {
+        return {
+          code: 200,
+          detail: {
+            code: (res.detail as { code?: string; name?: string }).code,
+            name: (res.detail as { code?: string; name?: string }).name || remark || '',
+            is_multi_file: false,
+          }
+        }
+      }
+      throw new Error(options.translate('send.messages.sendFailed'))
     }
 
     // 单文件上传
@@ -152,16 +161,25 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     }
 
     return enableChunk
-      ? handleChunkUpload(fileToUpload, expireValue, expireStyle)
-      : handlePresignedUpload(fileToUpload, expireValue, expireStyle)
+      ? handleChunkUpload(fileToUpload, expireValue, expireStyle, remark)
+      : handlePresignedUpload(fileToUpload, expireValue, expireStyle, remark)
   }
 
-  const submitText = ({ text, expireValue, expireStyle }: SubmitTextOptions) =>
-    FileService.uploadText(text, expireValue, expireStyle)
+  /** 取件（发件记录详情页刷新多文件列表用） */
+  const selectFile = (code: string) => FileService.selectFile(code)
+
+  /** 多文件分享 ZIP 下载 URL */
+  const getMultiFileZipUrl = (code: string) => CollectionService.getMultiFileZipUrl(code)
+
+  /** 多文件分享单文件下载 URL */
+  const getMultiFileDownloadUrl = (itemId: number, code: string) =>
+    CollectionService.getMultiFileDownloadUrl(itemId, code)
 
   return {
     resetPresignUpload,
     submitFile,
-    submitText
+    selectFile,
+    getMultiFileZipUrl,
+    getMultiFileDownloadUrl,
   }
 }

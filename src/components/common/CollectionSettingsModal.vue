@@ -124,8 +124,6 @@ import { XIcon } from 'lucide-vue-next'
 import { useCollectionStore } from '@/stores/collectionStore'
 import { useAlertStore } from '@/stores/alertStore'
 import { useConfigStore } from '@/stores/configStore'
-import { CollectionService } from '@/services/collection'
-import { isExpirationWithinLimit } from '@/utils/send-record'
 import ExpirationSelector from '@/components/common/ExpirationSelector.vue'
 import FormInput from '@/components/common/FormInput.vue'
 
@@ -232,32 +230,22 @@ const handleSaveAll = async () => {
     return
   }
 
-  // 验证投件码过期时间不超过系统限制
-  if (editDeliveryExpireStyle.value !== 'forever' && !isExpirationWithinLimit(editDeliveryExpireStyle.value, String(editDeliveryExpireValue), config.value.max_save_seconds || 0)) {
-    const maxDays = Math.floor((config.value.max_save_seconds || 0) / 86400)
-    errorMsg.value = t('send.messages.expirationTooLong', { days: maxDays })
-    return
-  }
-  // 验证取件码过期时间不超过系统限制
-  if (editRetrieveExpireStyle.value !== 'forever' && !isExpirationWithinLimit(editRetrieveExpireStyle.value, String(editRetrieveExpireValue), config.value.max_save_seconds || 0)) {
-    const maxDays = Math.floor((config.value.max_save_seconds || 0) / 86400)
-    errorMsg.value = t('send.messages.expirationTooLong', { days: maxDays })
-    return
-  }
-  // 验证投件码过期时间不超过收件箱过期时间
-  if (editDeliveryExpireStyle.value !== 'forever' && collectionStore.expireStyle !== 'forever') {
-    const deliverySeconds = _expireToSeconds(editDeliveryExpireStyle.value, editDeliveryExpireValue)
-    const collectionSeconds = _expireToSeconds(collectionStore.expireStyle, collectionStore.expireValue)
-    if (deliverySeconds > collectionSeconds) {
+  // 验证投件码/取件码过期时间不超过收件箱过期时间：
+  // 与后端一致，比较"绝对过期时间"——子码从当前时间重新计算，必须不晚于收件箱的绝对过期时间。
+  // 收件箱非永久（collectionExpiredAt 存在）时，子码不可为永久，也不可超出收件箱的绝对过期时间。
+  const collectionExpiredAt = collectionStore.collectionExpiredAt
+    ? new Date(collectionStore.collectionExpiredAt).getTime()
+    : null
+  const deliveryBound = _expireBoundSeconds(editDeliveryExpireStyle.value, editDeliveryExpireValue)
+  const retrieveBound = _expireBoundSeconds(editRetrieveExpireStyle.value, editRetrieveExpireValue)
+  if (collectionExpiredAt !== null) {
+    const deliveryExpiredAt = Date.now() + deliveryBound * 1000
+    const retrieveExpiredAt = Date.now() + retrieveBound * 1000
+    if (deliveryBound === Infinity || deliveryExpiredAt > collectionExpiredAt) {
       errorMsg.value = t('collection.create.deliveryExceedCollection')
       return
     }
-  }
-  // 验证取件码过期时间不超过收件箱过期时间
-  if (editRetrieveExpireStyle.value !== 'forever' && collectionStore.expireStyle !== 'forever') {
-    const retrieveSeconds = _expireToSeconds(editRetrieveExpireStyle.value, editRetrieveExpireValue)
-    const collectionSeconds = _expireToSeconds(collectionStore.expireStyle, collectionStore.expireValue)
-    if (retrieveSeconds > collectionSeconds) {
+    if (retrieveBound === Infinity || retrieveExpiredAt > collectionExpiredAt) {
       errorMsg.value = t('collection.create.retrieveExceedCollection')
       return
     }
@@ -265,30 +253,16 @@ const handleSaveAll = async () => {
 
   saving.value = true
   try {
-    const res = await CollectionService.updateConfig(collectionStore.collectionCode, {
+    await collectionStore.updateConfig({
       delivery_expire_style: editDeliveryExpireStyle.value,
       delivery_expire_value: editDeliveryExpireStyle.value === 'forever' ? 0 : editDeliveryExpireValue,
       retrieve_expire_style: editRetrieveExpireStyle.value,
       retrieve_expire_value: editRetrieveExpireStyle.value === 'forever' ? 0 : editRetrieveExpireValue,
       max_files: editMaxFilesValue,
     })
-    if (res.code === 200 && res.detail) {
-      const d = res.detail
-      // 后端返回完整收件箱信息，统一更新
-      collectionStore.deliveryExpireStyle = d.delivery_expire_style
-      collectionStore.deliveryExpireValue = d.delivery_expire_value
-      collectionStore.deliveryExpiredAt = d.delivery_expired_at
-      collectionStore.retrieveExpireStyle = d.retrieve_expire_style
-      collectionStore.retrieveExpireValue = d.retrieve_expire_value
-      collectionStore.retrieveExpiredAt = d.retrieve_expired_at
-      if (d.max_files !== undefined) collectionStore.collectionMaxFiles = d.max_files
-      if (d.files) collectionStore.files = d.files
-      alertStore.showAlert(t('collection.detail.saveSuccess'), 'success')
-      emit('saved')
-      emit('close')
-    } else {
-      errorMsg.value = t('collection.detail.saveFailed')
-    }
+    alertStore.showAlert(t('collection.detail.saveSuccess'), 'success')
+    emit('saved')
+    emit('close')
   } catch {
     errorMsg.value = t('collection.detail.saveFailed')
   } finally {
@@ -296,9 +270,11 @@ const handleSaveAll = async () => {
   }
 }
 
-/** 将过期配置转换为秒数，用于比较 */
-const _expireToSeconds = (style: string, value: number): number => {
-  const ms: Record<string, number> = { day: 86400, hour: 3600, minute: 60, count: 86400 * 365 }
+/** 过期时间边界（秒）：forever 为无限，count 与后端落库一致固定 365 天（不乘次数），day/hour/minute 按秒 */
+const _expireBoundSeconds = (style: string, value: number): number => {
+  if (style === 'forever') return Infinity
+  if (style === 'count') return 365 * 86400
+  const ms: Record<string, number> = { day: 86400, hour: 3600, minute: 60 }
   return (ms[style] || 86400) * value
 }
 </script>

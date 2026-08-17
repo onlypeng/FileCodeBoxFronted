@@ -19,10 +19,14 @@ export class PresignUploadService {
   static async proxyUpload(
     uploadId: string,
     file: File,
-    onProgress?: (progress: UploadProgress) => void
+    onProgress?: (progress: UploadProgress) => void,
+    remark?: string
   ): Promise<ApiResponse<PresignUploadResult>> {
     const formData = new FormData()
     formData.append('file', file)
+    if (remark) {
+      formData.append('remark', remark)
+    }
 
     return api.put(`/presign/upload/proxy/${uploadId}`, formData, multipartUploadConfig(onProgress))
   }

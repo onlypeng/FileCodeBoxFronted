@@ -22,7 +22,7 @@
           :placeholder="placeholder || t('retrieve.codeInput.placeholder')"
           required
           :readonly="inputStatus.readonly"
-          maxlength="6"
+          maxlength="12"
           @focus="isInputFocused = true"
           @blur="isInputFocused = false"
         />
@@ -42,7 +42,7 @@
     </div>
     <button
       type="submit"
-      class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-3 px-4 rounded-lg hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 transform hover:scale-105 hover:shadow-lg relative overflow-hidden group"
+      class="btn-primary w-full relative overflow-hidden group"
       :disabled="inputStatus.loading"
     >
       <span class="flex items-center justify-center relative z-10">
@@ -92,7 +92,7 @@ const code = computed({
   get: () => props.modelValue,
   set: (value) => {
     // 只保留大写字母和数字，自动转大写
-    const filtered = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+    const filtered = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)
     emit('update:modelValue', filtered)
   }
 })

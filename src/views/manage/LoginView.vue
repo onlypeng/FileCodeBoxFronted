@@ -14,7 +14,16 @@
       :class="[isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white/70 border-gray-200']"
     >
       <div>
-        <div class="mx-auto h-16 w-16 relative">
+        <!-- 返回首页 -->
+        <router-link
+          :to="ROUTES.HOME"
+          class="flex items-center gap-1.5 text-sm font-medium transition-colors duration-300"
+          :class="[isDarkMode ? 'text-gray-400 hover:text-indigo-400' : 'text-gray-500 hover:text-indigo-600']"
+        >
+          <ArrowLeftIcon class="w-4 h-4" />
+          {{ t('manage.login.backToHome') }}
+        </router-link>
+        <div class="mx-auto h-16 w-16 relative mt-4">
           <div
             class="absolute inset-0 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full animate-spin-slow"
           ></div>
@@ -36,7 +45,7 @@
             isDarkMode ? 'text-white' : 'text-gray-900'
           ]"
         >
-          登录
+          {{ t('manage.login.title') }}
         </h2>
       </div>
       <form class="mt-8 space-y-6" @submit.prevent="submitLogin">
@@ -85,7 +94,7 @@
             :disabled="isLoading"
           >
             <span class="absolute left-0 inset-y-0 flex items-center pl-3"> </span>
-            {{ isLoading ? '登录中...' : '登录' }}
+            {{ isLoading ? t('manage.login.loggingIn') : t('manage.login.loginButton') }}
           </button>
         </div>
       </form>
@@ -95,14 +104,16 @@
 
 <script setup lang="ts">
 import { inject } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BoxIcon } from 'lucide-vue-next'
+import { ArrowLeftIcon, BoxIcon } from 'lucide-vue-next'
 import { useAdminLogin } from '@/composables'
 import { ROUTES } from '@/constants'
 
 const isDarkMode = inject('isDarkMode')
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 const { password, isLoading, handleSubmit } = useAdminLogin()
 
 const getRedirectPath = () => {

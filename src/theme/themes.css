@@ -1,0 +1,112 @@
+/**
+ * 主题变量定义
+ *
+ * - `:root` 为浅色主题默认值（首帧兜底，避免无主题时样式缺失）。
+ * - `[data-theme='...']` 作用于任意元素：后台主题管理页的预览卡片可
+ *   在自身容器上设置 `data-theme` + `dark` 类，实现局部主题预览。
+ * - `--app-*` 系列变量被 App.vue / tailwind 映射消费：
+ *   --app-bg        应用容器渐变背景
+ *   --app-font      全局字体栈
+ *   --radius-sm/md/lg/xl  圆角（映射 tailwind rounded-*）
+ *   --indigo-*      主色板 RGB 通道（映射 tailwind indigo-*，全站主色），
+ *                   Tailwind 通过 rgb(var(--indigo-900) / <alpha-value>)
+ *                   消费，因此 /40 等透明度修饰类同样可用。
+ */
+
+:root {
+  /* 浅色主题（默认） */
+  --app-bg: linear-gradient(135deg, #eff6ff 0%, #eef2ff 50%, #ffffff 100%);
+  --app-font:
+    'DingTalk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --radius-sm: 0.125rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  /* #eef2ff / #e0e7ff / #c7d2fe / #a5b4fc / #818cf8 */
+  --indigo-50: 238 242 255;
+  --indigo-100: 224 231 255;
+  --indigo-200: 199 210 254;
+  --indigo-300: 165 180 252;
+  /* #6366f1 / #4f46e5 / #4338ca / #3730a3 / #312e81 / #1e1b4b */
+  --indigo-400: 129 140 248;
+  --indigo-500: 99 102 241;
+  --indigo-600: 79 70 229;
+  --indigo-700: 67 56 202;
+  --indigo-800: 55 48 163;
+  --indigo-900: 49 46 129;
+  --indigo-950: 30 27 75;
+}
+
+/* 深色暗夜主题：深色背景下主色提亮，保证对比度 */
+[data-theme='dark'] {
+  --app-bg: linear-gradient(135deg, #111827 0%, #312e81 55%, #000000 100%);
+  --app-font:
+    'DingTalk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --radius-sm: 0.125rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  /* #eef2ff / #e0e7ff / #c7d2fe / #a5b4fc / #a5b4fc */
+  --indigo-50: 238 242 255;
+  --indigo-100: 224 231 255;
+  --indigo-200: 199 210 254;
+  --indigo-300: 165 180 252;
+  /* #8b93f8 / #7c82f0 / #6c72e8 / #5b60d8 / #4f52c0 / #3a3d99 */
+  --indigo-400: 165 180 252;
+  --indigo-500: 139 147 248;
+  --indigo-600: 124 130 240;
+  --indigo-700: 108 114 232;
+  --indigo-800: 91 96 216;
+  --indigo-900: 79 82 192;
+  --indigo-950: 58 61 153;
+}
+
+/* 企业蓝主题：沉稳专业的企业蓝色系，紧凑间距 + 直角风格 */
+[data-theme='enterprise'] {
+  --app-bg: linear-gradient(135deg, #f1f5f9 0%, #dbeafe 55%, #ffffff 100%);
+  --app-font:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --radius-sm: 0.0625rem;
+  --radius-md: 0.1875rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.375rem;
+
+  /* #eff6ff / #dbeafe / #bfdbfe / #93c5fd / #60a5fa */
+  --indigo-50: 239 246 255;
+  --indigo-100: 219 234 254;
+  --indigo-200: 191 219 254;
+  --indigo-300: 147 197 253;
+  /* #3b82f6 / #2563eb / #1d4ed8 / #1e40af / #1e3a8a / #172554 */
+  --indigo-400: 96 165 250;
+  --indigo-500: 59 130 246;
+  --indigo-600: 37 99 235;
+  --indigo-700: 29 78 216;
+  --indigo-800: 30 64 175;
+  --indigo-900: 30 58 138;
+  --indigo-950: 23 37 84;
+}
+
+/*
+ * 主题切换期间临时禁用所有过渡动画：
+ * 切换时先添加 .theme-switching 类再修改 data-theme/dark 类，
+ * 避免大量元素同时执行颜色过渡造成卡顿（保证切换在 300ms 内完成）。
+ * 双 rAF 后移除该类，恢复常规动画。
+ */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+  animation: none !important;
+}

@@ -17,6 +17,8 @@ const getDefaultLocale = (): string => {
   return 'en-US'
 }
 
+const defaultLocale = getDefaultLocale()
+
 const messages = {
   'zh-CN': zhCN,
   'en-US': enUS
@@ -24,11 +26,14 @@ const messages = {
 
 const i18n = createI18n({
   legacy: false, // 使用 Composition API 模式
-  locale: getDefaultLocale(),
+  locale: defaultLocale,
   fallbackLocale: 'zh-CN',
   messages,
   globalInjection: true // 全局注入 $t 函数
 })
+
+// 初始化时同步 html lang 属性，保证与界面语言一致（影响字体选择与可访问性）
+document.documentElement.lang = defaultLocale
 
 export default i18n
 

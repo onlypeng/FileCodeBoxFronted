@@ -2,11 +2,49 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+/* 多主题变量定义（:root / [data-theme]） */
+@import '../../theme/themes.css';
+
 @font-face {
   font-family: 'DingTalk';
   src: url('@/assets/font/DingTalk.ttf') format('truetype');
+  font-display: swap;
 }
 
-* {
-  font-family: 'DingTalk', sans-serif !important;
+/*
+ * 全局字体栈说明：
+ * 当前 DingTalk.ttf 仅包含拉丁字形、不含中文字形，因此必须提供完整的中文字体回退链，
+ * 避免中文显示异常；不再使用 * !important 强制覆盖所有元素。
+ * 字体栈由当前主题的 --app-font 变量驱动。
+ */
+html {
+  font-family: var(--app-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: inherit;
+}
+
+/*
+ * 统一按钮工具类：
+ * 全站 primary 动作按钮的单一视觉锚点（渐变背景 + hover 放大 + 阴影 + disabled 态），
+ * 消除各视图重复内联的渐变 class 串与渐变方向不一致（统一 indigo → purple → pink）。
+ * 结构差异化（w-full / relative overflow-hidden group 光效层）由使用方在按钮上追加。
+ */
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
+
+  .btn-primary-lg {
+    @apply bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
+
+  /* 次要按钮：管理端列表操作/分页等轻量动作 */
+  .btn-secondary {
+    @apply px-3 py-1 rounded text-sm transition-colors disabled:opacity-50 focus:outline-none;
+  }
 }

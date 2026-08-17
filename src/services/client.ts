@@ -12,7 +12,20 @@ const rawBaseURL =
     ? import.meta.env.VITE_API_BASE_URL_PROD
     : import.meta.env.VITE_API_BASE_URL_DEV
 
-export const apiBaseURL = typeof rawBaseURL === 'string' ? rawBaseURL.replace(/\/+$/, '') : ''
+// 开发环境：当页面通过局域网 IP（移动端真机调试等）访问时，VITE_API_BASE_URL_DEV 的
+// http://localhost:12345 指向设备自身，API 会加载失败（表现为配置回退、过期单位只剩"天"等）。
+// 此时退化为同源相对路径，由 Vite dev server 代理到后端（见 vite.config.ts proxy）。
+function resolveApiBaseURL(): string {
+  const configured = typeof rawBaseURL === 'string' ? rawBaseURL.replace(/\/+$/, '') : ''
+  if (import.meta.env.MODE === 'production' || !configured) {
+    return configured
+  }
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  return isLocalHost ? configured : ''
+}
+
+export const apiBaseURL = resolveApiBaseURL()
 
 const clientOptions = {
   baseURL: apiBaseURL,

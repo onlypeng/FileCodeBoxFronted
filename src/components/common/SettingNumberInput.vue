@@ -7,6 +7,8 @@
       <input
         type="number"
         :value="modelValue"
+        :min="min"
+        :max="max"
         class="w-24 rounded-md shadow-sm px-4 py-2.5 transition-all duration-200 ease-in-out border focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
         :class="[
           isDarkMode
@@ -27,6 +29,9 @@ defineProps<{
   label: string
   modelValue: number
   suffix: string
+  /** 可选数值范围（默认不限制） */
+  min?: number
+  max?: number
 }>()
 
 const isDarkMode = inject('isDarkMode')
@@ -42,9 +47,12 @@ const handleInput = (event: Event) => {
     return
   }
 
-  const nextValue = input.valueAsNumber
-  if (!Number.isNaN(nextValue)) {
-    emit('update:modelValue', nextValue)
-  }
+  let nextValue = input.valueAsNumber
+  if (Number.isNaN(nextValue)) return
+  const props = input.min !== '' ? Number(input.min) : undefined
+  const max = input.max !== '' ? Number(input.max) : undefined
+  if (props !== undefined && nextValue < props) nextValue = props
+  if (max !== undefined && nextValue > max) nextValue = max
+  emit('update:modelValue', nextValue)
 }
 </script>

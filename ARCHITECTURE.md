@@ -52,6 +52,8 @@
 - 剪贴板能力统一放在 `utils/clipboard.ts`，复制结果提示通过调用方注入回调。
 - 粘贴事件的纯解析和文本插入计算统一放在 `utils/clipboard-paste.ts`。
 - 文件 hash、zip 打包等浏览器文件处理统一放在 `utils/file-processing.ts`。
+- 直连分片二进制帧的编解码统一放在 `utils/direct-frame.ts`。
+- 服务器中转分片的端到端加密（ECDH + AES-GCM）统一放在 `utils/relay-crypto.ts`，业务侧只持有会话密钥与调用加解密，不内联底层 Web Crypto 逻辑。
 - Markdown 预览渲染与 HTML 清洗统一放在 `utils/content-preview.ts`。
 - 文件下载、文本另存等浏览器下载动作统一放在 `utils/download-action.ts`。
 - 配置表单单位转换统一放在 `utils/config-form.ts`。

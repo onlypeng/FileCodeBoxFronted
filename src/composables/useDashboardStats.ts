@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { StatsService } from '@/services'
 import type { DashboardViewData } from '@/types'
 import { formatFileSize } from '@/utils/common'
@@ -25,6 +25,7 @@ const emptyDashboardData = (): DashboardViewData => ({
   maxSaveSeconds: 0,
   topSuffixes: [],
   recentFiles: [],
+  recentCollections: [],
   storageUsedText: '0 Bytes',
   yesterdaySizeText: '0 Bytes',
   todaySizeText: '0 Bytes',
@@ -40,7 +41,12 @@ const emptyDashboardData = (): DashboardViewData => ({
   todayDeliveries: 0,
   todayDeliveriesSize: '0',
   yesterdayDeliveries: 0,
-  yesterdayDeliveriesSize: '0'
+  yesterdayDeliveriesSize: '0',
+  // 房间统计（基本房间信息）
+  totalRooms: 0,
+  activeRooms: 0,
+  todayRooms: 0,
+  onlineRooms: 0
 })
 
 const toNumber = (value: number | string | null | undefined) => Number(value || 0)
@@ -49,22 +55,19 @@ const clampRatio = (value: number) => Math.max(0, Math.min(100, Math.round(value
 
 const hasOwn = (target: object, key: string) => Object.prototype.hasOwnProperty.call(target, key)
 
-const formatDuration = (startTimestamp: number | null) => {
-  if (!startTimestamp) return '-'
-  const uptime = Date.now() - startTimestamp
-  const days = Math.floor(uptime / (24 * 60 * 60 * 1000))
-  const hours = Math.floor((uptime % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
-  return `${days}天${hours}小时`
-}
-
 export function useDashboardStats() {
   const dashboardData = reactive<DashboardViewData>(emptyDashboardData())
+  const isLoading = ref(false)
+  const loadError = ref('')
 
   const fetchDashboardData = async () => {
-    const response = await StatsService.getDashboard()
-    if (!response.detail) return
+    isLoading.value = true
+    loadError.value = ''
+    try {
+      const response = await StatsService.getDashboard()
+      if (!response.detail) return
 
-    const detail = response.detail
+      const detail = response.detail
     dashboardData.totalFiles = toNumber(detail.totalFiles)
     dashboardData.storageUsed = toNumber(detail.storageUsed)
     dashboardData.yesterdayCount = toNumber(detail.yesterdayCount)
@@ -88,6 +91,7 @@ export function useDashboardStats() {
     dashboardData.maxSaveSeconds = toNumber(detail.maxSaveSeconds)
     dashboardData.topSuffixes = detail.topSuffixes || []
     dashboardData.recentFiles = detail.recentFiles || []
+    dashboardData.recentCollections = detail.recentCollections || []
 
     // 收件箱统计
     dashboardData.totalCollections = toNumber(detail.totalCollections)
@@ -98,11 +102,17 @@ export function useDashboardStats() {
     dashboardData.yesterdayDeliveries = toNumber(detail.yesterdayDeliveries)
     dashboardData.yesterdayDeliveriesSize = String(detail.yesterdayDeliveriesSize || '0')
 
+    // 房间统计
+    dashboardData.totalRooms = toNumber(detail.totalRooms)
+    dashboardData.activeRooms = toNumber(detail.activeRooms)
+    dashboardData.todayRooms = toNumber(detail.todayRooms)
+    dashboardData.onlineRooms = toNumber(detail.onlineRooms)
+
     dashboardData.storageUsedText = formatFileSize(dashboardData.storageUsed)
     dashboardData.yesterdaySizeText = formatFileSize(dashboardData.yesterdaySize)
     dashboardData.todaySizeText = formatFileSize(dashboardData.todaySize)
     dashboardData.uploadSizeLimitText = formatFileSize(dashboardData.uploadSizeLimit)
-    dashboardData.sysUptimeText = formatDuration(dashboardData.sysUptime)
+    dashboardData.sysUptimeText = '-'
     dashboardData.activeRatio = dashboardData.totalFiles
       ? clampRatio((dashboardData.activeCount / dashboardData.totalFiles) * 100)
       : 0
@@ -115,10 +125,18 @@ export function useDashboardStats() {
     dashboardData.todaySizeRatio = dashboardData.uploadSizeLimit
       ? clampRatio((dashboardData.todaySize / dashboardData.uploadSizeLimit) * 100)
       : 0
+    } catch (error) {
+      // 请求失败：保留错误信息，由视图展示错误态（不再静默显示全零）
+      loadError.value = error instanceof Error ? error.message : String(error)
+    } finally {
+      isLoading.value = false
+    }
   }
 
   return {
     dashboardData,
+    isLoading,
+    loadError,
     fetchDashboardData
   }
 }

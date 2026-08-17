@@ -25,6 +25,18 @@ const MARKDOWN_ALLOWED_TAGS = [
 
 const MARKDOWN_ALLOWED_ATTR = ['href', 'src', 'alt', 'title', 'class']
 
+/**
+ * 对简单 HTML（聊天消息等）进行白名单消毒
+ * 仅允许 a/span 标签与必要的链接属性，统一收敛 XSS 防御
+ */
+export function sanitizeSimpleHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['a', 'span'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style'],
+    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:)/i
+  })
+}
+
 export async function renderMarkdownPreview(content: string): Promise<string> {
   try {
     const rawHtml = await marked(content)

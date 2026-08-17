@@ -1,12 +1,6 @@
 import { STORAGE_KEYS } from '@/constants'
 
-export function readStoredAdminPassword(): string {
-  return localStorage.getItem(STORAGE_KEYS.ADMIN_PASSWORD) || ''
-}
-
-export function writeStoredAdminPassword(password: string) {
-  localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, password)
-}
+// 注意：管理员密码仅用于登录瞬间，不做本地持久化（防止 XSS 窃取口令落盘）
 
 export function readStoredToken(): string {
   return localStorage.getItem(STORAGE_KEYS.TOKEN) || ''
@@ -17,7 +11,8 @@ export function writeStoredToken(token: string) {
 }
 
 export function clearStoredAuth() {
-  localStorage.removeItem(STORAGE_KEYS.ADMIN_PASSWORD)
+  // 兼容清理历史版本遗留的明文密码字段
+  localStorage.removeItem('adminPassword')
   localStorage.removeItem(STORAGE_KEYS.TOKEN)
 }
 

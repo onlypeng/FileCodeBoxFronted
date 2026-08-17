@@ -1,8 +1,9 @@
 import api from './client'
-import type { AdminUser, ApiResponse } from '@/types'
+import type { ApiResponse } from '@/types'
+import type { AdminLoginResponse, AdminVerifyResponse } from '@/types/auth'
 
 export class AuthService {
-  static async login(password: string): Promise<ApiResponse<AdminUser>> {
+  static async login(password: string): Promise<ApiResponse<AdminLoginResponse>> {
     return api.post('/admin/login', { password })
   }
 
@@ -10,7 +11,7 @@ export class AuthService {
     return api.post('/admin/logout')
   }
 
-  static async verifyToken(): Promise<ApiResponse<AdminUser>> {
+  static async verifyToken(): Promise<ApiResponse<AdminVerifyResponse>> {
     return api.get('/admin/verify')
   }
 }

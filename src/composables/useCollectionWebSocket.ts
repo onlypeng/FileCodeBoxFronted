@@ -1,6 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { useCollectionStore } from '@/stores/collectionStore'
-import { apiBaseURL } from '@/services/client'
+import { buildWebSocketUrl } from '@/utils/share-url'
 import type { CollectionWSMessage } from '@/types/collection'
 
 interface UseCollectionWebSocketOptions {
@@ -24,8 +24,7 @@ export function useCollectionWebSocket(options: UseCollectionWebSocketOptions = 
 
   /** 构建 WebSocket URL */
   function buildWSUrl(code: string): string {
-    const base = apiBaseURL.replace(/^http/, 'ws').replace(/\/$/, '')
-    return `${base}/ws/collection/${code}`
+    return buildWebSocketUrl(`/ws/collection/${code}`)
   }
 
   /** 连接 WebSocket */
@@ -80,6 +79,7 @@ export function useCollectionWebSocket(options: UseCollectionWebSocketOptions = 
             file_name: msg.filename || '',
             file_size: msg.file_size || 0,
             uploader_name: msg.uploader || '',
+            status: 'completed',
             created_at: new Date().toISOString(),
           })
           // 移除对应的上传进度（优先用 file_id）

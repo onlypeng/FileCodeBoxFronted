@@ -7,15 +7,20 @@
         @click="handleBackdropClick"
       >
         <!-- 背景遮罩 -->
-        <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+        <div ref="backdropRef" class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
         
         <!-- 模态框容器 -->
         <div class="flex min-h-full items-center justify-center p-4">
           <div
             ref="modalRef"
-            class="relative transform overflow-hidden rounded-lg shadow-xl transition-all"
+            tabindex="-1"
+            role="dialog"
+            aria-modal="true"
+            aria-label="dialog"
+            class="relative transform rounded-lg shadow-xl transition-all outline-none"
             :class="[
               sizeClasses,
+              overflow ? '' : 'overflow-hidden',
               isDarkMode ? 'bg-gray-800' : 'bg-white'
             ]"
             @click.stop
@@ -24,7 +29,7 @@
             <div
               v-if="$slots.header || title"
               class="flex items-center justify-between px-6 py-4 border-b"
-              :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']"
+              :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200', overflow ? 'rounded-t-lg' : '']"
             >
               <slot name="header">
                 <h3 class="text-lg font-medium" :class="[isDarkMode ? 'text-white' : 'text-gray-900']">
@@ -34,6 +39,7 @@
               <button
                 v-if="closable"
                 @click="$emit('close')"
+                aria-label="close"
                 class="rounded-md p-2 transition-colors"
                 :class="[
                   isDarkMode
@@ -54,7 +60,7 @@
             <div
               v-if="$slots.footer"
               class="flex items-center justify-end space-x-3 px-6 py-4 border-t"
-              :class="[isDarkMode ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-gray-50']"
+              :class="[isDarkMode ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-gray-50', overflow ? 'rounded-b-lg' : '']"
             >
               <slot name="footer"></slot>
             </div>
@@ -66,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 
 interface Props {
@@ -75,12 +81,15 @@ interface Props {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   closable?: boolean
   closeOnBackdrop?: boolean
+  /** 允许内容溢出弹窗（供内部下拉面板向下展开不被裁剪；需配合头部/底部圆角处理） */
+  overflow?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   size: 'md',
   closable: true,
-  closeOnBackdrop: true
+  closeOnBackdrop: true,
+  overflow: false
 })
 
 const emit = defineEmits<{
@@ -89,6 +98,62 @@ const emit = defineEmits<{
 
 const isDarkMode = inject('isDarkMode')
 const modalRef = ref<HTMLElement>()
+const backdropRef = ref<HTMLElement>()
+
+// ============ 可访问性：焦点圈定 + Esc 关闭 ============
+let lastFocused: HTMLElement | null = null
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function getFocusableElements(): HTMLElement[] {
+  if (!modalRef.value) return []
+  return Array.from(
+    modalRef.value.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+  ).filter((el) => el.offsetParent !== null || el === document.activeElement)
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    if (props.closable) emit('close')
+    return
+  }
+  if (e.key !== 'Tab') return
+  const focusables = getFocusableElements()
+  if (focusables.length === 0) {
+    e.preventDefault()
+    return
+  }
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
+
+watch(
+  () => props.show,
+  (visible) => {
+    if (visible) {
+      lastFocused = document.activeElement as HTMLElement | null
+      // 下一帧等待过渡与插槽渲染完成后聚焦
+      requestAnimationFrame(() => modalRef.value?.focus())
+      window.addEventListener('keydown', handleKeydown)
+    } else {
+      window.removeEventListener('keydown', handleKeydown)
+      lastFocused?.focus?.()
+      lastFocused = null
+    }
+  }
+)
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 
 const sizeClasses = computed(() => {
   const sizes = {
@@ -101,7 +166,10 @@ const sizeClasses = computed(() => {
 })
 
 const handleBackdropClick = (event: MouseEvent) => {
-  if (props.closeOnBackdrop && event.target === event.currentTarget) {
+  if (!props.closeOnBackdrop) return
+  // 点击外层容器本身，或覆盖全屏的背景遮罩（遮罩是内层 div，target 不会等于 currentTarget）
+  const t = event.target as HTMLElement
+  if (t === event.currentTarget || t === backdropRef.value) {
     emit('close')
   }
 }

@@ -17,6 +17,8 @@ export interface PresignInitRequest {
   file_size: number
   expire_value?: number
   expire_style?: ExpireStyle
+  /** 文件备注（可选） */
+  remark?: string
 }
 
 export interface PresignInitResponse {
@@ -29,6 +31,8 @@ export interface PresignInitResponse {
 export interface PresignConfirmRequest {
   expire_value?: number
   expire_style?: ExpireStyle
+  /** 文件备注（可选） */
+  remark?: string
 }
 
 export interface PresignUploadResult {
@@ -49,5 +53,7 @@ export interface PresignStatusResponse {
 export interface PresignUploadOptions {
   expireValue?: number
   expireStyle?: ExpireStyle
+  /** 文件备注（可选） */
+  remark?: string
   onProgress?: (progress: UploadProgress) => void
 }

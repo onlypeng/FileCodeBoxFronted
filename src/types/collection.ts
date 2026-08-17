@@ -27,6 +27,7 @@ export interface CreateCollectionResponse {
   title: string
   description: string
   max_files: number
+  created_at: string | null
   expire_style: string
   expire_value: number
   expired_at: string | null
@@ -54,9 +55,7 @@ export interface DeliveryPageInfo {
   delivery_expire_style: string
   delivery_expire_value: number
   delivery_expired_at: string | null
-  retrieve_expire_style: string
-  retrieve_expire_value: number
-  retrieve_expired_at: string | null
+  // 投件码视角不返回取件码相关字段（权限收紧）
 }
 
 /** 收件箱文件项 */
@@ -77,6 +76,7 @@ export interface CollectionManageResponse {
   title: string
   description: string
   max_files: number
+  created_at: string | null
   expire_style: string
   expire_value: number
   expired_at: string | null
@@ -90,11 +90,9 @@ export interface CollectionManageResponse {
   files: CollectionFileItem[]
 }
 
-/** 取件码响应（只读，通过 retrieve_code 获取） */
+/** 取件码响应（只读，通过 retrieve_code 获取；不暴露管理码/投件码） */
 export interface CollectionRetrieveResponse {
   retrieve_code: string
-  collection_code: string
-  delivery_code: string
   title: string
   description: string
   file_count: number
@@ -115,6 +113,15 @@ export interface CollectionUploadResponse {
   filename: string
   file_size: number
   status: 'uploading' | 'completed' | 'failed'
+}
+
+/** 投递分片上传初始化响应 */
+export interface DeliveryChunkInitResponse {
+  upload_id: string
+  file_id: number
+  chunk_size: number
+  total_chunks: number
+  uploaded_chunks: number[]
 }
 
 /** WebSocket 消息类型 */
@@ -180,6 +187,8 @@ export interface AdminCollectionItem {
   description: string
   max_files: number
   file_count: number
+  used_count: number
+  displayCreatedAt?: string
   is_expired: boolean
   is_delivery_expired: boolean
   is_retrieve_expired: boolean
@@ -193,6 +202,10 @@ export interface AdminCollectionItem {
   retrieve_expire_value: number
   retrieve_expired_at: string | null
   created_at: string
+  /** 投递次数上限（-1 表示不限）；用于次数模式剩余投递次数展示 */
+  delivery_count?: number
+  /** 已用投递次数 */
+  delivery_used_count?: number
 }
 
 /** 更新收件箱配置请求（收件箱过期时间不可更改） */

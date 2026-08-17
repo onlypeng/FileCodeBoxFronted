@@ -1,41 +1,36 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { ReceivedFileRecord, SentFileRecord, CollectionRecord } from '@/types'
+import { readJsonPreference, writePreference } from '@/utils/preference-storage'
+import type { ReceivedFileRecord, SentFileRecord, CollectionRecord, DirectRecord } from '@/types'
 
 const STORAGE_KEYS = {
   shareData: 'fcb_share_data',
   receiveData: 'fcb_receive_data',
   collectionData: 'fcb_collection_data',
+  directData: 'fcb_direct_data',
 }
 
 // 从 localStorage 加载
 function loadFromStorage<T>(key: string, defaultValue: T): T {
-  try {
-    const stored = localStorage.getItem(key)
-    return stored ? JSON.parse(stored) : defaultValue
-  } catch {
-    return defaultValue
-  }
+  return readJsonPreference<T>(key, defaultValue)
 }
 
 // 保存到 localStorage
 function saveToStorage<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // localStorage 可能已满，静默失败
-  }
+  writePreference(key, value)
 }
 
 export const useFileDataStore = defineStore('fileData', () => {
   const receiveData = ref<ReceivedFileRecord[]>(loadFromStorage(STORAGE_KEYS.receiveData, []))
   const shareData = ref<SentFileRecord[]>(loadFromStorage(STORAGE_KEYS.shareData, []))
   const collectionData = ref<CollectionRecord[]>(loadFromStorage(STORAGE_KEYS.collectionData, []))
+  const directData = ref<DirectRecord[]>(loadFromStorage(STORAGE_KEYS.directData, []))
 
   // 监听变化自动保存
   watch(shareData, (newVal) => saveToStorage(STORAGE_KEYS.shareData, newVal), { deep: true })
   watch(receiveData, (newVal) => saveToStorage(STORAGE_KEYS.receiveData, newVal), { deep: true })
   watch(collectionData, (newVal) => saveToStorage(STORAGE_KEYS.collectionData, newVal), { deep: true })
+  watch(directData, (newVal) => saveToStorage(STORAGE_KEYS.directData, newVal), { deep: true })
 
   // ========== 取件记录 ==========
   const addReceiveData = (record: ReceivedFileRecord) => {
@@ -107,10 +102,37 @@ export const useFileDataStore = defineStore('fileData', () => {
     collectionData.value = []
   }
 
+  // ========== 临时房间房间记录 ==========
+  /** 新增直连房间记录（同房间码去重，最新在前） */
+  const addDirectRecord = (record: { title: string; roomCode: string }) => {
+    const index = directData.value.findIndex((r) => r.roomCode === record.roomCode)
+    if (index !== -1) {
+      directData.value.splice(index, 1)
+    }
+    directData.value.unshift({
+      id: Date.now(),
+      title: record.title,
+      roomCode: record.roomCode,
+      date: new Date().toLocaleString(),
+    })
+  }
+
+  const deleteDirectRecord = (id: number) => {
+    const index = directData.value.findIndex((r) => r.id === id)
+    if (index !== -1) {
+      directData.value.splice(index, 1)
+    }
+  }
+
+  const clearDirectData = () => {
+    directData.value = []
+  }
+
   return {
     receiveData,
     shareData,
     collectionData,
+    directData,
     addReceiveData,
     removeReceiveData,
     deleteReceiveData,
@@ -122,6 +144,9 @@ export const useFileDataStore = defineStore('fileData', () => {
     addCollectionRecord,
     deleteCollectionRecord,
     removeCollectionRecord,
-    clearCollectionData
+    clearCollectionData,
+    addDirectRecord,
+    deleteDirectRecord,
+    clearDirectData,
   }
 })

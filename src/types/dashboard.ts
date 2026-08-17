@@ -19,6 +19,7 @@ export interface DashboardData {
   maxSaveSeconds: number
   topSuffixes: DashboardSuffixStat[]
   recentFiles: DashboardRecentFile[]
+  recentCollections: DashboardRecentCollection[]
   // 收件箱统计
   totalCollections: number
   activeCollections: number
@@ -27,6 +28,11 @@ export interface DashboardData {
   todayDeliveriesSize: string
   yesterdayDeliveries: number
   yesterdayDeliveriesSize: string
+  // 房间统计（基本房间信息）
+  totalRooms: number
+  activeRooms: number
+  todayRooms: number
+  onlineRooms: number
 }
 
 export interface DashboardSuffixStat {
@@ -46,6 +52,18 @@ export interface DashboardRecentFile {
   usedCount: number
   createdAt: string | null
   isExpired: boolean
+}
+
+export interface DashboardRecentCollection {
+  id: number
+  title: string
+  collection_code: string
+  delivery_code: string
+  retrieve_code: string
+  file_count: number
+  max_files: number
+  is_expired: boolean
+  created_at: string | null
 }
 
 export interface DashboardViewData extends DashboardData {

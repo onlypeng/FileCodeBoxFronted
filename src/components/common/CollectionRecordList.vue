@@ -35,6 +35,7 @@
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600']"
               :title="t('collection.create.manage')"
+              :aria-label="t('collection.create.manage')"
             >
               <SettingsIcon class="w-4 h-4" />
             </button>
@@ -43,6 +44,7 @@
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-emerald-400' : 'hover:bg-gray-200 text-gray-400 hover:text-emerald-600']"
               :title="t('collection.create.retrieveHint')"
+              :aria-label="t('collection.create.retrieveHint')"
             >
               <EyeIcon class="w-4 h-4" />
             </button>
@@ -50,6 +52,7 @@
               @click="$emit('delete-record', record.id)"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-red-400' : 'hover:bg-gray-200 text-gray-400 hover:text-red-500']"
+              :aria-label="t('records.delete') || '删除'"
             >
               <TrashIcon class="w-4 h-4" />
             </button>

@@ -28,17 +28,18 @@
     </div>
 
     <!-- 上传区域主体 -->
-    <div class="p-8 flex flex-col items-center justify-center">
+    <div class="flex flex-col items-center justify-center" :class="[compact ? 'p-5' : 'p-8']">
       <!-- 上传状态图标 -->
       <component
         :is="statusIcon"
-        :class="['w-16 h-16 transition-colors duration-300', statusIconClass]"
+        :class="[compact ? 'w-12 h-12' : 'w-16 h-16', 'transition-colors duration-300', statusIconClass]"
       />
 
       <!-- 文件名或占位文本 -->
       <p
         :class="[
-          'mt-4 text-sm transition-colors duration-300 w-full text-center',
+          'text-sm transition-colors duration-300 w-full text-center',
+          compact ? 'mt-3' : 'mt-4',
           isDarkMode
             ? 'text-gray-400 group-hover:text-indigo-400'
             : 'text-gray-600 group-hover:text-indigo-600'
@@ -53,7 +54,7 @@
       </p>
 
       <!-- 状态描述或默认描述 -->
-      <p :class="['mt-2 text-xs', statusDescriptionClass]">
+      <p :class="['text-xs', compact ? 'mt-1.5' : 'mt-2', statusDescriptionClass]">
         {{ statusDescription }}
       </p>
 
@@ -112,6 +113,7 @@ import { UploadCloudIcon, CheckCircleIcon, XCircleIcon, LoaderIcon, XIcon } from
 import BorderProgressBar from './BorderProgressBar.vue'
 import { useI18n } from 'vue-i18n'
 import { useInjectedDarkMode } from '@/composables'
+import { formatFileSize as formatBytes } from '@/utils/common'
 
 const { t } = useI18n()
 
@@ -140,6 +142,8 @@ interface Props {
   showProgressDetails?: boolean
   /** 是否支持选择目录（文件夹）上传 */
   directory?: boolean
+  /** 紧凑布局（减少内边距与图标尺寸，用于发件页并排布局） */
+  compact?: boolean
 }
 
 interface Emits {
@@ -165,7 +169,8 @@ const props = withDefaults(defineProps<Props>(), {
   allowRetry: true,
   retryText: '重试',
   showProgressDetails: true,
-  directory: false
+  directory: false,
+  compact: false
 })
 
 const emit = defineEmits<Emits>()
@@ -258,14 +263,6 @@ const statusDescriptionClass = computed(() => {
   }
   return isDarkMode.value ? 'text-gray-500' : 'text-gray-400'
 })
-
-const formatBytes = (bytes: number): string => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
 
 const triggerFileUpload = () => {
   // 上传中或成功状态下不允许重新选择文件

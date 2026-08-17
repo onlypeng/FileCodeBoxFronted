@@ -1,12 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { CollectionService } from '@/services/collection'
+import { CollectionService, DeliveryService } from '@/services'
+import { readJsonPreference, writePreference } from '@/utils/preference-storage'
 import type {
   CollectionFileItem,
   CreateCollectionRequest,
   CreateCollectionResponse,
   DeliveryPageInfo,
   CollectionManageResponse,
+  UpdateCollectionConfigRequest,
+  UpdateCollectionConfigResponse,
   UploadProgressInfo,
 } from '@/types/collection'
 
@@ -20,12 +23,7 @@ interface RecentCollection {
 }
 
 function loadRecentCollections(): RecentCollection[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
+  return readJsonPreference<RecentCollection[]>(STORAGE_KEY, [])
 }
 
 function saveRecentCollection(item: RecentCollection) {
@@ -34,12 +32,12 @@ function saveRecentCollection(item: RecentCollection) {
   const filtered = list.filter(c => c.collection_code !== item.collection_code)
   filtered.unshift(item)
   // 最多保留 10 条
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered.slice(0, 10)))
+  writePreference(STORAGE_KEY, filtered.slice(0, 10))
 }
 
 function removeRecentFromStorage(code: string) {
   const list = loadRecentCollections().filter(c => c.collection_code !== code)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  writePreference(STORAGE_KEY, list)
 }
 
 export const useCollectionStore = defineStore('collection', () => {
@@ -129,7 +127,7 @@ export const useCollectionStore = defineStore('collection', () => {
     isLoading.value = true
     error.value = ''
     try {
-      const res = await CollectionService.getDeliveryPage(code)
+      const res = await DeliveryService.getDeliveryPage(code)
       if (res.code === 200 && res.detail) {
         const d = res.detail
         deliveryInfo.value = d
@@ -144,9 +142,7 @@ export const useCollectionStore = defineStore('collection', () => {
         deliveryExpireStyle.value = d.delivery_expire_style
         deliveryExpireValue.value = d.delivery_expire_value
         deliveryExpiredAt.value = d.delivery_expired_at
-        retrieveExpireStyle.value = d.retrieve_expire_style
-        retrieveExpireValue.value = d.retrieve_expire_value
-        retrieveExpiredAt.value = d.retrieve_expired_at
+        // 投件码视角不返回取件码相关字段
         return d
       }
       throw new Error(res.detail as unknown as string || '获取失败')
@@ -202,7 +198,7 @@ export const useCollectionStore = defineStore('collection', () => {
     uploaderName: string = '',
     onProgress?: (progress: number) => void
   ) {
-    const res = await CollectionService.uploadFile(
+    const res = await DeliveryService.uploadFile(
       deliveryCode.value,
       file,
       uploaderName,
@@ -214,9 +210,9 @@ export const useCollectionStore = defineStore('collection', () => {
     throw new Error('上传失败')
   }
 
-  /** 删除文件 */
+  /** 删除文件（携带管理码/取件码校验权限） */
   async function deleteFile(fileId: number) {
-    await CollectionService.deleteFile(fileId)
+    await CollectionService.deleteFile(fileId, collectionCode.value)
     files.value = files.value.filter((f) => f.id !== fileId)
   }
 
@@ -293,6 +289,24 @@ export const useCollectionStore = defineStore('collection', () => {
     recentList.value = recentList.value.filter(c => c.collection_code !== code)
   }
 
+  /** 更新收件箱配置（投件码/取件码过期时间、最大文件数） */
+  async function updateConfig(data: UpdateCollectionConfigRequest): Promise<UpdateCollectionConfigResponse> {
+    const res = await CollectionService.updateConfig(collectionCode.value, data)
+    if (res.code === 200 && res.detail) {
+      const d = res.detail
+      deliveryExpireStyle.value = d.delivery_expire_style
+      deliveryExpireValue.value = d.delivery_expire_value
+      deliveryExpiredAt.value = d.delivery_expired_at
+      retrieveExpireStyle.value = d.retrieve_expire_style
+      retrieveExpireValue.value = d.retrieve_expire_value
+      retrieveExpiredAt.value = d.retrieve_expired_at
+      if (d.max_files !== undefined) collectionMaxFiles.value = d.max_files
+      if (d.files) files.value = d.files
+      return d
+    }
+    throw new Error(res.detail as unknown as string || '更新失败')
+  }
+
   /** 重置状态 */
   function reset() {
     collectionCode.value = ''
@@ -344,6 +358,7 @@ export const useCollectionStore = defineStore('collection', () => {
     createCollection,
     loadDeliveryPage,
     loadManageInfo,
+    updateConfig,
     uploadFile,
     deleteFile,
     addFileFromWS,

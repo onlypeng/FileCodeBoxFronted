@@ -1,12 +1,16 @@
 <template>
-  <div class="flex flex-col space-y-3">
-    <label :class="['text-sm font-medium', isDarkMode ? 'text-gray-300' : 'text-gray-700']">
-      {{ t('send.expiration.label') }}
+  <div :class="['flex flex-col', compact ? 'space-y-1.5' : 'space-y-3']">
+    <label
+      v-if="label !== null"
+      :class="['font-medium', compact ? 'text-xs' : 'text-sm', isDarkMode ? 'text-gray-300' : 'text-gray-700']"
+    >
+      {{ label ?? t('send.expiration.label') }}
     </label>
     <div class="relative flex-grow group">
       <div
         :class="[
-          'relative h-12 rounded-2xl border transition-all duration-300 shadow-sm',
+          'relative rounded-2xl border transition-all duration-300 shadow-sm',
+          compact ? 'h-10' : 'h-12',
           isDarkMode
             ? 'bg-gray-800/60 border-gray-700/60 group-hover:border-gray-600/80 group-hover:shadow-lg group-hover:shadow-gray-900/20'
             : 'bg-white border-gray-200 group-hover:border-gray-300 group-hover:shadow-md group-hover:shadow-gray-200/50'
@@ -20,7 +24,8 @@
             :placeholder="getPlaceholder()"
             min="1"
             :class="[
-              'w-full h-full px-5 pr-32 rounded-2xl placeholder-gray-400 transition-all duration-300',
+              'w-full h-full rounded-2xl placeholder-gray-400 transition-all duration-300',
+              compact ? 'px-4 pr-28 text-sm' : 'px-5 pr-32',
               'focus:outline-none focus:ring-2 focus:ring-offset-0',
               '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
               'bg-transparent',
@@ -30,8 +35,11 @@
             ]"
           />
           <div
-            class="absolute right-28 top-0 h-full flex flex-col border-l"
-            :class="[isDarkMode ? 'border-gray-700/60' : 'border-gray-200']"
+            :class="[
+              'absolute top-0 h-full flex flex-col border-l',
+              compact ? 'right-24' : 'right-28',
+              isDarkMode ? 'border-gray-700/60' : 'border-gray-200'
+            ]"
           >
             <button
               type="button"
@@ -80,8 +88,8 @@
             'absolute right-0 top-0 h-full appearance-none cursor-pointer transition-all duration-300',
             'focus:outline-none focus:ring-2 focus:ring-offset-0',
             expirationMethod === 'forever'
-              ? 'w-full px-5 rounded-2xl'
-              : 'w-28 pl-4 pr-9 border-l rounded-r-2xl',
+              ? compact ? 'w-full px-4 rounded-2xl' : 'w-full px-5 rounded-2xl'
+              : compact ? 'w-24 pl-3 pr-8 border-l rounded-r-2xl' : 'w-28 pl-4 pr-9 border-l rounded-r-2xl',
             isDarkMode
               ? 'text-gray-100 border-gray-700/60 focus:ring-indigo-500/80 bg-gray-800/60'
               : 'text-gray-900 border-gray-200 focus:ring-indigo-500/60 bg-white'
@@ -139,6 +147,10 @@ interface Props {
     label: string
     value: string
   }>
+  /** 覆盖默认标签文案；传 null 隐藏标签行（紧凑布局时使用） */
+  label?: string | null
+  /** 紧凑模式：高度与间距缩小，用于表单分组内嵌 */
+  compact?: boolean
 }
 
 interface Emits {

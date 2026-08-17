@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ConfigService } from '@/services'
 import { useAlertStore } from '@/stores/alertStore'
 import { useConfigStore } from '@/stores/configStore'
@@ -8,24 +9,40 @@ import { getErrorMessage } from '@/utils/common'
 import {
   buildConfigSubmitPayload,
   bytesToFileSizeForm,
-  secondsToSaveTimeForm,
-  type FileSizeUnit,
-  type SaveTimeUnit
+  type FileSizeUnit
 } from '@/utils/config-form'
 
-type ConfigFlagKey = 'enableChunk' | 's3_proxy' | 'openUpload'
+type ConfigFlagKey = 'enableChunk' | 's3_proxy' | 'openUpload' | 'directRelayEnabled' | 'onedrive_proxy'
+
+// 敏感字段：不向表单回显真实值，加载后置空（保存时空值表示不修改）
+// 注意：仅包含 ConfigState 中存在的字段
+const SENSITIVE_CONFIG_KEYS = [
+  'admin_token',
+  's3_secret_access_key',
+  's3_access_key_id',
+  'aws_session_token',
+  'webdav_password',
+  'onedrive_password'
+] as const
+
+function sanitizeRemoteConfig(detail: ConfigState): ConfigState {
+  const result: ConfigState = { ...detail }
+  for (const key of SENSITIVE_CONFIG_KEYS) {
+    result[key] = ''
+  }
+  return result
+}
 
 export function useSystemConfig() {
   const alertStore = useAlertStore()
   const configStore = useConfigStore()
+  const { t } = useI18n()
   
   // 状态管理
   const config = ref<ConfigState>({ ...DEFAULT_CONFIG_STATE })
   const isLoading = ref(false)
   const fileSize = ref(1)
   const sizeUnit = ref<FileSizeUnit>('MB')
-  const saveTime = ref(1)
-  const saveTimeUnit = ref<SaveTimeUnit>('天')
   
   // 从本地存储获取配置
   const getStoredConfig = (): ConfigState | null => {
@@ -45,7 +62,8 @@ export function useSystemConfig() {
       const response = await ConfigService.getConfig()
       
       if (response.code === 200 && response.detail) {
-        config.value = { ...DEFAULT_CONFIG_STATE, ...response.detail }
+        // 密码/敏感凭据不回显：'******' 占位符与密码哈希均置空，保存时空值表示不修改
+        config.value = { ...DEFAULT_CONFIG_STATE, ...sanitizeRemoteConfig(response.detail) }
         const notifyMessage = configStore.applyRemoteConfig(config.value)
         if (notifyMessage) {
           alertStore.showAlert(notifyMessage, 'success')
@@ -63,7 +81,7 @@ export function useSystemConfig() {
         return config.value
       }
       
-      alertStore.showAlert(getErrorMessage(error, '获取配置失败'), 'error')
+      alertStore.showAlert(getErrorMessage(error, t('manage.systemSettings.getConfigFailed')), 'error')
       return null
     } finally {
       isLoading.value = false
@@ -80,13 +98,13 @@ export function useSystemConfig() {
       if (response.code === 200) {
         config.value = { ...config.value, ...newConfig }
         saveConfigToStorage(config.value)
-        alertStore.showAlert('配置更新成功！', 'success')
+        alertStore.showAlert(t('manage.systemSettings.saveSuccess'), 'success')
         return true
       } else {
-        throw new Error(response.message || '更新配置失败')
+        throw new Error(response.message || t('manage.systemSettings.saveFailed'))
       }
     } catch (error) {
-      alertStore.showAlert(getErrorMessage(error, '更新配置失败'), 'error')
+      alertStore.showAlert(getErrorMessage(error, t('manage.systemSettings.saveFailed')), 'error')
       return false
     } finally {
       isLoading.value = false
@@ -101,10 +119,6 @@ export function useSystemConfig() {
     const sizeForm = bytesToFileSizeForm(nextConfig.uploadSize)
     fileSize.value = sizeForm.value
     sizeUnit.value = sizeForm.unit
-
-    const saveTimeForm = secondsToSaveTimeForm(nextConfig.max_save_seconds)
-    saveTime.value = saveTimeForm.value
-    saveTimeUnit.value = saveTimeForm.unit
   }
 
   const refreshConfig = async () => {
@@ -118,8 +132,7 @@ export function useSystemConfig() {
     updateConfig(
       buildConfigSubmitPayload(
         config.value,
-        { value: fileSize.value, unit: sizeUnit.value },
-        { value: saveTime.value, unit: saveTimeUnit.value }
+        { value: fileSize.value, unit: sizeUnit.value }
       )
     )
   
@@ -150,9 +163,7 @@ export function useSystemConfig() {
     isLoading,
     fileSize,
     sizeUnit,
-    saveTime,
-    saveTimeUnit,
-    
+
     // 计算属性
     maxFileSizeMB,
     isConfigLoaded,

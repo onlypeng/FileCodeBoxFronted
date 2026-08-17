@@ -47,7 +47,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
-const isDarkMode = inject('isDarkMode')
+const isDarkMode = inject('isDarkMode') as { value: boolean }
 
 const placeholderText = computed(() => props.placeholder || t('send.uploadArea.textInput'))
 

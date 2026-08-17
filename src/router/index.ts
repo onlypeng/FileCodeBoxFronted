@@ -1,7 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { ROUTE_NAMES, ROUTES } from '@/constants'
-import { readStoredToken } from '@/utils/auth-storage'
+import { readStoredToken, clearStoredToken } from '@/utils/auth-storage'
+import { AuthService } from '@/services'
 
 const publicPageMeta = {
   showGlobalControls: true,
@@ -26,7 +27,12 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: ROUTES.SEND,
-    redirect: '/?tab=send'
+    name: ROUTE_NAMES.SEND,
+    component: () => import('@/views/SendFileView.vue'),
+    meta: {
+      ...publicPageMeta,
+      title: 'send'
+    }
   },
   {
     path: ROUTES.COLLECTION_CREATE,
@@ -52,10 +58,6 @@ const routes: RouteRecordRaw[] = [
     redirect: (to) => `/?retrieve=${to.params.code}`
   },
   {
-    path: ROUTES.DELIVERY_ENTER,
-    redirect: '/'
-  },
-  {
     path: ROUTES.DELIVERY_UPLOAD + '/:code',
     name: ROUTE_NAMES.DELIVERY_UPLOAD,
     component: () => import('@/views/delivery/UploadView.vue'),
@@ -64,6 +66,38 @@ const routes: RouteRecordRaw[] = [
       ...publicPageMeta,
       title: 'delivery_upload'
     }
+  },
+  {
+    path: ROUTES.DIRECT,
+    name: ROUTE_NAMES.DIRECT_HOME,
+    component: () => import('@/views/DirectHomeView.vue'),
+    meta: {
+      ...publicPageMeta,
+      title: 'direct_home'
+    }
+  },
+  {
+    path: ROUTES.DIRECT_ROOM + '/:code',
+    name: ROUTE_NAMES.DIRECT_ROOM,
+    component: () => import('@/views/DirectRoomView.vue'),
+    props: true,
+    meta: {
+      ...publicPageMeta,
+      title: 'direct_room'
+    }
+  },
+  // 兼容旧版房间分享链接（早期 chat/transfer/direct 前缀，统一重定向到 /direct/room/:code）
+  {
+    path: '/direct/chat/:code',
+    redirect: (to) => `/direct/room/${to.params.code}`
+  },
+  {
+    path: '/direct/transfer/:code',
+    redirect: (to) => `/direct/room/${to.params.code}`
+  },
+  {
+    path: '/direct/:code',
+    redirect: (to) => `/direct/room/${to.params.code}`
   },
   {
     path: ROUTES.ADMIN,
@@ -122,12 +156,39 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
-  if (to.meta.requiresAuth && !readStoredToken()) {
-    return {
-      path: ROUTES.LOGIN,
-      query: {
-        redirect: to.fullPath
+// 已验证的 Token 短时缓存，避免每次导航都请求 /admin/verify
+let verifiedToken = ''
+let verifiedAt = 0
+const VERIFY_TTL = 60_000
+
+/** 校验本地 Token 是否有效：先判空，再向后端 /admin/verify 校验签名与有效期 */
+async function isTokenValid(): Promise<boolean> {
+  const token = readStoredToken()
+  if (!token) return false
+  if (verifiedToken === token && Date.now() - verifiedAt < VERIFY_TTL) return true
+  try {
+    const res = await AuthService.verifyToken()
+    if (res.code === 200) {
+      verifiedToken = token
+      verifiedAt = Date.now()
+      return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+router.beforeEach(async (to) => {
+  if (to.meta.requiresAuth) {
+    const valid = await isTokenValid()
+    if (!valid) {
+      clearStoredToken()
+      return {
+        path: ROUTES.LOGIN,
+        query: {
+          redirect: to.fullPath
+        }
       }
     }
   }

@@ -1,4 +1,5 @@
 import type { ApiResponse, SendType, SentFileRecord, SentRecordType } from '@/types'
+import { formatFileSize } from '@/utils/common'
 
 type Translate = (key: string, params?: Record<string, string | number>) => string
 
@@ -12,26 +13,6 @@ type BuildSentRecordInput = {
   expirationValue: string
   translate: Translate
   getUnit: (method: string) => string
-}
-
-const expirationSecondsByMethod: Record<string, number> = {
-  minute: 60,
-  hour: 3600,
-  day: 86400
-}
-
-export function isExpirationWithinLimit(
-  method: string,
-  value: string,
-  maxSaveSeconds: number
-): boolean {
-  if (method === 'forever' || method === 'count') return true
-  if (maxSaveSeconds === 0) return true
-
-  const multiplier = expirationSecondsByMethod[method]
-  if (!multiplier) return false
-
-  return parseInt(value) * multiplier <= maxSaveSeconds
 }
 
 export function formatExpirationTime(
@@ -71,22 +52,34 @@ export function formatExpirationTime(
 export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
   const detail = input.response.detail as { code?: string; name?: string; is_multi_file?: boolean } | undefined
   const retrieveCode = detail?.code || ''
-  const fileName = detail?.name || ''
   const isMultiFile = detail?.is_multi_file || input.selectedFiles.length > 1
-  const recordType: SentRecordType = input.sendType === 'text' ? 'text' : (isMultiFile ? 'multiFile' : 'file')
+  const isText = input.sendType === 'text'
+  // 多文件与单文件名称保持一致：多文件显示"第一个文件名 + 等N个文件"，数量由名称直接体现
+  // 文本记录与文件记录合并：统一 type 为 file，名称直接显示文本正文
+  const fileName = isText
+    ? input.textContent
+    : isMultiFile
+      ? input.selectedFiles.length > 0
+        ? input.translate('records.multiFileName', {
+            name: input.selectedFiles[0].name,
+            count: input.selectedFiles.length
+          })
+        : detail?.name || ''
+      : detail?.name || ''
+  const recordType: SentRecordType = isMultiFile ? 'multiFile' : 'file'
 
   const totalSelectedSize = input.selectedFiles.reduce((total, file) => total + file.size, 0)
   const displaySize =
     input.sendType === 'text'
-      ? `${(input.textContent.length / 1024).toFixed(2)} KB`
+      ? formatFileSize(input.textContent.length)
       : input.selectedFiles.length > 0
-        ? `${(totalSelectedSize / (1024 * 1024)).toFixed(1)} MB`
-        : `${((input.selectedFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB`
+        ? formatFileSize(totalSelectedSize)
+        : formatFileSize(input.selectedFile?.size || 0)
 
   return {
     id: Date.now(),
     filename: fileName,
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toLocaleString(),
     size: displaySize,
     expiration:
       input.expirationMethod === 'forever'
@@ -106,5 +99,6 @@ export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
       : input.selectedFile
         ? [{ name: input.selectedFile.name, size: input.selectedFile.size }]
         : undefined,
+    text: input.textContent || undefined,
   }
 }

@@ -11,6 +11,16 @@
       ]"
     >
       <div class="p-8">
+        <!-- 返回首页 -->
+        <button
+          @click="toHome"
+          class="flex items-center gap-1.5 text-sm font-medium transition-colors duration-300"
+          :class="[isDarkMode ? 'text-gray-400 hover:text-indigo-400' : 'text-gray-500 hover:text-indigo-600']"
+        >
+          <ArrowLeftIcon class="w-4 h-4" />
+          {{ t('delivery.upload.backToHome') }}
+        </button>
+
         <PageHeader :title="deliveryInfo?.title || t('delivery.upload.title')" @title-click="toHome" />
 
         <div v-if="deliveryInfo" class="space-y-4">
@@ -101,7 +111,7 @@
           <button
             @click="handleUploadAll"
             :disabled="selectedFiles.length === 0 || isUploading || isFull"
-            class="w-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            class="btn-primary-lg w-full"
           >
             <template v-if="isUploading">
               <LoaderIcon class="w-4 h-4 inline mr-1 animate-spin" />
@@ -131,11 +141,6 @@
           <p class="text-sm text-red-500">{{ t('delivery.upload.notFound') }}</p>
         </div>
 
-        <div class="mt-6 text-center">
-          <router-link to="/" class="text-indigo-400 hover:text-indigo-300 transition duration-300 text-sm">
-            {{ t('collection.submit.backToHome') }}
-          </router-link>
-        </div>
       </div>
     </div>
   </div>
@@ -145,17 +150,18 @@
 import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
+import { ArrowLeftIcon, UploadCloudIcon, LoaderIcon, CheckCircleIcon } from 'lucide-vue-next'
 import PageHeader from '@/components/common/PageHeader.vue'
-import FormInput from '@/components/common/FormInput.vue'
 import FileUploadArea from '@/components/common/FileUploadArea.vue'
 import { useAlertStore } from '@/stores/alertStore'
 import { useConfigStore } from '@/stores/configStore'
 import { useFileDataStore } from '@/stores/fileData'
 import { STORAGE_KEYS } from '@/constants'
-import { DeliveryService } from '@/services/delivery'
-import { useCollectionWebSocket } from '@/composables/useCollectionWebSocket'
+import { formatFileSize as formatSize } from '@/utils/common'
+import { useCollectionWebSocket, useDelivery } from '@/composables'
+import { calculateFileHash } from '@/utils/file-processing'
+import { readPreference, writePreference, readJsonPreference } from '@/utils/preference-storage'
 import { getStorageUnit } from '@/utils/convert'
-import { UploadCloudIcon, LoaderIcon, CheckCircleIcon } from 'lucide-vue-next'
 import type { DeliveryPageInfo } from '@/types/collection'
 import type { SentFileRecord } from '@/types'
 
@@ -167,6 +173,7 @@ const alertStore = useAlertStore()
 const configStore = useConfigStore()
 const fileDataStore = useFileDataStore()
 const config = computed(() => configStore.config)
+const delivery = useDelivery()
 
 const deliveryCode = computed(() => (route.params.code as string) || '')
 const deliveryInfo = ref<DeliveryPageInfo | null>(null)
@@ -175,6 +182,11 @@ const uploaderName = ref(loadNickname())
 const selectedFiles = ref<File[]>([])
 const isUploading = ref(false)
 const uploadSuccess = ref(false)
+
+/** 大文件走分片上传的阈值（超过则分片，避免单请求内存/超时问题） */
+const CHUNK_UPLOAD_THRESHOLD = 50 * 1024 * 1024
+/** 分片大小（与后端 /chunk 分片接口声明一致） */
+const CHUNK_SIZE = 5 * 1024 * 1024
 
 // 已上传成功的文件记录
 interface UploadedFileInfo {
@@ -190,28 +202,21 @@ interface UploadHistoryEntry {
   files: UploadedFileInfo[]
 }
 function loadUploadHistory(code: string): UploadedFileInfo[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DELIVERY_UPLOAD_HISTORY)
-    if (!raw) return []
-    const all: UploadHistoryEntry[] = JSON.parse(raw)
-    const entry = all.find(e => e.code === code)
-    return entry?.files || []
-  } catch { return [] }
+  const all = readJsonPreference<UploadHistoryEntry[]>(STORAGE_KEYS.DELIVERY_UPLOAD_HISTORY, [])
+  const entry = all.find(e => e.code === code)
+  return entry?.files || []
 }
 function saveUploadHistory(code: string, files: UploadedFileInfo[]) {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DELIVERY_UPLOAD_HISTORY)
-    const all: UploadHistoryEntry[] = raw ? JSON.parse(raw) : []
-    const idx = all.findIndex(e => e.code === code)
-    if (idx >= 0) {
-      all[idx].files = files
-    } else {
-      all.push({ code, files })
-    }
-    // 最多保留 20 个投件码的历史
-    if (all.length > 20) all.splice(0, all.length - 20)
-    localStorage.setItem(STORAGE_KEYS.DELIVERY_UPLOAD_HISTORY, JSON.stringify(all))
-  } catch { /* ignore */ }
+  const all = readJsonPreference<UploadHistoryEntry[]>(STORAGE_KEYS.DELIVERY_UPLOAD_HISTORY, [])
+  const idx = all.findIndex(e => e.code === code)
+  if (idx >= 0) {
+    all[idx].files = files
+  } else {
+    all.push({ code, files })
+  }
+  // 最多保留 20 个投件码的历史
+  if (all.length > 20) all.splice(0, all.length - 20)
+  writePreference(STORAGE_KEYS.DELIVERY_UPLOAD_HISTORY, all)
 }
 
 // 正在上传中的文件进度
@@ -243,9 +248,6 @@ const isFull = computed(() => {
 const maxFileSizeText = computed(() => getStorageUnit(config.value.uploadSize))
 const uploadDescription = computed(() => {
   const parts = [t('delivery.upload.fileDescription'), t('delivery.upload.maxFileSize', { size: maxFileSizeText.value })]
-  if (config.value.uploadCount > 0) {
-    parts.push(t('delivery.upload.rateLimit', { count: config.value.uploadCount, minute: config.value.uploadMinute }))
-  }
   return parts.join('，')
 })
 
@@ -259,14 +261,6 @@ function sendWSProgress(filename: string, progress: number, uploader: string) {
     progress,
     uploader,
   })
-}
-
-const formatSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 /** 检查单个文件大小 */
@@ -295,7 +289,6 @@ const checkFilesSize = (): boolean => {
 
 const handleFilesSelected = (files: File[]) => {
   const maxSendFiles = config.value.maxSendFiles || 20
-  const uploadCount = config.value.uploadCount || 0
   const validFiles = files.filter(f => checkFileSize(f))
 
   // 收件箱剩余容量
@@ -304,8 +297,8 @@ const handleFilesSelected = (files: File[]) => {
     collectionRemaining = deliveryInfo.value.max_files - currentFileCount.value - selectedFiles.value.length
   }
 
-  // 取全局限制、限流窗口限制和收件箱限制的较小值
-  const globalMax = uploadCount > 0 ? Math.min(maxSendFiles, uploadCount) : maxSendFiles
+  // 取全局限制和收件箱限制的较小值
+  const globalMax = maxSendFiles
   const maxAllowed = Math.min(globalMax - selectedFiles.value.length, collectionRemaining)
 
   if (validFiles.length > maxAllowed) {
@@ -345,17 +338,104 @@ function generateNickname(): string {
 }
 
 function loadNickname(): string {
-  const cached = localStorage.getItem(STORAGE_KEYS.UPLOADER_NICKNAME)
+  const cached = readPreference(STORAGE_KEYS.UPLOADER_NICKNAME, '')
   if (cached) return cached
   const name = generateNickname()
-  localStorage.setItem(STORAGE_KEYS.UPLOADER_NICKNAME, name)
+  writePreference(STORAGE_KEYS.UPLOADER_NICKNAME, name)
   return name
 }
 
 function saveNickname() {
   const name = uploaderName.value.trim()
   if (name) {
-    localStorage.setItem(STORAGE_KEYS.UPLOADER_NICKNAME, name)
+    writePreference(STORAGE_KEYS.UPLOADER_NICKNAME, name)
+  }
+}
+
+/** 计算已上传分片的字节数（用于总体进度） */
+const calculateCompletedBytes = (uploadedChunks: Set<number>, chunkSize: number, fileSize: number) =>
+  Array.from(uploadedChunks).reduce((total, index) => {
+    const chunkStart = index * chunkSize
+    const chunkEnd = Math.min((index + 1) * chunkSize, fileSize)
+    return total + Math.max(0, chunkEnd - chunkStart)
+  }, 0)
+
+/**
+ * 上传单个文件到收件箱：小文件直传，大文件（>50MB）分片上传。
+ * 分片流程：init（占位投递次数）→ 逐个上传分片（复用 /chunk 接口）→ complete（合并创建记录）。
+ * 失败时取消会话（清理分片并回滚投递次数）后抛出。
+ */
+const uploadFileWithChunk = async (
+  file: File,
+  upItemId: number,
+  fileIndex: number,
+  totalCount: number
+): Promise<{ id: number; filename: string; file_size: number; status: string }> => {
+  const onItemProgress = (percentage: number) => {
+    const item = uploadingList.value.find(u => u.id === upItemId)
+    if (item) item.progress = percentage
+    overallProgress.value = ((fileIndex + percentage / 100) / totalCount) * 100
+    sendWSProgress(file.name, percentage, uploaderName.value || '匿名')
+  }
+
+  // 小文件：走原有直传接口
+  if (file.size < CHUNK_UPLOAD_THRESHOLD) {
+    const res = await delivery.uploadFile(deliveryCode.value, file, uploaderName.value, ({ percentage }) => {
+      onItemProgress(percentage)
+    })
+    if (res.code !== 200 || !res.detail) {
+      throw new Error(res.message || '上传失败')
+    }
+    return res.detail
+  }
+
+  // 大文件：分片上传
+  const fileHash = await calculateFileHash(file)
+  const initRes = await delivery.initChunkUpload({
+    delivery_code: deliveryCode.value,
+    uploader_name: uploaderName.value,
+    file_name: file.name,
+    file_size: file.size,
+    chunk_size: CHUNK_SIZE,
+    file_hash: fileHash
+  })
+  if (initRes.code !== 200 || !initRes.detail?.upload_id) {
+    throw new Error(initRes.message || '分片上传初始化失败')
+  }
+  const { upload_id: uploadId } = initRes.detail
+  const chunks = Math.ceil(file.size / CHUNK_SIZE)
+  const uploadedChunks = new Set<number>(initRes.detail.uploaded_chunks || [])
+
+  try {
+    for (let index = 0; index < chunks; index++) {
+      if (uploadedChunks.has(index)) continue
+      const start = index * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const chunkBlob = file.slice(start, end)
+      const chunkRes = await delivery.uploadChunk(uploadId, index, new Blob([chunkBlob], { type: file.type }), (progress) => {
+        const completedBytes = calculateCompletedBytes(uploadedChunks, CHUNK_SIZE, file.size)
+        const percentage = Math.round(((completedBytes + progress.loaded) * 100) / file.size)
+        onItemProgress(Math.min(percentage, 99))
+      })
+      if (chunkRes.code !== 200) {
+        throw new Error(`分片 ${index} 上传失败`)
+      }
+      uploadedChunks.add(index)
+    }
+
+    const completeRes = await delivery.completeChunkUpload(deliveryCode.value, uploadId, uploaderName.value)
+    if (completeRes.code !== 200 || !completeRes.detail) {
+      throw new Error(completeRes.message || '分片合并失败')
+    }
+    return completeRes.detail
+  } catch (error) {
+    // 失败时取消会话（清理分片并回滚投递次数）
+    try {
+      await delivery.cancelChunkUpload(deliveryCode.value, uploadId)
+    } catch {
+      /* 取消失败忽略 */
+    }
+    throw error
   }
 }
 
@@ -368,12 +448,6 @@ const handleUploadAll = async () => {
     return
   }
   saveNickname()
-
-  // 限流检查：选择文件数不能超过限流窗口允许的数量
-  if (config.value.uploadCount > 0 && selectedFiles.value.length > config.value.uploadCount) {
-    alertStore.showAlert(t('delivery.upload.rateLimitExceeded', { count: config.value.uploadCount, minute: config.value.uploadMinute }), 'error')
-    return
-  }
 
   isUploading.value = true
   overallProgress.value = 0
@@ -400,19 +474,9 @@ const handleUploadAll = async () => {
       uploadingList.value.push(upItem)
 
       try {
-        const res = await DeliveryService.uploadFile(
-          deliveryCode.value,
-          file,
-          uploaderName.value,
-          ({ percentage }) => {
-            const item = uploadingList.value.find(u => u.id === upItemId)
-            if (item) item.progress = percentage
-            overallProgress.value = ((i + percentage / 100) / filesToUpload.length) * 100
-            sendWSProgress(file.name, percentage, uploaderName.value || '匿名')
-          }
-        )
+        const res = await uploadFileWithChunk(file, upItemId, i, filesToUpload.length)
 
-        if (res.code === 200) {
+        if (res.status === 'completed') {
           const uploadedAt = new Date().toLocaleString()
           uploadedFiles.value.push({ filename: file.name, size: file.size, uploadedAt })
           uploadingList.value = uploadingList.value.filter(u => u.id !== upItemId)
@@ -468,7 +532,7 @@ onMounted(async () => {
   // 加载历史上传记录
   uploadedFiles.value = loadUploadHistory(deliveryCode.value)
   try {
-    const res = await DeliveryService.getDeliveryPage(deliveryCode.value)
+    const res = await delivery.getDeliveryPage(deliveryCode.value)
     if (res.code === 200 && res.detail) {
       deliveryInfo.value = res.detail
     }

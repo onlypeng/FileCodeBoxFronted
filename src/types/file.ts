@@ -37,10 +37,6 @@ export interface FileUploadResponse {
   name: string
 }
 
-export interface TextSendResponse {
-  code: string
-}
-
 export interface ShareSelectResponse {
   code: string
   name: string
@@ -64,6 +60,20 @@ export interface CollectionRecord {
   date: string
   maxFiles: number
   expireInfo: string
+  /** 收件箱（管理码）过期时间文案，查看时展示 */
+  collectionExpire?: string
+  /** 投件码过期时间文案，查看时展示 */
+  deliveryExpire?: string
+  /** 取件码过期时间文案，查看时展示 */
+  retrieveExpire?: string
+}
+
+// ==================== 临时房间房间记录 ====================
+export interface DirectRecord {
+  id: number
+  title: string
+  roomCode: string
+  date: string
 }
 
 export interface ReceivedFileRecord {
@@ -103,8 +113,12 @@ export interface ReceivedFileRecord {
   expireStyle?: string
   /** 过期值 */
   expireValue?: number
+  /** 实时剩余次数（count 模式，取件时后端返回的最新值） */
+  expiredCount?: number | null
   /** 是否已确认过期（后端返回过期/不存在时标记） */
   isExpired?: boolean
+  /** 文件备注（分享者填写的说明文字） */
+  remark?: string | null
 }
 
 export interface SentFileRecord {
@@ -127,6 +141,8 @@ export interface SentFileRecord {
     name: string
     size: number
   }>
+  /** 文本分享正文（发件记录中文本与文件合并后保存） */
+  text?: string
 }
 
 export interface UploadProgress {
@@ -153,6 +169,8 @@ export interface ChunkUploadInitResponse {
 export interface ChunkUploadCompleteRequest {
   expire_value: number
   expire_style: string
+  /** 文件备注（可选） */
+  remark?: string
 }
 
 export type ChunkUploadResponse = null

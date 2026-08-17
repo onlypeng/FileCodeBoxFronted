@@ -31,12 +31,13 @@
             </div>
             <p class="text-xs mt-0.5" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
               {{ record.date }}<span class="mx-1">·</span>{{ record.size }}
-              <template v-if="record.type === 'multiFile'"><span class="mx-1">·</span>{{ fileCountText(record) }} {{ t('records.multiFile') }}</template>
+              <template v-if="fileCountText(record) > 0"><span class="mx-1">·</span>{{ fileCountText(record) }} {{ t('records.multiFile') }}</template>
             </p>
           </div>
           <div class="flex-shrink-0 flex items-center gap-1">
             <button
               type="button"
+              :aria-label="t('records.viewDetails') || '查看详情'"
               @click="$emit('view-details', record)"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600']"
@@ -45,6 +46,7 @@
             </button>
             <button
               type="button"
+              :aria-label="t('records.download') || '下载'"
               @click="!isExpired(record) && $emit('download-record', record)"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isExpired(record) ? 'cursor-not-allowed opacity-30' : (isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600')]"
@@ -53,6 +55,7 @@
             </button>
             <button
               type="button"
+              :aria-label="t('records.delete') || '删除'"
               @click="$emit('delete-record', record.id)"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-red-400' : 'hover:bg-gray-200 text-gray-400 hover:text-red-500']"
@@ -77,15 +80,13 @@ import { inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   FileIcon,
-  FileTextIcon,
-  InboxIcon,
   EyeIcon,
   DownloadIcon,
-  TrashIcon,
-  FilesIcon
+  TrashIcon
 } from 'lucide-vue-next'
 import type { ReceivedFileRecord } from '@/types'
 import { isRecordExpired } from '@/utils/common'
+import { getRecordIcon, getRecordBadge, getRecordFileCount } from '@/utils/record-display'
 
 interface Props {
   records: ReceivedFileRecord[]
@@ -108,39 +109,24 @@ function isExpired(record: ReceivedFileRecord): boolean {
 }
 
 function fileCountText(record: ReceivedFileRecord): number {
-  if (record.isCollection && record.collectionFiles) return record.collectionFiles.length
-  if (record.isMultiFile && record.multiFileItems) return record.multiFileItems.length
-  return 0
+  return getRecordFileCount(record)
 }
 
 function recordIcon(record: ReceivedFileRecord) {
-  const type = record.type || (record.content ? 'text' : 'file')
-  switch (type) {
-    case 'text':
-      return { icon: FileTextIcon, color: _isDark() ? 'text-teal-400' : 'text-teal-500' }
-    case 'multiFile':
-      if (record.isCollection) {
-        return { icon: InboxIcon, color: _isDark() ? 'text-indigo-400' : 'text-indigo-500' }
-      }
-      return { icon: FilesIcon, color: _isDark() ? 'text-violet-400' : 'text-violet-500' }
-    default:
-      return { icon: FileIcon, color: _isDark() ? 'text-sky-400' : 'text-sky-500' }
-  }
+  return getRecordIcon(record, _isDark())
 }
 
 function recordBadge(record: ReceivedFileRecord) {
-  const type = record.type || (record.content ? 'text' : 'file')
-  switch (type) {
-    case 'text':
-      return { text: t('records.badge.text'), class: _isDark() ? 'bg-teal-900/40 text-teal-200' : 'bg-teal-100 text-gray-900' }
-    case 'multiFile':
-      if (record.isCollection) {
-        return { text: t('records.badge.collection'), class: _isDark() ? 'bg-indigo-900/40 text-indigo-200' : 'bg-indigo-100 text-gray-900' }
-      }
-      return { text: t('records.badge.multiFile'), class: _isDark() ? 'bg-violet-900/40 text-violet-200' : 'bg-violet-100 text-gray-900' }
-    default:
-      return { text: t('records.badge.file'), class: _isDark() ? 'bg-sky-900/40 text-sky-200' : 'bg-sky-100 text-gray-900' }
-  }
+  return getRecordBadge(
+    record,
+    {
+      file: t('records.badge.file'),
+      text: t('records.badge.text'),
+      collection: t('records.badge.collection'),
+      delivery: t('records.badge.delivery')
+    },
+    _isDark()
+  )
 }
 </script>
 

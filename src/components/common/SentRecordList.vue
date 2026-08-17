@@ -26,12 +26,13 @@
             </div>
             <p class="text-xs mt-0.5" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
               {{ record.date }}<span class="mx-1">·</span>{{ record.size }}
-              <template v-if="record.type === 'multiFile' && record.fileCount"><span class="mx-1">·</span>{{ record.fileCount }} {{ t('records.multiFile') }}</template>
+              <template v-if="fileCountText(record) > 0"><span class="mx-1">·</span>{{ fileCountText(record) }} {{ t('records.multiFile') }}</template>
             </p>
           </div>
           <div class="flex-shrink-0 flex items-center gap-1">
             <button
               @click="$emit('copy-link', record)"
+              :aria-label="t('records.copyLink') || '复制链接'"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600']"
             >
@@ -39,6 +40,7 @@
             </button>
             <button
               @click="$emit('view-details', record)"
+              :aria-label="t('records.viewDetails') || '查看详情'"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600']"
             >
@@ -46,6 +48,7 @@
             </button>
             <button
               @click="$emit('delete-record', record.id)"
+              :aria-label="t('records.delete') || '删除'"
               class="p-1.5 rounded-md transition duration-200"
               :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-red-400' : 'hover:bg-gray-200 text-gray-400 hover:text-red-500']"
             >
@@ -71,13 +74,10 @@ import {
   ClipboardCopyIcon,
   EyeIcon,
   FileIcon,
-  FileTextIcon,
-  InboxIcon,
-  TrashIcon,
-  UploadIcon,
-  FilesIcon
+  TrashIcon
 } from 'lucide-vue-next'
 import type { SentFileRecord } from '@/types'
+import { getRecordIcon, getRecordBadge, getRecordFileCount } from '@/utils/record-display'
 
 defineProps<{
   records: SentFileRecord[]
@@ -93,41 +93,32 @@ const isDarkMode = inject<Ref<boolean> | boolean>('isDarkMode', false)
 const _isDark = () => Boolean(unref(isDarkMode))
 const { t } = useI18n()
 
+function fileCountText(record: SentFileRecord): number {
+  return getRecordFileCount(record)
+}
+
 function recordIcon(record: SentFileRecord) {
-  const type = record.type || 'file'
-  switch (type) {
-    case 'text':
-      return { icon: FileTextIcon, color: _isDark() ? 'text-teal-400' : 'text-teal-500' }
-    case 'multiFile':
-      if (record.isDelivery) {
-        return { icon: UploadIcon, color: _isDark() ? 'text-amber-400' : 'text-amber-500' }
-      }
-      return { icon: FilesIcon, color: _isDark() ? 'text-violet-400' : 'text-violet-500' }
-    default:
-      return { icon: FileIcon, color: _isDark() ? 'text-sky-400' : 'text-sky-500' }
-  }
+  return getRecordIcon(record, _isDark())
 }
 
 function recordBadge(record: SentFileRecord) {
-  const type = record.type || 'file'
-  switch (type) {
-    case 'text':
-      return { text: t('records.badge.text'), class: _isDark() ? 'bg-teal-900/40 text-teal-200' : 'bg-teal-100 text-gray-900' }
-    case 'multiFile':
-      if (record.isDelivery) {
-        return { text: t('records.badge.delivery'), class: _isDark() ? 'bg-amber-900/40 text-amber-200' : 'bg-amber-100 text-gray-900' }
-      }
-      return { text: t('records.badge.multiFile'), class: _isDark() ? 'bg-violet-900/40 text-violet-200' : 'bg-violet-100 text-gray-900' }
-    default:
-      return { text: t('records.badge.file'), class: _isDark() ? 'bg-sky-900/40 text-sky-200' : 'bg-sky-100 text-gray-900' }
-  }
+  return getRecordBadge(
+    record,
+    {
+      file: t('records.badge.file'),
+      text: t('records.badge.text'),
+      collection: t('records.badge.collection'),
+      delivery: t('records.badge.delivery')
+    },
+    _isDark()
+  )
 }
 
 function recordDisplayName(record: SentFileRecord): string {
   if (record.isDelivery) {
     return record.collectionTitle || t('records.deliveryTitle')
   }
-  return record.filename || 'Text'
+  return record.filename || ''
 }
 </script>
 

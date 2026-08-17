@@ -1,20 +1,16 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
-import { FileService } from '@/services'
-import { CollectionService } from '@/services/collection'
+import { FileService, CollectionService } from '@/services'
 import { useAlertStore } from '@/stores/alertStore'
 import { useFileDataStore } from '@/stores/fileData'
 import type { ReceivedFileRecord } from '@/types'
 import type { MultiFileItem, CollectionFileItem } from '@/types/collection'
 import { copyToClipboard } from '@/utils/clipboard'
-import { getErrorMessage } from '@/utils/common'
+import { getErrorMessage, isRecordExpired, formatFileSize } from '@/utils/common'
 import { renderMarkdownPreview } from '@/utils/content-preview'
 import { buildDownloadUrl } from '@/utils/share-url'
-import { isRecordExpired } from '@/utils/common'
-import { downloadFile, type DownloadResult } from '@/utils/download-action'
-import { saveAs } from 'file-saver'
+import { downloadFile, downloadBlob, type DownloadResult } from '@/utils/download-action'
 
 type InputStatus = {
   readonly: boolean
@@ -23,7 +19,6 @@ type InputStatus = {
 
 export function useRetrieveFlow() {
   const { t } = useI18n()
-  const router = useRouter()
   const alertStore = useAlertStore()
   const fileStore = useFileDataStore()
   const { receiveData: records } = storeToRefs(fileStore)
@@ -51,20 +46,30 @@ export function useRetrieveFlow() {
   const collectionDeliveryCode = ref('')
   // 检测到投件码但无法获取文件列表时，存储投件码用于显示跳转按钮
   const deliveryRedirectCode = ref('')
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 ' + t('fileSize.bytes')
-    const k = 1024
-    const sizes = [
-      t('fileSize.bytes'),
-      t('fileSize.kb'),
-      t('fileSize.mb'),
-      t('fileSize.gb'),
-      t('fileSize.tb')
-    ]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
+  // 记录查看弹窗（文件/多文件统一用多文件弹窗展示）
+  const recordModal = ref<{
+    visible: boolean
+    code: string
+    items: Array<MultiFileItem & { sizeText?: string }>
+    date: string
+    totalSize: string
+    expiredAt: string | null
+    expireStyle: string
+    expireValue: number
+    single: boolean
+    record: ReceivedFileRecord | null
+  }>({
+    visible: false,
+    code: '',
+    items: [],
+    date: '',
+    totalSize: '',
+    expiredAt: null,
+    expireStyle: '',
+    expireValue: 0,
+    single: false,
+    record: null
+  })
 
   const createRecord = (detail: {
     code: string
@@ -77,12 +82,19 @@ export function useRetrieveFlow() {
     expire_style?: string
     expire_value?: number
   }): ReceivedFileRecord => {
-    const isFile = detail.is_multi_file || detail.text.startsWith('/share/download') || detail.name !== 'Text'
+    // 文件判定：多文件，或 text 为可下载 URL（/share/download 或 http(s)）。
+    // 仅备注分享（无文件）text=remark 纯文本 → 归为文本；不再依赖 name/prefix 判定（prefix 已统一为空）
+    const textVal = detail.text || ''
+    const isFile = detail.is_multi_file || textVal.startsWith('/share/download') || /^https?:\/\//.test(textVal)
     const recordType = detail.is_multi_file ? 'multiFile' : (isFile ? 'file' : 'text')
+    // 多文件与单文件名称保持一致：多文件显示"第一个文件名 + 等N个文件"
+    const recordName = detail.is_multi_file && detail.items && detail.items.length > 0
+      ? t('records.multiFileName', { name: detail.items[0].file_name, count: detail.items.length })
+      : detail.name
     return {
       id: Date.now(),
       code: detail.code,
-      filename: detail.name,
+      filename: recordName,
       size: formatFileSize(detail.size),
       downloadUrl: isFile ? detail.text : null,
       content: isFile ? null : detail.text,
@@ -95,6 +107,22 @@ export function useRetrieveFlow() {
   }
 
   const CODE_REGEX = /^[A-Z0-9]{6}$/
+
+  /** 检测码类型（取件码/管理码/投递码/直连房间码等） */
+  const checkCodeType = (code: string) => FileService.checkCodeType(code)
+
+  /** 取件（普通文件码/多文件码；消耗取件次数） */
+  const selectFile = (code: string) => FileService.selectFile(code)
+
+  /** 只读查询文件分享详情（不消耗次数），供记录查看刷新剩余次数/文件列表/过期状态 */
+  const getFileInfo = (code: string) => FileService.getFileInfo(code)
+
+  /** 通过取件码获取收件箱文件列表（只读） */
+  const getRetrieveInfo = (code: string) => CollectionService.getRetrieveInfo(code)
+
+  /** 通过管理码获取收件箱管理信息（含完整三码与各自过期时间，供记录-收件箱-查看展示） */
+  const getManageInfo = (code: string) => CollectionService.getManageInfo(code)
+
 
   const handleSubmit = async () => {
     if (!CODE_REGEX.test(code.value)) {
@@ -173,17 +201,16 @@ export function useRetrieveFlow() {
             const detail = retrieveRes.detail
             isCollection.value = true
             collectionFiles.value = detail.files.filter((f: CollectionFileItem) => f.status === 'completed')
-            // collectionCode 存管理码（ZIP下载和弹窗需要），collectionRetrieveCode 存取件码（单文件下载校验）
-            collectionCode.value = detail.collection_code || code.value
+            // collectionCode 存取件码（ZIP/单文件下载均支持取件码），collectionRetrieveCode 存取件码
+            collectionCode.value = detail.retrieve_code || code.value
             collectionRetrieveCode.value = code.value
             collectionTitle.value = detail.title || t('retrieve.collectionFiles.title')
-            collectionDeliveryCode.value = detail.delivery_code || ''
 
-            // 缓存到取件记录（code 存管理码用于 ZIP 下载，collectionRetrieveCode 存取件码用于单文件下载校验）
+            // 缓存到取件记录（code 存取件码，ZIP/单文件下载均支持取件码）
             const totalSize = collectionFiles.value.reduce((sum: number, f: CollectionFileItem) => sum + f.file_size, 0)
             const collectionRecord: ReceivedFileRecord = {
               id: Date.now(),
-              code: detail.collection_code || code.value,
+              code: code.value,
               filename: detail.title || t('retrieve.collectionFiles.title'),
               size: formatFileSize(totalSize),
               downloadUrl: null,
@@ -191,7 +218,6 @@ export function useRetrieveFlow() {
               date: new Date().toLocaleString(),
               type: 'multiFile',
               isCollection: true,
-              collectionDeliveryCode: detail.delivery_code || '',
               collectionRetrieveCode: code.value,
               collectionFiles: collectionFiles.value.map((f: CollectionFileItem) => ({
                 id: f.id,
@@ -314,7 +340,8 @@ export function useRetrieveFlow() {
 
   const goToDeliveryUpload = () => {
     if (collectionDeliveryCode.value) {
-      router.push(`/delivery/upload/${collectionDeliveryCode.value}`)
+      // hash 路由下与 router.push 等价，避免 composable 直接依赖 vue-router
+      window.location.hash = `#/delivery/upload/${collectionDeliveryCode.value}`
     }
   }
 
@@ -329,25 +356,89 @@ export function useRetrieveFlow() {
   }
 
   const viewDetails = (record: ReceivedFileRecord) => {
-    showDrawer.value = false
+    // 打开记录查看时保持记录抽屉打开，不自动关闭
 
     if (record.isCollection) {
       isCollection.value = true
       collectionCode.value = record.code
       collectionRetrieveCode.value = record.collectionRetrieveCode || ''
-      collectionFiles.value = record.collectionFiles || []
+      collectionFiles.value = (record.collectionFiles || []).map((f) => ({
+        ...f,
+        status: 'completed' as const,
+        created_at: new Date().toISOString()
+      }))
       collectionTitle.value = record.filename
-    } else if (record.isMultiFile) {
-      isMultiFile.value = true
-      multiFileCode.value = record.code
-      multiFileItems.value = record.multiFileItems || []
     } else if (record.content) {
+      // 文本 → 原详情弹窗（含内容预览）
       isMultiFile.value = false
+      isCollection.value = false
       selectedRecord.value = record
     } else {
+      // 文件/多文件 → 统一用多文件弹窗展示
       isMultiFile.value = false
-      selectedRecord.value = record
+      isCollection.value = false
+      selectedRecord.value = null
+      const single = !record.isMultiFile
+      recordModal.value = {
+        visible: true,
+        code: record.code,
+        items: single
+          ? [{ id: 0, file_name: record.filename, file_size: 0, sizeText: record.size }]
+          : (record.multiFileItems || []),
+        date: record.date,
+        totalSize: record.size,
+        expiredAt: record.expiredAt ?? null,
+        expireStyle: record.expireStyle || '',
+        expireValue: record.expireValue || 0,
+        single,
+        record
+      }
     }
+  }
+
+  const closeRecordModal = () => {
+    recordModal.value.visible = false
+  }
+
+  /** 单文件记录直接下载 */
+  const downloadSingleRecordFile = (record: ReceivedFileRecord | null) => {
+    if (!record) return
+    const expired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue) || record.isExpired
+    if (!record.downloadUrl) {
+      alertStore.showAlert(t('fileDetail.expired'), 'error')
+      return
+    }
+    const url = buildDownloadUrl(record.downloadUrl)
+    void downloadFile(url, record.filename || undefined, { isExpired: expired, expiredMessage: t('fileDetail.expired') })
+      .then(result => handleDownloadResult(result, record.code))
+  }
+
+  const downloadRecordModalItem = (itemId: number) => {
+    const modal = recordModal.value
+    // 单文件：直接下载
+    if (modal.single) {
+      downloadSingleRecordFile(modal.record)
+      return
+    }
+    const item = modal.items.find(i => i.id === itemId)
+    const filename = item?.file_name || undefined
+    void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, modal.code), filename, {
+      isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle, modal.expireValue),
+      expiredMessage: t('fileDetail.expired')
+    }).then(result => handleDownloadResult(result, modal.code))
+  }
+
+  const downloadRecordModalZip = () => {
+    const modal = recordModal.value
+    // 单文件与多文件统一打包下载
+    void downloadFile(CollectionService.getMultiFileZipUrl(modal.code), `${modal.code}.zip`, {
+      isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle, modal.expireValue),
+      expiredMessage: t('fileDetail.expired')
+    }).then(result => handleDownloadResult(result, modal.code))
+  }
+
+  const downloadRecordModalSingle = () => {
+    downloadSingleRecordFile(recordModal.value.record)
   }
 
   const closeDetails = () => {
@@ -382,7 +473,7 @@ export function useRetrieveFlow() {
         return
       }
       const blob = new Blob([record.content], { type: 'text/plain;charset=utf-8' })
-      saveAs(blob, `${record.filename}.txt`)
+      downloadBlob(blob, `${record.filename}.txt`)
       return
     }
 
@@ -462,6 +553,16 @@ export function useRetrieveFlow() {
     collectionTitle,
     collectionDeliveryCode,
     deliveryRedirectCode,
+    recordModal,
+    checkCodeType,
+    selectFile,
+    getFileInfo,
+    getRetrieveInfo,
+    getManageInfo,
+    closeRecordModal,
+    downloadRecordModalItem,
+    downloadRecordModalZip,
+    downloadRecordModalSingle,
     closeContentPreview,
     closeDetails,
     copyContent,

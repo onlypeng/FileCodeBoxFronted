@@ -9,8 +9,10 @@ import { getClipboardFile, insertTextAtSelection } from '@/utils/clipboard-paste
 import { getErrorMessage } from '@/utils/common'
 import { getStorageUnit } from '@/utils/convert'
 import { calculateFileHash } from '@/utils/file-processing'
-import { buildSentRecord, isExpirationWithinLimit } from '@/utils/send-record'
+import { buildSentRecord } from '@/utils/send-record'
 import { createSentRecordActions } from '@/utils/sent-record-actions'
+import type { MultiFileItem } from '@/types/collection'
+import { FileService } from '@/services'
 import { useSendSubmit } from './useSendSubmit'
 
 export function useSendFlow() {
@@ -20,7 +22,6 @@ export function useSendFlow() {
   const configStore = useConfigStore()
   const fileDataStore = useFileDataStore()
   const config = computed(() => configStore.config)
-  const sendType = ref<SendType>('file')
   const selectedFile = ref<File | null>(null)
   const selectedFiles = ref<File[]>([])
   const textContent = ref('')
@@ -34,9 +35,6 @@ export function useSendFlow() {
   const sendRecords = computed(() => fileDataStore.shareData)
   const uploadDescription = computed(() => {
     const parts = [`支持各种常见格式，最大${getStorageUnit(config.value.uploadSize)}`]
-    if (config.value.uploadCount > 0) {
-      parts.push(`每${config.value.uploadMinute}分钟最多上传${config.value.uploadCount}个文件`)
-    }
     return parts.join('，')
   })
   const expirationOptions = computed(() =>
@@ -58,10 +56,10 @@ export function useSendFlow() {
     alertStore.showAlert(message, type)
   }
   const sentRecordActions = createSentRecordActions(notifyCopyResult)
-  const { resetPresignUpload, submitFile, submitText } = useSendSubmit({
+  /** 只读查询文件分享详情（不消耗取件次数），供发件记录查看刷新 */
+  const getFileInfo = (code: string) => FileService.getFileInfo(code)
+  const { resetPresignUpload, submitFile } = useSendSubmit({
     getMaxFileSize: () => configStore.uploadSizeLimit,
-    getUploadCount: () => config.value.uploadCount || 0,
-    getUploadMinute: () => config.value.uploadMinute || 10,
     notify: (message, type) => alertStore.showAlert(message, type),
     translate: t,
     onProgress: (progress) => {
@@ -92,14 +90,10 @@ export function useSendFlow() {
     return true
   }
 
-  const checkExpirationTime = (method: string, value: string): boolean =>
-    isExpirationWithinLimit(method, value, config.value.max_save_seconds || 0)
-
   const checkUpload = () => {
     if (!selectedFile.value) return false
     if (!checkOpenUpload()) return false
     if (!checkFileSize(selectedFile.value)) return false
-    if (!checkExpirationTime(expirationMethod.value, expirationValue.value)) return false
     return true
   }
 
@@ -114,11 +108,9 @@ export function useSendFlow() {
   const handleFilesSelected = async (files: File[]) => {
     if (!checkOpenUpload()) return
     const maxSendFiles = config.value.maxSendFiles || 20
-    const uploadCount = config.value.uploadCount || 0
-    const maxAllowed = uploadCount > 0 ? Math.min(maxSendFiles, uploadCount) : maxSendFiles
-    if (files.length > maxAllowed) {
-      alertStore.showAlert(t('send.messages.maxFilesExceeded', { max: maxAllowed }), 'error')
-      files = files.slice(0, maxAllowed)
+    if (files.length > maxSendFiles) {
+      alertStore.showAlert(t('send.messages.maxFilesExceeded', { max: maxSendFiles }), 'error')
+      files = files.slice(0, maxSendFiles)
     }
     selectedFiles.value = files
     selectedFile.value = null
@@ -137,11 +129,9 @@ export function useSendFlow() {
     } else {
       if (!checkOpenUpload()) return
       const maxSendFiles = config.value.maxSendFiles || 20
-      const uploadCount = config.value.uploadCount || 0
-      const maxAllowed = uploadCount > 0 ? Math.min(maxSendFiles, uploadCount) : maxSendFiles
-      if (files.length > maxAllowed) {
-        alertStore.showAlert(t('send.messages.maxFilesExceeded', { max: maxAllowed }), 'error')
-        files = files.slice(0, maxAllowed)
+      if (files.length > maxSendFiles) {
+        alertStore.showAlert(t('send.messages.maxFilesExceeded', { max: maxSendFiles }), 'error')
+        files = files.slice(0, maxSendFiles)
       }
       selectedFiles.value = files
       selectedFile.value = null
@@ -179,7 +169,6 @@ export function useSendFlow() {
     const textItem = items[0]
     if (!textItem) return
 
-    sendType.value = 'text'
     textItem.getAsString((str: string) => {
       const trimmedStr = str.trim()
       if (!trimmedStr) return
@@ -227,12 +216,11 @@ export function useSendFlow() {
     isSubmitting.value = true
 
     try {
-      if (sendType.value === 'file' && !selectedFile.value && selectedFiles.value.length === 0) {
-        alertStore.showAlert(t('send.messages.selectFile'), 'error')
-        return
-      }
-      if (sendType.value === 'text' && !textContent.value.trim()) {
-        alertStore.showAlert(t('send.messages.enterText'), 'error')
+      // 统一发送：可单独发送文件、单独发送备注（文本），或文件+备注
+      const hasFile = !!selectedFile.value || selectedFiles.value.length > 0
+      const remark = textContent.value.trim()
+      if (!hasFile && !remark) {
+        alertStore.showAlert(t('send.messages.selectFileOrText'), 'error')
         return
       }
       if (!checkOpenUpload()) {
@@ -243,30 +231,20 @@ export function useSendFlow() {
         return
       }
 
-      if (!checkExpirationTime(expirationMethod.value, expirationValue.value)) {
-        const maxDays = Math.floor(config.value.max_save_seconds / 86400)
-        alertStore.showAlert(t('send.messages.expirationTooLong', { days: maxDays }), 'error')
-        return
-      }
-
       const expireValue = expirationValue.value ? parseInt(expirationValue.value) : 1
+      // 统一走发送文件接口：有文件传文件，仅备注（无文件）也走该接口（后端创建仅备注记录）
+      // sendType 仅用于发件记录展示（名称/大小）；不再调用独立的文本发送接口
+      const effectiveSendType: SendType = hasFile ? 'file' : 'text'
       let response
-      if (sendType.value === 'file') {
-        response = await submitFile({
-          selectedFile: selectedFile.value,
-          selectedFiles: selectedFiles.value,
-          expireValue,
-          expireStyle: expirationMethod.value,
-          enableChunk: Boolean(config.value.enableChunk),
-          validateFileSize: checkFileSize
-        })
-      } else {
-        response = await submitText({
-          text: textContent.value,
-          expireValue,
-          expireStyle: expirationMethod.value
-        })
-      }
+      response = await submitFile({
+        selectedFile: selectedFile.value,
+        selectedFiles: selectedFiles.value,
+        remark,
+        expireValue,
+        expireStyle: expirationMethod.value,
+        enableChunk: Boolean(config.value.enableChunk),
+        validateFileSize: checkFileSize
+      })
 
       if (!response) return
 
@@ -276,8 +254,8 @@ export function useSendFlow() {
         // 统一处理（单文件和多文件共用一个取件码）
         const newRecord = buildSentRecord({
           response,
-          sendType: sendType.value,
-          textContent: textContent.value,
+          sendType: effectiveSendType,
+          textContent: remark,
           selectedFile: selectedFile.value,
           selectedFiles: selectedFiles.value,
           expirationMethod: expirationMethod.value,
@@ -295,7 +273,22 @@ export function useSendFlow() {
         textContent.value = ''
         uploadProgress.value = 0
         resetPresignUpload()
-        selectedRecord.value = newRecord
+        // 发送完成弹窗：与"记录-发件-查看"一致，使用发件记录查看弹窗展示（仅查看，无下载）
+        const isSingle = !newRecord.isMultiFile
+        const items = isSingle
+          ? [{ id: 0, file_name: newRecord.filename, file_size: 0, sizeText: newRecord.size }]
+          : (newRecord.files || []).map((f, i) => ({ id: i, file_name: f.name, file_size: f.size }))
+        sentModal.value = {
+          visible: true,
+          code: newRecord.retrieveCode,
+          items,
+          date: newRecord.date,
+          totalSize: newRecord.size,
+          single: isSingle,
+          remark: newRecord.text || null,
+          createdDate: new Date().toLocaleString(),
+          expireText: newRecord.expiration
+        }
       } else {
         throw new Error(t('send.messages.serverError'))
       }
@@ -311,8 +304,107 @@ export function useSendFlow() {
     showDrawer.value = !showDrawer.value
   }
 
-  const viewDetails = (record: SentFileRecord) => {
-    selectedRecord.value = record
+  const sentModal = ref<{
+    visible: boolean
+    code: string
+    items: Array<{ id: number; file_name: string; file_size: number; sizeText?: string }>
+    date: string
+    totalSize: string
+    single: boolean
+    text?: string | null
+    remark?: string | null
+    createdDate?: string
+    expireText?: string
+    isExpired?: boolean
+  }>({
+    visible: false,
+    code: '',
+    items: [],
+    date: '',
+    totalSize: '',
+    single: false,
+    text: undefined,
+    remark: undefined
+  })
+
+  const viewDetails = async (record: SentFileRecord) => {
+    // 投件记录 → 原详情弹窗
+    if (record.isDelivery) {
+      selectedRecord.value = record
+      return
+    }
+    const hasFiles = !!record.files && record.files.length > 0
+    // 纯备注/文本记录（无文件）→ 统一用文件弹窗（文本内容作为备注展示），不再单独文本弹窗
+    if (!hasFiles && (record.text || record.type === 'text')) {
+      sentModal.value = {
+        visible: true,
+        code: record.retrieveCode,
+        items: [],
+        date: record.date,
+        totalSize: record.size,
+        single: true,
+        text: undefined,
+        remark: record.text ?? null,
+        createdDate: record.date,
+        expireText: record.expiration
+      }
+      return
+    }
+    // 文件/多文件分享记录 → 统一用多文件弹窗展示（备注通过 remark 展示）
+    const isSingle = !record.isMultiFile
+    let items: Array<{ id: number; file_name: string; file_size: number; sizeText?: string }> = []
+    // 只读刷新最新状态（剩余次数/文件列表/过期时间，不消耗取件次数）；单文件与多文件都刷新
+    let expireText = record.expiration
+    let isExpired = false
+    try {
+      const res = await getFileInfo(record.retrieveCode)
+      const detail = res.detail as { is_multi_file?: boolean; items?: MultiFileItem[]; expire_style?: string; expire_value?: number; expired_count?: number; expired_at?: string | null } | undefined
+      if (res.code === 410 || (res.code !== 200 && String(res.detail || '').includes('过期'))) {
+        // 后端确认已过期：弹窗内展示过期横幅，文件列表回退本地缓存
+        expireText = t('fileDetail.expired') || '该取件码已过期'
+        isExpired = true
+      } else if (res.code === 200 && detail) {
+        if (detail.expire_style === 'count') {
+          expireText = `${detail.expired_count ?? detail.expire_value ?? 0}${t('common.times')}`
+        } else if (detail.expire_style === 'forever') {
+          expireText = t('send.expiration.units.forever')
+        } else if (detail.expired_at) {
+          expireText = new Date(detail.expired_at).toLocaleString()
+        }
+      }
+      if (isSingle) {
+        items = [{ id: 0, file_name: record.filename, file_size: 0, sizeText: record.size }]
+      } else {
+        // 多文件：尝试拉取最新文件列表（含真实 item id，供单文件下载）
+        if (res.code === 200 && detail?.is_multi_file && detail.items) {
+          items = detail.items.map(i => ({ id: i.id, file_name: i.file_name, file_size: i.file_size }))
+        } else {
+          items = (record.files || []).map((f, i) => ({ id: i, file_name: f.name, file_size: f.size }))
+        }
+      }
+    } catch {
+      if (isSingle) {
+        items = [{ id: 0, file_name: record.filename, file_size: 0, sizeText: record.size }]
+      } else {
+        items = (record.files || []).map((f, i) => ({ id: i, file_name: f.name, file_size: f.size }))
+      }
+    }
+    sentModal.value = {
+      visible: true,
+      code: record.retrieveCode,
+      items,
+      date: record.date,
+      totalSize: record.size,
+      single: isSingle,
+      remark: record.text || null,
+      createdDate: record.date,
+      expireText,
+      isExpired
+    }
+  }
+
+  const closeSentModal = () => {
+    sentModal.value.visible = false
   }
 
   const closeDetails = () => {
@@ -332,7 +424,6 @@ export function useSendFlow() {
 
   return {
     config,
-    sendType,
     selectedFile,
     selectedFiles,
     textContent,
@@ -347,6 +438,8 @@ export function useSendFlow() {
     expirationOptions,
     closeDetails,
     deleteRecord,
+    sentModal,
+    closeSentModal,
     copySentRecordCode: sentRecordActions.copyCode,
     copySentRecordLink: sentRecordActions.copyLink,
     copySentRecordWgetCommand: sentRecordActions.copyWgetCommand,
