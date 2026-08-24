@@ -263,7 +263,12 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
   // ==================== 二进制接收路由 ====================
   async function handleBinary(buf: ArrayBuffer) {
     const frame = decodeDirectFrame(buf)
-    if (!frame) return
+    if (!frame) {
+      // 帧头非法（首字节非 0xA5）：通常是中继加密分片在发送端的封装/接收端解包不一致。
+      // 打日志便于发现"进度 0 + 发送失败"的静默丢片问题，而非无感知丢弃。
+      console.warn('[direct] 收到无法解析的二进制分片（帧头非法，长度 ' + buf.byteLength + '），可能中继加密封装不一致')
+      return
+    }
     let payload = frame.payload
     if (frame.encrypted) {
       // 会话密钥按发送者 client_id 存储（接收侧从文件条目的 offerFromId 取）
@@ -348,14 +353,24 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
         // 成员变化 → 尝试与在线成员建立直连通道（预协商）
         p2p.maybeInitP2P()
         // 本端正在共享 → 重新广播"正在共享"，让新加入成员也能看到并决定是否查看
+        // camera_count 用真实值（1 主流 + 附加摄像头路数），保证新成员声明正确数量的视频槽位，
+        // 否则多摄共享时新成员只声明 1 槽 → 附加视频轨被丢 → 协商失败黑屏
         if (ctx.localMediaStream.value) {
-          ctx.sendSignal({ type: 'media_available', media_type: ctx.localMediaType.value || 'screen', camera_count: ctx.localMediaType.value === 'video' ? 1 : undefined })
+          const camCount = ctx.localMediaType.value === 'video' ? 1 + ctx.localCameraStreams.size : undefined
+          ctx.sendSignal({ type: 'media_available', media_type: ctx.localMediaType.value || 'screen', camera_count: camCount })
         }
         break
       case 'user_left':
         if (msg.members) directStore.setMembers(msg.members)
         if (msg.nickname) {
           directStore.addSystem(`${msg.nickname} 离开了房间`)
+        }
+        // 兜底清理：若离开者正在共享（或本端正查看其共享），清掉其媒体流/中转源与视频窗
+        // （正常退出会收到 media_cancel，此处覆盖刷新/断网等未发 media_cancel 的场景）
+        if (msg.from_id) {
+          directStore.clearIncomingMediaStream(msg.from_id)
+          directStore.clearMediaRelaySource(msg.from_id)
+          directStore.removeActiveShare(msg.from_id)
         }
         p2p.maybeInitP2P()
         break
@@ -541,6 +556,7 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
     requestMediaRelay: media.requestMediaRelay,
     stopViewing: media.stopViewing,
     localMediaStream: ctx.localMediaStream,
+    localCameraStreams: ctx.localCameraStreams,
     shareCameraFailures: ctx.shareCameraFailures,
     localMediaType: ctx.localMediaType,
     estimatedBandwidth: ctx.estimatedBandwidth,
@@ -559,6 +575,7 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
     previewStream: ctx.previewStream,
     cameraPreviewError: ctx.cameraPreviewError,
     listVideoInputDevices: media.listVideoInputDevices,
+    detectMultiCameraSupport: media.detectMultiCameraSupport,
     startSharePreview: media.startSharePreview,
     stopSharePreview: media.stopSharePreview,
     takePreviewStream: media.takePreviewStream,

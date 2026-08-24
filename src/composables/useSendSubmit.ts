@@ -22,6 +22,8 @@ type SubmitFileOptions = {
   expireValue: number
   expireStyle: string
   enableChunk: boolean
+  /** 上传分片大小（MB；后台 uploadChunkSize，缺省 5） */
+  chunkSizeMb?: number
   validateFileSize: (file: File) => boolean
   /** 文件备注（可选）；仅备注分享（无文件）时也走此接口 */
   remark?: string
@@ -37,9 +39,11 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     file: File,
     expireValue: number,
     expireStyle: string,
-    remark?: string
+    remark?: string,
+    chunkSizeMb?: number
   ): Promise<ApiResponse> => {
     return uploadChunkedFile(file, {
+      chunkSizeMb,
       expireValue,
       expireStyle,
       remark,
@@ -89,6 +93,7 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     expireValue,
     expireStyle,
     enableChunk,
+    chunkSizeMb,
     validateFileSize,
     remark
   }: SubmitFileOptions): Promise<ApiResponse | null> => {
@@ -134,7 +139,7 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
       options.onHashCalculated(await calculateFileHash(file))
 
       return enableChunk
-        ? handleChunkUpload(file, expireValue, expireStyle, remark)
+        ? handleChunkUpload(file, expireValue, expireStyle, remark, chunkSizeMb)
         : handlePresignedUpload(file, expireValue, expireStyle, remark)
     }
 
@@ -161,7 +166,7 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     }
 
     return enableChunk
-      ? handleChunkUpload(fileToUpload, expireValue, expireStyle, remark)
+      ? handleChunkUpload(fileToUpload, expireValue, expireStyle, remark, chunkSizeMb)
       : handlePresignedUpload(fileToUpload, expireValue, expireStyle, remark)
   }
 

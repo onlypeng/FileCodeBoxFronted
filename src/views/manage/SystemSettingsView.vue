@@ -415,15 +415,6 @@ const onThemeChange = async (event: Event) => {
           </select>
         </div>
 
-        <SettingSwitch
-          v-if="config.file_storage === 'local'"
-          :label="t('manage.settings.chunkUploadNote')"
-          :model-value="config.enableChunk"
-          :enabled-text="t('common.enabled')"
-          :disabled-text="t('common.disabled')"
-          @toggle="toggleConfigFlag('enableChunk')"
-        />
-
         <!-- WebDAV 配置 -->
         <div v-if="config.file_storage === 'webdav'" class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -647,13 +638,6 @@ const onThemeChange = async (event: Event) => {
               :disabled-text="t('common.disabled')"
               @toggle="toggleConfigFlag('s3_proxy')"
             />
-            <SettingSwitch
-              :label="t('manage.settings.chunkUploadNote')"
-              :model-value="config.enableChunk"
-              :enabled-text="t('common.enabled')"
-              :disabled-text="t('common.disabled')"
-              @toggle="toggleConfigFlag('enableChunk')"
-            />
           </div>
         </div>
       </section>
@@ -731,6 +715,34 @@ const onThemeChange = async (event: Event) => {
                 :label="t('manage.settings.maxSendFiles')"
                 :suffix="t('common.files')"
               />
+
+              <!-- 分片上传：开关 + 分片大小（发送页/投递页大文件走分片断点续传时生效） -->
+              <div class="space-y-2">
+                <SettingSwitch
+                  :label="t('manage.settings.chunkUploadNote')"
+                  :model-value="config.enableChunk"
+                  :enabled-text="t('common.enabled')"
+                  :disabled-text="t('common.disabled')"
+                  @toggle="toggleConfigFlag('enableChunk')"
+                />
+                <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                  {{ t('manage.settings.chunkUploadHint') }}
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <SettingNumberInput
+                  :model-value="config.uploadChunkSize"
+                  :min="1"
+                  :max="100"
+                  :label="t('manage.settings.uploadChunkSize')"
+                  :suffix="t('manage.settings.fileSizeUnits.mb')"
+                  @update:model-value="(v) => (config.uploadChunkSize = Number(v))"
+                />
+                <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                  {{ t('manage.settings.uploadChunkSizeHint') }}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -807,6 +819,33 @@ const onThemeChange = async (event: Event) => {
                 :min="0"
                 :suffix="t('manage.settings.kbPerSecond')"
               />
+
+              <!-- 房间文件中转分片大小（KB，16~256） -->
+              <div class="space-y-2">
+                <SettingNumberInput
+                  v-model="config.directRelayChunkSize"
+                  :label="t('manage.settings.directRelayChunkSize')"
+                  :min="16"
+                  :max="256"
+                  :suffix="t('manage.settings.kb')"
+                />
+                <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                  {{ t('manage.settings.directRelayChunkSizeHint') }}
+                </p>
+              </div>
+
+              <!-- 房间文件中转单文件大小上限（MB，0=不限制） -->
+              <div class="space-y-2">
+                <SettingNumberInput
+                  v-model="config.directMaxRelaySize"
+                  :label="t('manage.settings.directMaxRelaySize')"
+                  :min="0"
+                  :suffix="t('manage.settings.fileSizeUnits.mb')"
+                />
+                <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                  {{ t('manage.settings.directMaxRelaySizeHint') }}
+                </p>
+              </div>
 
               <!-- 人员上限（含说明，同格） -->
               <div class="space-y-2">

@@ -126,11 +126,12 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     if (ctx.estimatedBandwidth.value > 0) {
       return bandwidthToPreset(ctx.estimatedBandwidth.value, kind)
     }
-    // 无实测数据：低 RTT 可尝试高清，否则标清
+    // 无实测数据：低 RTT 可尝试高清，否则高清（手机后摄 1080p 缩到 720p 依然清晰；
+    // 过度压低到 640x480 会显得模糊）
     if (ctx.estimatedRtt.value > 0 && ctx.estimatedRtt.value > 300) {
-      return MEDIA_QUALITY_PRESETS.sd
+      return MEDIA_QUALITY_PRESETS.hd
     }
-    return kind === 'video' ? MEDIA_QUALITY_PRESETS.sd : MEDIA_QUALITY_PRESETS.hd
+    return kind === 'video' ? MEDIA_QUALITY_PRESETS.hd : MEDIA_QUALITY_PRESETS.hd
   }
 
   /** 对视频轨道施加分辨率/帧率约束（按档位；origin 档 width=0 表示保留采集源原始分辨率，不约束） */
@@ -265,35 +266,99 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     return true
   }
 
-  /** 枚举可用视频输入设备（摄像头）；权限未授予时 label 可能为空，deviceId 仍可用 */
+  /** 枚举可用视频输入设备（摄像头）；权限未授予时 label/deviceId 可能为空但仍应列出。
+   *  注意：部分浏览器（Firefox/WebView/Safari 未授权时）enumerateDevices 返回的 deviceId 是空串，
+   *  若按 deviceId 过滤会误判"无摄像头"——只按 kind 过滤，deviceId 为空也保留（采集时再处理）。 */
   async function listVideoInputDevices(): Promise<MediaDeviceInfo[]> {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return []
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
-      return devices.filter((d) => d.kind === 'videoinput' && d.deviceId)
+      return devices.filter((d) => d.kind === 'videoinput')
     } catch {
       return []
     }
   }
 
+  /**
+   * 把"方向位置"（user/environment）解析为最合适的摄像头 deviceId。
+   * 背景：安卓多摄手机 `facingMode:'environment'` 由系统选后摄，常偏向广角/长焦而非主摄
+   * （长焦/广角分辨率低于主摄 → 画面模糊）。主摄通常是同一方向分辨率最高的那颗。
+   * 通过枚举 + getCapabilities() 分辨率比较，选出该方向画质最好的主摄 deviceId。
+   * 解析失败/单摄设备返回 null（调用方回退 facingMode 直接采集）。
+   */
+  async function resolvePrimaryCamera(facingMode: 'user' | 'environment'): Promise<string | null> {
+    const devices = await listVideoInputDevices()
+    if (devices.length === 0) return null
+    // facingMode 方向标签（label 常见 Back/Rear/Front/后置/前置）
+    const isRear = facingMode === 'environment'
+    const target = devices.filter((d) => {
+      const label = d.label.toLowerCase()
+      const rear = /back|rear|后置|后摄|environment/i.test(label)
+      const front = /front|前置|前摄|user/i.test(label)
+      return isRear ? rear && !front : front && !rear
+    })
+    // 排除超广角/长焦/微距等多摄后缀，优先常规主摄
+    const nonMain = /wide|ultra|0\.5|0\.6|macro|tele|\d\.\d|\b2x\b|\b3x\b|hdr/i
+    const candidates = target.filter((d) => !nonMain.test(d.label.toLowerCase()))
+    const pool = candidates.length > 0 ? candidates : target
+    if (pool.length === 0) return null
+    // 主摄判定：分辨率最高优先（主摄物理分辨率通常最高）；分辨率相同 → label 数字最小（0=主摄）优先
+    let best: MediaDeviceInfo | null = null
+    let bestRes = -1
+    let bestIdx = Infinity
+    for (const d of pool) {
+      const label = d.label.toLowerCase()
+      // label 中出现的数字序号（如 "Back Camera 0" → 0），没有则视为 0（主摄优先）
+      const numMatch = label.match(/(\d+)\s*$/)
+      const idx = numMatch ? Number(numMatch[1]) : 0
+      let res = -1
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId } } })
+        const track = s.getVideoTracks()[0]
+        const caps = track?.getCapabilities?.()
+        const settings = track?.getSettings?.()
+        const width = caps?.width?.max || settings?.width || 0
+        const height = caps?.height?.max || settings?.height || 0
+        for (const t of s.getTracks()) t.stop()
+        res = (width || 0) * (height || 0)
+      } catch {
+        /* 该设备当前不可用，跳过 */
+      }
+      if (res > bestRes || (res === bestRes && idx < bestIdx)) {
+        bestRes = res
+        bestIdx = idx
+        best = d
+      }
+    }
+    return best?.deviceId || pool[0].deviceId
+  }
+
   /** 获取摄像头（视频通话）；优先带麦克风，权限/设备不支持时降级为仅视频。
    *  facingMode：'user'=前置 / 'environment'=后置（移动端多摄像头时由系统自动选择该方向
    *  最合适的摄像头并处理变焦，不精确指定 deviceId）；deviceId：桌面端精确指定设备。
-   *  采集约束逐级放宽，任一尝试成功后即返回：
-   *   1. 指定约束 + 麦克风（首选；音频权限被拒/无麦克风时整体失败）
+   *  采集约束降级策略（兼顾稳定与朝向语义，与历史行为兼容——避免在弱浏览器上崩溃）：
+   *   1. 指定约束 + 麦克风（首选；音频权限被拒/无麦克风时整体失败 → 进入 2）
    *   2. 指定约束、仅视频（去掉麦克风；音频拖累视频采集的移动端浏览器常见）
-   *   3. exact deviceId 失败时按 facingMode 降级、仅视频（设备被占用/已移除）
-   *   4. 完全无约束 { video: true } 纯视频（部分移动浏览器/WebView 对 facingMode 或
-   *      deviceId:{exact} 约束抛 OverconstrainedError/NotFoundError，即使有摄像头；
-   *      无约束让浏览器自动选默认摄像头，作为最后的兜底）
-   *  全部失败时把错误名记录到 ctx.cameraPreviewError（NotFoundError=无摄像头设备）。 */
+   *   3.（仅桌面 deviceId 模式）exact 失败时按 facingMode 降级，再不行 `{video:true}` 无约束兜底。
+   *  手机 position 模式（facingMode）不做无约束兜底——避免`{video:true}`回退默认前置的假切换。
+   *  分辨率：给一个温和 720p ideal（不激进 1080p，避免部分浏览器识别/编码异常），浏览器尽量满足。 */
   async function acquireCameraStream(facingMode?: string, deviceId?: string): Promise<MediaStream | null> {
-    const validDevice = !!deviceId && deviceId !== 'user' && deviceId !== 'environment'
-    const constraints: MediaTrackConstraints = validDevice
-      ? { deviceId: { exact: deviceId } }
-      : facingMode
-        ? { facingMode }
-        : { facingMode: 'user' }
+    // 'default' 是"未授权/空 deviceId 摄像头"的占位值 → 让浏览器自动选默认视频源
+    const isDefault = deviceId === 'default'
+    const validDevice = !!deviceId && !isDefault && deviceId !== 'user' && deviceId !== 'environment'
+    // 温和分辨率约束（ideal 非强制）：既避免后摄模糊，也不激进请求 1080p（弱浏览器识别/编码异常易崩）
+    const hd = { width: { ideal: 1280 }, height: { ideal: 720 } }
+    let base: MediaTrackConstraints
+    if (isDefault) {
+      base = {} // 默认摄像头：不带任何约束，浏览器自动选默认视频源
+    } else if (validDevice) {
+      base = { deviceId: { exact: deviceId } }
+    } else if (facingMode) {
+      base = { facingMode }
+    } else {
+      base = { facingMode: 'user' }
+    }
+    const constraints: MediaTrackConstraints = { ...base, ...hd }
     const recordFail = (err: unknown) => {
       ctx.cameraPreviewError.value = (err as DOMException | undefined)?.name || 'UnknownError'
     }
@@ -311,20 +376,74 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
         return null
       }
     }
-    // 尝试序列：约束+麦克风 → 约束仅视频 → facingMode 仅视频（exact 失败时）→ 无约束仅视频
+    // 尝试序列：约束+麦克风 → 约束仅视频
     const attempts: Array<{ video: MediaTrackConstraints | boolean; audio: boolean }> = [
       { video: constraints, audio: true },
       { video: constraints, audio: false },
     ]
-    if (validDevice && facingMode) {
-      attempts.push({ video: { facingMode }, audio: false })
+    if (validDevice) {
+      // 桌面 exact deviceId 失败 → 按 facingMode 降级 → 无约束纯视频兜底（浏览器选默认摄像头）
+      attempts.push({ video: facingMode ? { facingMode, ...hd } : { facingMode: 'user', ...hd }, audio: false })
+      attempts.push({ video: true, audio: false })
     }
-    attempts.push({ video: true, audio: false })
+    // 手机 position 模式（facingMode）：不加无约束兜底，失败即返回（避免回退前置的假切换）
     for (const a of attempts) {
       const stream = await attempt(a.video, a.audio)
       if (stream) return stream
     }
     return null
+  }
+
+  /** 检测浏览器是否支持同时打开多路摄像头（多个 getUserMedia 视频轨并行激活）。
+   *  支持：Chrome/Edge 桌面等（不同 deviceId 可并行）；不支持：Safari/iOS/部分 WebView
+   *  （第二个 getUserMedia 调用立即失败 NotReadableError/NotAllowedError）。
+   *  result.multi 为 true 表示可同时共享多摄像头；false=回退单摄切换模式。
+   *  注意：检测本身会临时启动两路摄像头，检测完立即停止，不保留流。 */
+  async function detectMultiCameraSupport(): Promise<{ multi: boolean; streams: MediaStream[] }> {
+    const devices = await listVideoInputDevices()
+    if (devices.length < 2) return { multi: false, streams: [] }
+    const streams: MediaStream[] = []
+    try {
+      // 依次尝试打开前两路不同设备；任一失败即视为不支持多路
+      for (const dev of devices.slice(0, 2)) {
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: dev.deviceId } } })
+          streams.push(s)
+        } catch {
+          // 第二路失败（多摄不支持）或第一路失败（应进降级链重试）→ 停止已开的流
+          for (const s of streams) for (const t of s.getTracks()) t.stop()
+          streams.length = 0
+          return { multi: false, streams: [] }
+        }
+      }
+      return { multi: true, streams }
+    } catch {
+      for (const s of streams) for (const t of s.getTracks()) t.stop()
+      return { multi: false, streams: [] }
+    }
+  }
+
+  /** 按设备列表并行采集多路摄像头流（每路独立 getUserMedia，仅视频轨）。
+   *  返回 idx → MediaStream 映射；采集成功的路才进入结果，失败的记入 failures。
+   *  仅桌面端/支持多路的浏览器调用；移动端单摄切换沿用既有逻辑。 */
+  async function acquireMultiCameraStreams(requested: Array<{ idx: number; deviceId?: string; facingMode?: string }>): Promise<{ streams: Map<number, MediaStream>; failures: number }> {
+    const streams = new Map<number, MediaStream>()
+    let failures = 0
+    // 逐路采集（并行会触发多路权限/被占用问题，串行更稳）；失败不阻断其他路
+    for (const cam of requested) {
+      if (cam.idx === 0) continue // idx 0 由主流（含音频）提供
+      try {
+        const stream = await acquireCameraStream(cam.facingMode, cam.deviceId)
+        if (stream && stream.getVideoTracks().length > 0) {
+          streams.set(cam.idx, stream)
+        } else {
+          failures++
+        }
+      } catch {
+        failures++
+      }
+    }
+    return { streams, failures }
   }
 
   // ============ 共享前本地预览（视频配置页面实时调节参数） ============
@@ -453,11 +572,17 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     // 1) 采集新摄像头视频轨（仅视频；失败即返回，不动原状态）
     let newTrack: MediaStreamTrack | null = null
     try {
-      // 防御：deviceId 可能混入位置值（user/environment），exact 会抛错
-      const validDevice = !!deviceId && deviceId !== 'user' && deviceId !== 'environment'
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: validDevice ? { deviceId: { exact: deviceId } } : facingMode ? { facingMode } : { facingMode: 'user' },
-      })
+      // 防御：deviceId 可能混入位置值（user/environment）或 'default'（未授权空 deviceId 的占位）
+      const isDefault = deviceId === 'default'
+      const validDevice = !!deviceId && !isDefault && deviceId !== 'user' && deviceId !== 'environment'
+      const videoC: MediaTrackConstraints | boolean = isDefault
+        ? true // 默认摄像头：交给浏览器选默认视频源
+        : validDevice
+          ? { deviceId: { exact: deviceId } }
+          : facingMode
+            ? { facingMode }
+            : { facingMode: 'user' }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: videoC })
       newTrack = stream.getVideoTracks()[0] || null
       if (!newTrack) {
         for (const t of stream.getTracks()) t.stop()
@@ -567,8 +692,14 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
           }
         }
       } else {
-        // 视频通话：单摄像头流（主流含音频）。getUserMedia 同一时刻仅允许一路活动视频源，
-        // 多摄像头通过"切换"实现（switchCamera：replaceTrack + 中转重启），而非同时多路。
+        // 视频通话：主流（含音频）由 overrides.stream（预览流）或重新采集提供；
+        // 附加摄像头（overrides.cameras，idx≥1）逐路并行采集存入 localCameraStreams。
+        // getUserMedia 同一时刻是否支持多路由浏览器决定：支持多路的浏览器（桌面 Chrome/Edge）
+        // 可同时共享多摄像头；不支持时附加路会采集失败 → 只共享主流并提示失败数量。
+        // 先清空上次共享残留的附加路（避免多路共享后再单摄共享时旧流悬挂）
+        for (const s of ctx.localCameraStreams.values()) for (const t of s.getTracks()) t.stop()
+        ctx.localCameraStreams.clear()
+        ctx.shareCameraFailures = 0
         try {
           stream = overrides.stream || await acquireCameraStream(overrides.facingMode, overrides.deviceId)
         } catch {
@@ -577,6 +708,13 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
         if (!stream) {
           // 无摄像头设备（NotFoundError）→ 专门 reason，供视图显示"未检测到摄像头"；其余按被拒处理
           return { ok: false, reason: ctx.cameraPreviewError.value === 'NotFoundError' ? 'no-camera' : 'denied' }
+        }
+        // 附加摄像头：采集各路（失败不阻断主流，数量记入 shareCameraFailures 提示）
+        const extras = (overrides.cameras || []).filter((c) => c.idx > 0)
+        if (extras.length > 0) {
+          const { streams, failures } = await acquireMultiCameraStreams(extras)
+          for (const [idx, s] of streams) ctx.localCameraStreams.set(idx, s)
+          ctx.shareCameraFailures = failures
         }
       }
         // 用户选择「无声音」：剥离音频轨道（stop 并移除），否则"无声音"选项在视频共享下无效
@@ -600,11 +738,24 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     ctx.currentShareAudioKind.value = kind === 'screen' ? (audio as 'none' | 'mic' | 'system' | 'both') : 'mic'
     ctx.localMediaStream.value = stream
     ctx.localMediaType.value = kind
+    // 清理预览流中除被接管主摄外的附加预览流（多摄预览遗留的流，轨道已随确认共享转移主摄；
+    // 附加预览流未进入共享，必须停止，避免设备被占用导致共享流异常/资源泄漏）
+    if (kind === 'video') {
+      const takenKey = overrides.facingMode || overrides.deviceId || 'user'
+      for (const [key, ps] of Array.from(ctx.previewStreams.entries())) {
+        if (key !== takenKey && ps !== stream && ps !== ctx.localCameraStreams.get(0)) {
+          for (const t of ps.getTracks()) t.stop()
+          ctx.previewStreams.delete(key)
+        }
+      }
+    }
     // 停止共享（用户点停 / 屏幕共享结束）时通知房间
     stream.getVideoTracks()[0]?.addEventListener('ended', () => stopMediaShare())
     // 广播"正在共享"，供其他成员决定是否查看
     // 通知成员共享类型与摄像头数量（接收端据此声明对应数量的视频轨道槽位）
-    ctx.sendSignal({ type: 'media_available', media_type: kind, camera_count: kind === 'video' ? 1 : undefined })
+    // camera_count = 主流(1) + 附加摄像头路数；仅视频共享携带（屏幕共享无多路概念）
+    const camCount = kind === 'video' ? 1 + ctx.localCameraStreams.size : undefined
+    ctx.sendSignal({ type: 'media_available', media_type: kind, camera_count: camCount })
     // 启动 P2P 带宽采样（auto 档后续可据此优化；P2P 建连后生效）
     startBandwidthSampling()
     // 注意：不在这里替成员发起拉流。拉流必须由查看者自己发起（pullMedia(sharerId)）
@@ -701,7 +852,19 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
       ctx.sendSignal({ type: 'file_cancel', transfer_id: '', message: 'relay_disabled', target: fromId })
       return
     }
-    mediaRelaySubscribers.add(fromId)
+    await setupRelayForSubscriber(fromId)
+  }
+
+  /** 为指定查看者建立服务器中转（共享者侧）。P2P 协商失败回退中转时也复用此逻辑，
+   *  确保查看者能从服务器流式收到共享。 */
+  async function setupRelayForSubscriber(subscriberId: string): Promise<void> {
+    const local = ctx.localMediaStream.value
+    if (!local || !subscriberId) return
+    if (configStore.config.directRelayEnabled === 0) {
+      ctx.sendSignal({ type: 'file_cancel', transfer_id: '', message: 'relay_disabled', target: subscriberId })
+      return
+    }
+    mediaRelaySubscribers.add(subscriberId)
     if (ctx.mediaRecorders.size > 0) {
       // 新查看者加入：重启录制（换新 transfer_id，新流首个 blob 含完整 init segment，新查看者才能从头解码）
       stopMediaRelay()
@@ -709,7 +872,7 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     await ensureMediaRecorders()
     if (ctx.mediaRelayTransferIds.size === 0) return
     // 向所有当前订阅者重新声明各路转发目标（后端 add_file_target 建立 sender→target 多目标映射）
-    for (const subscriberId of mediaRelaySubscribers) {
+    for (const sid of mediaRelaySubscribers) {
       for (const [idx, tid] of Array.from(ctx.mediaRelayTransferIds.entries())) {
         const src = idx === 0 ? local : ctx.localCameraStreams.get(idx)
         if (!src) continue
@@ -722,19 +885,23 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
           mode: 'media-relay',
           media_mime: hasAudio ? 'video/webm;codecs=vp8,opus' : 'video/webm;codecs=vp8',
           camera_idx: idx,
-          target: subscriberId,
+          target: sid,
         })
       }
     }
   }
 
-  /** 幂等创建中转 MediaRecorder（单路：共享视频为单摄像头流） */
+  /** 幂等创建中转 MediaRecorder（多路：主流 idx0 + 附加摄像头各一路） */
   async function ensureMediaRecorders(): Promise<void> {
     if (typeof MediaRecorder === 'undefined') return
     const q = ctx.currentMediaPreset.value
     const main = ctx.localMediaStream.value
     if (!main) return
-    const streams: Array<[number, MediaStream]> = [[0, main]] as Array<[number, MediaStream]>
+    // 主流（idx0）+ 附加摄像头流（idx≥1）；各路独立录制独立 transfer_id
+    const streams: Array<[number, MediaStream]> = [[0, main]]
+    for (const [idx, s] of Array.from(ctx.localCameraStreams.entries())) {
+      streams.push([idx, s])
+    }
     for (const [idx, local] of streams) {
       if (ctx.mediaRecorders.has(idx)) {
         const r = ctx.mediaRecorders.get(idx)!
@@ -872,7 +1039,9 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     }
   }
 
-  /** 应答方（共享者）：收到接收者的媒体 offer → 把本地共享轨道挂到该连接并回 answer */
+  /** 应答方（共享者）：收到接收者的媒体 offer → 把本地共享轨道挂到该连接并回 answer。
+   *  采用标准协商顺序：先 setRemoteDescription(offer) 建立 m-line，再 addTrack 挂发送器，
+   *  最后 createAnswer。顺序颠倒（先 addTrack）在 m-line 数量与槽位不匹配时易抛错。 */
   async function handleMediaOffer(msg: DirectWSMessage) {
     const fromId = msg.from_id
     if (!fromId || !msg.description) return
@@ -880,7 +1049,11 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     if (!entry || !entry.pc) return
     const pc = entry.pc
     try {
-      // 本端正在共享 → 将各路媒体轨道加入该连接（接收者主动拉流；附加摄像头按 idx 顺序 addTrack）
+      // 1) 先应用远端 offer（建立/对齐 m-line）
+      await pc.setRemoteDescription(msg.description)
+      // 2) 本端正在共享 → 将各路媒体轨道加入该连接。
+      //    主流（含音频）全部轨道 + 附加摄像头（idx≥1，仅视频轨）按 idx 顺序 addTrack，
+      //    接收端 ontrack 按到达顺序映射摄像头索引（主流=idx0，随后为附加路）。
       const local = ctx.localMediaStream.value
       if (local) {
         const hasMedia = pc.getSenders().some((s) => s.track && local.getTracks().includes(s.track))
@@ -888,16 +1061,27 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
           for (const track of local.getTracks()) {
             pc.addTrack(track, local)
           }
+          // 附加摄像头：按 idx 升序 addTrack（与接收端槽位声明顺序一致）
+          const extraIdx = Array.from(ctx.localCameraStreams.keys()).sort((a, b) => a - b)
+          for (const idx of extraIdx) {
+            const extraStream = ctx.localCameraStreams.get(idx)
+            if (!extraStream) continue
+            for (const track of extraStream.getVideoTracks()) {
+              pc.addTrack(track, extraStream)
+            }
+          }
         }
       }
       // 压缩：对视频发送器设置最大码率（按当前档位，WebRTC 编码硬限）
       if (p2pApi) p2pApi.capP2PVideoBitrate(pc, ctx.currentMediaPreset.value)
-      await pc.setRemoteDescription(msg.description)
       const answer = await pc.createAnswer()
       await pc.setLocalDescription(answer)
       ctx.sendSignal({ type: 'media_answer', target: fromId, description: pc.localDescription! })
-    } catch {
-      /* 协商失败静默 */
+    } catch (err) {
+      // P2P 协商失败：静默会导致接收端黑屏无感知。打日志便于排查，
+      // 并主动为该查看者建立服务器中转，让查看者仍能流式看到共享，而非黑屏。
+      console.warn('[direct] media_offer 应答失败，回退服务器中转', err)
+      void setupRelayForSubscriber(fromId)
     }
   }
 
@@ -995,6 +1179,10 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
       ctx.localMediaStream.value = null
       ctx.localMediaType.value = null
     }
+    // 附加摄像头流（多路共享）一并停止，避免轨道悬挂
+    for (const s of ctx.localCameraStreams.values()) for (const t of s.getTracks()) t.stop()
+    ctx.localCameraStreams.clear()
+    ctx.shareCameraFailures = 0
     // 清理各 P2P 连接上已停止的媒体轨道 sender（轨道 ended 后 sender 仍占据媒体 m-line）。
     // 若不清理，再次共享（如传屏幕→传视频）时新轨道 addTrack 会因 m-line 已被占用而被丢弃
     if (p2pApi) {
@@ -1030,6 +1218,10 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
       ctx.localMediaStream.value = null
       ctx.localMediaType.value = null
     }
+    // 附加摄像头流（多路共享）一并停止
+    for (const s of ctx.localCameraStreams.values()) for (const t of s.getTracks()) t.stop()
+    ctx.localCameraStreams.clear()
+    ctx.shareCameraFailures = 0
     for (const pull of mediaPullStreams.values()) {
       for (const track of pull.getTracks()) track.stop()
     }
@@ -1057,6 +1249,8 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     acquireMicTrack,
     retryAddMicrophone,
     acquireCameraStream,
+    detectMultiCameraSupport,
+    acquireMultiCameraStreams,
     startSharePreview,
     stopSharePreview,
     takePreviewStream,

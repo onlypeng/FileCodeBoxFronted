@@ -6,6 +6,8 @@ export type PublicConfig = SystemConfig & {
   expireStyle: string[]
   openUpload: number
   enableChunk: number
+  /** 上传分片大小（MB，默认 5；仅 enableChunk=1 时分片上传生效） */
+  uploadChunkSize: number
   uploadRateLimitCount: number
   uploadMinute: number
   maxCollectionFiles: number
@@ -23,6 +25,10 @@ export type PublicConfig = SystemConfig & {
   codeLength: number
   directRelayEnabled: number
   directRelaySpeedLimit: number
+  /** 房间文件中转分片大小（KB，默认 64；越小越不易被网关 256KB 单帧上限拦截） */
+  directRelayChunkSize: number
+  /** 房间文件中转单文件大小上限（MB；0=不限制，走 P2P 直连不受此限） */
+  directMaxRelaySize: number
   defaultMaxMembers: number
   /** 共享视频流默认质量档位（low/sd/hd/auto） */
   mediaDefaultQuality: string
@@ -46,6 +52,7 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   expireStyle: ['day', 'hour', 'minute', 'forever', 'count'],
   openUpload: 1,
   enableChunk: 0,
+  uploadChunkSize: 5,
   uploadRateLimitCount: 10,
   uploadMinute: 1,
   maxCollectionFiles: 100,
@@ -59,6 +66,8 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   codeLength: 6,
   directRelayEnabled: 1,
   directRelaySpeedLimit: 0,
+  directRelayChunkSize: 64,
+  directMaxRelaySize: 0,
   defaultMaxMembers: 10,
   mediaDefaultQuality: 'auto',
   directTurnServers: []
@@ -81,6 +90,7 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   uploadMinute: 1,
   opacity: 0.9,
   enableChunk: DEFAULT_PUBLIC_CONFIG.enableChunk,
+  uploadChunkSize: DEFAULT_PUBLIC_CONFIG.uploadChunkSize,
   s3_access_key_id: '',
   background: '',
   showAdminAddr: 0,
@@ -118,6 +128,8 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   expiredRetentionValue: 1,
   directRelayEnabled: 1,
   directRelaySpeedLimit: 0,
+  directRelayChunkSize: 64,
+  directMaxRelaySize: 0,
   defaultMaxMembers: 10,
   mediaDefaultQuality: 'auto',
   directTurnServers: [],
@@ -143,6 +155,7 @@ export function toPublicConfig(config: Partial<ConfigState> | null | undefined):
     expireStyle: config.expireStyle,
     openUpload: config.openUpload,
     enableChunk: config.enableChunk,
+    uploadChunkSize: config.uploadChunkSize,
     uploadRateLimitCount: config.uploadRateLimitCount,
     uploadMinute: config.uploadMinute,
     maxCollectionFiles: config.maxCollectionFiles,
@@ -155,6 +168,8 @@ export function toPublicConfig(config: Partial<ConfigState> | null | undefined):
     collectionDefaultExpireDays: config.collectionDefaultExpireDays,
     directRelayEnabled: config.directRelayEnabled,
     directRelaySpeedLimit: config.directRelaySpeedLimit,
+    directRelayChunkSize: config.directRelayChunkSize,
+    directMaxRelaySize: config.directMaxRelaySize,
     defaultMaxMembers: config.defaultMaxMembers,
     mediaDefaultQuality: config.mediaDefaultQuality,
     directTurnServers: config.directTurnServers,

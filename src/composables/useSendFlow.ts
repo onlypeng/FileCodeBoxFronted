@@ -243,6 +243,7 @@ export function useSendFlow() {
         expireValue,
         expireStyle: expirationMethod.value,
         enableChunk: Boolean(config.value.enableChunk),
+        chunkSizeMb: Number(config.value.uploadChunkSize) || 5,
         validateFileSize: checkFileSize
       })
 

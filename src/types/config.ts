@@ -35,6 +35,8 @@ export interface ConfigState {
   expiredRetentionValue: number
   opacity: number
   enableChunk: number
+  /** 上传分片大小（MB，默认 5；仅 enableChunk=1 时分片上传生效） */
+  uploadChunkSize: number
   s3_access_key_id: string
   background: string
   showAdminAddr: number
@@ -77,6 +79,10 @@ export interface ConfigState {
   directRelayEnabled: number
   /** 临时房间-服务器中转限速（KB/s，0=不限速） */
   directRelaySpeedLimit: number
+  /** 房间文件中转分片大小（KB，默认 64；越小越不易被网关单帧上限拦截） */
+  directRelayChunkSize: number
+  /** 房间文件中转单文件大小上限（MB；0=不限制） */
+  directMaxRelaySize: number
   /** 临时房间人员上限（房间内人员不能超过此限制；0 表示不限制） */
   defaultMaxMembers: number
   /** WebRTC TURN 中继服务器列表（对称 NAT 下 P2P 兜底） */

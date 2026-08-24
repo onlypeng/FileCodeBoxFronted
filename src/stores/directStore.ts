@@ -65,6 +65,9 @@ export const useDirectStore = defineStore('direct', () => {
   const incomingHandles = new Map<string, FileSystemFileHandle>() // OPFS 文件句柄
   const incomingHashers = new Map<string, Sha256>() // 接收侧完整性校验哈希
   const incomingNextIndex = new Map<string, number>() // 接收侧期望的下一个分片序号
+  // OPFS 写入串行链：FileSystemWritableFileStream.write() 必须先 await 上一次写入完成才能下一次，
+  // 用 promise 链保证分片严格串行落盘，避免大文件多分片快速到达时并发 write 触发 InvalidStateError
+  const incomingWriteChains = new Map<string, Promise<void>>()
 
   // ==================== 媒体流（传屏幕/传视频） ====================
   // 远端媒体流：Map 存流（供 <video> srcObject），mediaStreamFromIds 为响应式 key 列表（触发渲染）
@@ -487,7 +490,16 @@ export const useDirectStore = defineStore('direct', () => {
     // OPFS 写入或内存累积
     const writer = incomingWriters.get(transferId)
     if (writer) {
-      writer.write(payload).catch(() => failIncomingFile(transferId))
+      // FileSystemWritableFileStream.write() 需要严格串行（上一次 await 完成才能下一次）。
+      // 用 promise 链排队，避免大文件多分片快速到达时并发 write 抛 InvalidStateError 导致误判失败。
+      const prev = incomingWriteChains.get(transferId) || Promise.resolve()
+      incomingWriteChains.set(
+        transferId,
+        prev.then(() => writer.write(payload)).catch((err) => {
+          console.warn('[direct] OPFS 写入失败', err)
+          failIncomingFile(transferId)
+        })
+      )
     } else {
       incomingChunks.get(transferId)?.push(payload)
     }
@@ -508,12 +520,15 @@ export const useDirectStore = defineStore('direct', () => {
     const writer = incomingWriters.get(transferId)
     if (writer) {
       try {
+        // 先等待 OPFS 写入串行链排空，再关闭写入器（否则可能因仍有未完成写入而 close 报错）
+        await (incomingWriteChains.get(transferId) || Promise.resolve())
         await writer.close()
       } catch {
         failIncomingFile(transferId)
         return
       }
       incomingWriters.delete(transferId)
+      incomingWriteChains.delete(transferId)
       item._opfsHandle = incomingHandles.get(transferId)
     } else {
       const chunks = incomingChunks.get(transferId)
@@ -556,6 +571,7 @@ export const useDirectStore = defineStore('direct', () => {
   function cleanupIncomingMeta(transferId: string) {
     incomingHashers.delete(transferId)
     incomingNextIndex.delete(transferId)
+    incomingWriteChains.delete(transferId)
     progressMap.delete(transferId)
   }
 
@@ -834,6 +850,7 @@ export const useDirectStore = defineStore('direct', () => {
     incomingChunks.clear()
     incomingHashers.clear()
     incomingNextIndex.clear()
+    incomingWriteChains.clear()
     progressMap.clear()
     incomingWriters.forEach((w) => w.abort().catch(() => {}))
     incomingWriters.clear()

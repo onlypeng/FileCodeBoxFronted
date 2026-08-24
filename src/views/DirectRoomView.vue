@@ -171,6 +171,26 @@
                 <VolumeXIcon v-else class="w-4 h-4" />
               </button>
             </div>
+            <!-- 多摄共享：附加摄像头本地预览（每路一个小窗，仅视频轨） -->
+            <div v-if="localCameraIdxList.length > 0" class="mt-1.5 flex gap-1.5 overflow-x-auto">
+              <div
+                v-for="idx in localCameraIdxList"
+                :key="idx"
+                class="relative rounded-xl overflow-hidden border shrink-0 w-24"
+                :class="[isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-black']"
+              >
+                <video
+                  :ref="(el) => bindLocalCameraPreview(el, idx)"
+                  autoplay
+                  playsinline
+                  muted
+                  class="w-full max-h-20 bg-black"
+                ></video>
+                <span class="absolute top-1 left-1 px-1 py-px rounded text-[8px] bg-black/60 text-white">
+                  {{ t('direct.quality.videoCamera') }} {{ idx + 1 }}
+                </span>
+              </div>
+            </div>
             <!-- 共享控制：分辨率切换 / 麦克风开关 / 结束共享（即时生效） -->
             <div class="mt-1.5 flex items-center gap-2 flex-wrap">
               <!-- 分辨率切换（下拉列表，点击展开选择） -->
@@ -187,8 +207,9 @@
                   @update:model-value="applyShareQuality($event as string)"
                 />
               </div>
-              <!-- 摄像头切换（视频共享：多摄像头/多朝向即时切换；屏幕共享不显示） -->
-              <div v-if="isSharingVideo && shareCameraOptions.length > 1" class="flex items-center gap-1.5">
+              <!-- 摄像头切换（视频共享：多摄像头/多朝向即时切换；多摄同时共享中不显示——切换主摄不影响其他路，
+              重新配置请先结束共享；屏幕共享不显示） -->
+              <div v-if="isSharingVideo && !isMultiCameraSharing && shareCameraOptions.length > 1" class="flex items-center gap-1.5">
                 <span class="text-[11px]" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
                   {{ t('direct.quality.videoCamera') }}
                 </span>
@@ -253,55 +274,85 @@
           </div>
         </div>
 
-        <!-- 媒体流（传屏幕/传视频）：已查看的共享实时渲染（悬浮中的卡片不在列表展示） -->
+        <!-- 媒体流（传屏幕/传视频）：已查看的共享实时渲染。
+             同共享者多摄像头 → 合并到同一窗口，按数量网格分割（类海康大屏）；
+             悬浮中的共享者不在列表展示。 -->
         <div
-          v-for="fromId in mediaStreamKeys"
-          :key="fromId"
-          v-show="floatingFromId !== shareFromId(fromId)"
+          v-for="[sharerId, keys] in groupedMediaStreams"
+          :key="sharerId"
+          v-show="floatingFromId !== sharerId"
           class="flex justify-start"
         >
-          <div class="max-w-[85%] min-w-0">
+          <div class="max-w-[85%] min-w-0 w-full">
             <p class="text-xs mb-1 px-1 flex items-center gap-1" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
-              <MonitorIcon v-if="activeSharesMeta[fromId]?.mediaType === 'screen'" class="w-3 h-3" />
+              <MonitorIcon v-if="isScreenGroup(sharerId)" class="w-3 h-3" />
               <VideoIcon v-else class="w-3 h-3" />
-              {{ memberNickname(fromId) }} {{ t('direct.room.mediaShare') }}
-            </p>
-            <!-- 视频容器：右上角悬浮操作图标（悬浮 / 退出查看） -->
-            <div class="relative rounded-2xl overflow-hidden shadow-sm border" :class="[isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-black']">
-              <video
-                :ref="(el) => bindMediaVideo(el, fromId)"
-                :data-from-id="fromId"
-                data-loc="list"
-                playsinline
-                controls
-                class="w-full max-h-64 bg-black"
-              ></video>
-              <!-- 静音自动播放提示：点一下开启声音（浏览器策略禁止无手势的有声自动播放） -->
-              <button
-                v-if="mutedVideoFromIds.has(fromId)"
-                @click.stop="unmuteShareVideo(fromId)"
-                class="absolute inset-x-0 bottom-2 mx-auto w-fit px-3 py-1 rounded-full text-[11px] font-medium text-white bg-black/60 hover:bg-black/75 transition-colors backdrop-blur-sm"
-                :title="t('direct.room.tapToUnmute')"
+              {{ memberNickname(sharerId) }} {{ t('direct.room.mediaShare') }}
+              <!-- 多摄提示：N 路摄像头同窗显示 -->
+              <span
+                v-if="isMultiCameraGroup(keys)"
+                class="px-1 py-px rounded text-[9px] shrink-0"
+                :class="[isDarkMode ? 'bg-indigo-900/40 text-indigo-300' : 'bg-indigo-100 text-indigo-700']"
               >
-                🔇 {{ t('direct.room.tapToUnmute') }}
-              </button>
+                {{ keys.length }} {{ t('direct.room.multiCameras') }}
+              </span>
+            </p>
+            <!-- 视频容器：多摄网格 / 单摄单格；右上角操作图标按共享者整体显示 -->
+            <div class="relative rounded-2xl overflow-hidden shadow-sm border" :class="[isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-black']">
+              <div
+                class="grid gap-px bg-black"
+                :class="[cameraGroupHeightClass(keys.length), cameraGridClass(keys.length)]"
+              >
+                <div
+                  v-for="fromId in keys"
+                  :key="fromId"
+                  class="relative bg-black min-w-0 min-h-0 overflow-hidden"
+                >
+                  <video
+                    :ref="(el) => bindMediaVideo(el, fromId)"
+                    :data-from-id="fromId"
+                    data-loc="list"
+                    playsinline
+                    :controls="!isMultiCameraGroup(keys)"
+                    class="w-full h-full object-contain bg-black"
+                    :class="cameraCellClass(keys.length)"
+                  ></video>
+                  <!-- 多摄时格内角标：摄像头 N -->
+                  <span
+                    v-if="isMultiCameraGroup(keys)"
+                    class="absolute top-1 left-1 px-1 py-px rounded text-[9px] bg-black/60 text-white/80"
+                  >
+                    {{ t('direct.quality.videoCamera') }} {{ mediaStreamKeyIdx(fromId) + 1 }}
+                  </span>
+                  <!-- 静音自动播放提示 -->
+                  <button
+                    v-if="mutedVideoFromIds.has(fromId)"
+                    @click.stop="unmuteShareVideo(fromId)"
+                    class="absolute inset-x-0 bottom-2 mx-auto w-fit px-3 py-1 rounded-full text-[11px] font-medium text-white bg-black/60 hover:bg-black/75 transition-colors backdrop-blur-sm"
+                    :title="t('direct.room.tapToUnmute')"
+                  >
+                    🔇 {{ t('direct.room.tapToUnmute') }}
+                  </button>
+                </div>
+              </div>
+              <!-- 操作：观看模式 / 悬浮 / 退出查看（按共享者整体） -->
               <div class="absolute top-2 right-2 flex items-center gap-1.5">
                 <button
-                  @click="enterViewMode(fromId)"
+                  @click="enterViewMode(sharerId)"
                   class="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors backdrop-blur-sm"
                   :title="t('direct.room.enterViewMode')"
                 >
                   <ExpandIcon class="w-4 h-4" />
                 </button>
                 <button
-                  @click="floatingFromId = shareFromId(fromId)"
+                  @click="floatingFromId = sharerId"
                   class="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors backdrop-blur-sm"
                   :title="t('direct.room.floatWindow')"
                 >
                   <PictureInPicture2Icon class="w-4 h-4" />
                 </button>
                 <button
-                  @click="exitView(fromId)"
+                  @click="exitView(sharerId)"
                   class="p-1.5 rounded-full bg-black/50 text-white hover:bg-red-600/80 transition-colors backdrop-blur-sm"
                   :title="t('direct.room.exitView')"
                 >
@@ -312,49 +363,77 @@
           </div>
         </div>
 
-        <!-- 中转媒体流（服务器中转的屏幕/视频，MediaSource 流式播放） -->
+        <!-- 中转媒体流（服务器中转的屏幕/视频，MediaSource 流式播放）；多摄同窗口网格分割 -->
         <div
-          v-for="fromId in mediaRelayKeys"
-          :key="fromId"
+          v-for="[sharerId, keys] in groupedRelayStreams"
+          :key="sharerId"
           class="flex justify-start"
         >
-          <div class="max-w-[85%] min-w-0">
+          <div class="max-w-[85%] min-w-0 w-full">
             <p class="text-xs mb-1 px-1 flex items-center gap-1" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
-              <MonitorIcon v-if="activeSharesMeta[fromId]?.mediaType === 'screen'" class="w-3 h-3" />
+              <MonitorIcon v-if="isScreenGroup(sharerId)" class="w-3 h-3" />
               <VideoIcon v-else class="w-3 h-3" />
-              {{ memberNickname(fromId) }} {{ t('direct.room.mediaShare') }}
+              {{ memberNickname(sharerId) }} {{ t('direct.room.mediaShare') }}
+              <!-- 多摄提示：N 路摄像头同窗显示 -->
+              <span
+                v-if="isMultiCameraGroup(keys)"
+                class="px-1 py-px rounded text-[9px] shrink-0"
+                :class="[isDarkMode ? 'bg-indigo-900/40 text-indigo-300' : 'bg-indigo-100 text-indigo-700']"
+              >
+                {{ keys.length }} {{ t('direct.room.multiCameras') }}
+              </span>
               <span class="px-1 py-px rounded text-[9px] shrink-0" :class="[isDarkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700']">
                 {{ t('direct.room.modeRelay') }}
               </span>
             </p>
             <div class="relative rounded-2xl overflow-hidden shadow-sm border" :class="[isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-black']">
-              <video
-                :ref="(el) => bindMediaRelayVideo(el, fromId)"
-                :data-from-id="fromId"
-                data-loc="list"
-                playsinline
-                controls
-                class="w-full max-h-64 bg-black"
-              ></video>
-              <!-- 静音自动播放提示：点一下开启声音（浏览器策略禁止无手势的有声自动播放） -->
-              <button
-                v-if="mutedVideoFromIds.has(fromId)"
-                @click.stop="unmuteShareVideo(fromId)"
-                class="absolute inset-x-0 bottom-2 mx-auto w-fit px-3 py-1 rounded-full text-[11px] font-medium text-white bg-black/60 hover:bg-black/75 transition-colors backdrop-blur-sm"
-                :title="t('direct.room.tapToUnmute')"
+              <div
+                class="grid gap-px bg-black"
+                :class="[cameraGroupHeightClass(keys.length), cameraGridClass(keys.length)]"
               >
-                🔇 {{ t('direct.room.tapToUnmute') }}
-              </button>
+                <div
+                  v-for="fromId in keys"
+                  :key="fromId"
+                  class="relative bg-black min-w-0 min-h-0 overflow-hidden"
+                >
+                  <video
+                    :ref="(el) => bindMediaRelayVideo(el, fromId)"
+                    :data-from-id="fromId"
+                    data-loc="list"
+                    playsinline
+                    :controls="!isMultiCameraGroup(keys)"
+                    class="w-full h-full object-contain bg-black"
+                    :class="cameraCellClass(keys.length)"
+                  ></video>
+                  <!-- 多摄时格内角标：摄像头 N -->
+                  <span
+                    v-if="isMultiCameraGroup(keys)"
+                    class="absolute top-1 left-1 px-1 py-px rounded text-[9px] bg-black/60 text-white/80"
+                  >
+                    {{ t('direct.quality.videoCamera') }} {{ mediaStreamKeyIdx(fromId) + 1 }}
+                  </span>
+                  <!-- 静音自动播放提示 -->
+                  <button
+                    v-if="mutedVideoFromIds.has(fromId)"
+                    @click.stop="unmuteShareVideo(fromId)"
+                    class="absolute inset-x-0 bottom-2 mx-auto w-fit px-3 py-1 rounded-full text-[11px] font-medium text-white bg-black/60 hover:bg-black/75 transition-colors backdrop-blur-sm"
+                    :title="t('direct.room.tapToUnmute')"
+                  >
+                    🔇 {{ t('direct.room.tapToUnmute') }}
+                  </button>
+                </div>
+              </div>
+              <!-- 操作：观看模式 / 退出查看（按共享者整体） -->
               <div class="absolute top-2 right-2 flex items-center gap-1.5">
                 <button
-                  @click="enterViewMode(fromId)"
+                  @click="enterViewMode(sharerId)"
                   class="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors backdrop-blur-sm"
                   :title="t('direct.room.enterViewMode')"
                 >
                   <ExpandIcon class="w-4 h-4" />
                 </button>
                 <button
-                  @click="exitView(fromId)"
+                  @click="exitView(sharerId)"
                   class="p-1.5 rounded-full bg-black/50 text-white hover:bg-red-600/80 transition-colors backdrop-blur-sm"
                   :title="t('direct.room.exitView')"
                 >
@@ -553,18 +632,37 @@
             <XIcon class="w-4 h-4" />
           </button>
         </div>
-        <!-- 大画面 -->
+        <!-- 大画面：多摄 → 网格分割（类海康大屏）；单摄 → 全屏单格 -->
         <div class="flex-1 relative">
-          <video
-            :ref="bindViewModeVideo"
-            playsinline
-            controls
-            class="w-full h-full object-contain bg-black"
-          ></video>
+          <div
+            v-if="viewModeKeys.length > 0"
+            class="grid gap-px h-full bg-black"
+            :class="cameraGridClass(viewModeKeys.length)"
+          >
+            <div
+              v-for="(key, ci) in viewModeKeys"
+              :key="key"
+              class="relative bg-black min-w-0 min-h-0 overflow-hidden"
+            >
+              <video
+                :ref="(el) => bindViewModeCamera(el, key)"
+                playsinline
+                :controls="!isMultiCameraGroup(viewModeKeys)"
+                class="w-full h-full object-contain bg-black"
+              ></video>
+              <!-- 多摄时格内角标：摄像头 N -->
+              <span
+                v-if="isMultiCameraGroup(viewModeKeys)"
+                class="absolute top-2 left-2 px-1.5 py-px rounded text-[10px] bg-black/60 text-white/80"
+              >
+                {{ t('direct.quality.videoCamera') }} {{ ci + 1 }}
+              </span>
+            </div>
+          </div>
           <!-- 静音自动播放提示：点一下开启声音 -->
           <button
-            v-if="mutedVideoFromIds.has(viewModeFromId)"
-            @click.stop="unmuteShareVideo(viewModeFromId)"
+            v-if="mutedVideoFromIds.has(viewModeFromId!)"
+            @click.stop="unmuteShareVideo(viewModeFromId!)"
             class="absolute inset-x-0 bottom-4 mx-auto w-fit px-3 py-1 rounded-full text-[11px] font-medium text-white bg-black/60 hover:bg-black/75 transition-colors backdrop-blur-sm"
             :title="t('direct.room.tapToUnmute')"
           >
@@ -640,12 +738,22 @@
           @update:model-value="selectedQuality = $event as string"
         />
 
-        <!-- 摄像头选择：先选方式（位置=前后置 / 设备=具体摄像头），再多选要传输的摄像头 -->
+        <!-- 摄像头选择：桌面且有 ≥2 个摄像头 → 多选同时共享；否则单选（单摄共享中切换） -->
         <div v-if="pendingQualityKind === 'video'" class="pt-1 space-y-2">
           <p class="text-sm font-medium" :class="[isDarkMode ? 'text-gray-200' : 'text-gray-700']">
             {{ t('direct.quality.videoCamera') }}
           </p>
           <ThemeDropdown
+            v-if="multiCamerasEnabled"
+            :options="cameraPickOptions"
+            :model-value="selectedCameras"
+            multi
+            width="w-full"
+            :placeholder="t('direct.quality.cameraPickPlaceholder')"
+            @update:model-value="onCamerasMultiSelect($event as string[])"
+          />
+          <ThemeDropdown
+            v-else
             :options="cameraPickOptions"
             :model-value="selectedCamera"
             width="w-full"
@@ -654,40 +762,79 @@
           <p v-if="cameraSelectHint" class="text-[11px]" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
             {{ cameraSelectHint }}
           </p>
+          <p
+            v-if="singleCameraOnly"
+            class="text-[11px]"
+            :class="[isDarkMode ? 'text-amber-400' : 'text-amber-600']"
+          >
+            {{ t('direct.quality.cameraSingleOnly') }}
+          </p>
+          <p
+            v-if="multiCameraMode"
+            class="text-[11px]"
+            :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']"
+          >
+            {{ t('direct.quality.cameraMultiHint') }}
+          </p>
         </div>
 
-        <!-- 视频共享配置：实时预览（确认后按档位共享，预览即所得） -->
-        <div v-if="pendingQualityKind === 'video' && previewCameraKey" class="pt-1 space-y-2">
-          <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
-            {{ t('direct.quality.configCustomize') }}
+        <!-- 视频共享配置：实时预览（确认后按档位共享，预览即所得）。
+             多摄模式 → 每路选中摄像头一个预览窗（label=设备名）；单摄 → 主摄单窗。
+             用户未选摄像头时显示"请选择摄像头"提示，不自动预览。 -->
+        <div v-if="pendingQualityKind === 'video'" class="pt-1 space-y-2">
+          <p v-if="!cameraSelected" class="text-xs h-20 flex items-center justify-center rounded-xl border border-dashed"
+            :class="[isDarkMode ? 'border-gray-600 text-gray-500' : 'border-gray-300 text-gray-400']">
+            {{ t('direct.quality.cameraPickHint') }}
           </p>
-          <div class="relative rounded-xl overflow-hidden bg-black">
-            <!-- 预览失败 → 占位提示 + 重试（无摄像头/不支持/非安全上下文时重试无意义，仅提示） -->
-            <div v-if="previewFailedKeys.has(previewCameraKey)" class="w-full h-32 flex flex-col items-center justify-center gap-2 bg-black/60">
-              <span class="text-[11px] text-white/70 text-center px-3">{{ previewFailText }}</span>
-              <button
-                v-if="!cameraNotFound && !cameraInsecure && !cameraUnsupported"
-                type="button"
-                @click="retryCameraPreview(previewCameraKey)"
-                class="px-3 py-1 rounded-md text-[11px] font-medium bg-indigo-600 text-white hover:bg-indigo-500"
-              >
-                {{ t('direct.quality.cameraPreviewRetry') }}
-              </button>
+          <div v-else class="space-y-2">
+            <!-- 摄像头加载中：动画 + 提示（首次权限+采集通常需 1~3s） -->
+            <div v-if="cameraLoading" class="h-32 flex flex-col items-center justify-center gap-2 rounded-lg border bg-black/5"
+              :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
+              <div class="w-6 h-6 rounded-full border-2 border-transparent border-t-indigo-500 border-b-indigo-500 animate-spin"></div>
+              <span class="text-[11px]" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">{{ t('direct.quality.cameraLoading') }}</span>
             </div>
-            <template v-else>
-              <!-- :key 绑定版本号：切换/重试成功后强制重建 video，重新绑定新流（预览随摄像头切换而更新） -->
-              <video
-                :key="`${previewCameraKey}:${previewStreamVersion}`"
-                :ref="(el) => bindConfigPreviewVideo(el, previewCameraKey)"
-                muted
-                autoplay
-                playsinline
-                class="w-full max-h-40 bg-black"
-              ></video>
-              <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] bg-black/60 text-white">
-                {{ t('direct.quality.configPreview') }}
-              </span>
-            </template>
+            <!-- 视频预览：多摄同一窗口网格分割；单摄单格。窄边框、不铺大黑块，摄像头文字在视频左上角 -->
+            <div
+              v-else
+              class="grid overflow-hidden rounded-lg border"
+              :class="[
+                cameraGridClass(previewKeys.length),
+                multiCameraMode ? 'h-44' : 'h-40',
+                isDarkMode ? 'border-gray-700' : 'border-gray-300'
+              ]"
+            >
+              <div
+                v-for="(key, i) in previewKeys"
+                :key="key"
+                class="relative min-w-0 min-h-0"
+              >
+                <!-- 预览失败 → 占位提示 + 重试 -->
+                <div v-if="previewFailedKeys.has(key)" class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 p-1">
+                  <span class="text-[10px] text-white/80 text-center px-1">{{ previewFailText }}</span>
+                  <button
+                    v-if="!cameraNotFound && !cameraInsecure && !cameraUnsupported"
+                    type="button"
+                    @click="retryCameraPreview(key)"
+                    class="px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-600 text-white hover:bg-indigo-500"
+                  >
+                    {{ t('direct.quality.cameraPreviewRetry') }}
+                  </button>
+                </div>
+                <video
+                  v-else
+                  :key="`${key}:${previewStreamVersion}`"
+                  :ref="(el) => bindConfigPreviewVideo(el, key)"
+                  muted
+                  autoplay
+                  playsinline
+                  class="w-full h-full object-cover"
+                ></video>
+                <!-- 摄像头文字：视频左上角 -->
+                <span class="absolute top-1 left-1 px-1 py-px rounded text-[9px] bg-black/50 text-white leading-none">
+                  {{ multiCameraPreviewLabel(i, previewKeys.length, key) }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -766,7 +913,7 @@
 import { inject, ref, reactive, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { isMobileDevice } from '@/utils/device'
+import { isLowEndBrowser, isMobileDevice } from '@/utils/device'
 import {
   ArrowLeftIcon,
   ShareIcon,
@@ -1147,8 +1294,73 @@ const bindMediaVideo = (el: unknown, fromId: string) => {
 /** 从复合键 `fromId:idx` 解析真实共享者 id */
 const shareFromId = (key: string) => (key.includes(':') ? key.split(':')[0] : key)
 
+/** 从媒体流复合键 `fromId:idx` 解析摄像头索引（多摄像头分路渲染用；无 idx 视为 0） */
+const mediaStreamKeyIdx = (key: string) => {
+  const idx = Number(key.includes(':') ? key.split(':')[1] : 0)
+  return Number.isFinite(idx) ? idx : 0
+}
+
 /** 中转媒体（MediaSource）key 列表：响应式触发渲染 */
 const mediaRelayKeys = computed(() => directStore.mediaRelayFromIds)
+
+// ==================== 多摄像头合并显示（同共享者多路同窗网格分割，类海康大屏） ====================
+/** 媒体流按真实共享者分组（entries 数组：[[sharerId, keys...]]），同组多摄同一窗口网格显示 */
+const groupedMediaStreams = computed<Array<[string, string[]]>>(() => {
+  const groups = new Map<string, string[]>()
+  for (const key of mediaStreamKeys.value) {
+    const real = shareFromId(key)
+    const arr = groups.get(real) || []
+    arr.push(key)
+    groups.set(real, arr)
+  }
+  // 组内按 idx 升序（主摄 0 在最前）
+  for (const arr of groups.values()) arr.sort((a, b) => mediaStreamKeyIdx(a) - mediaStreamKeyIdx(b))
+  return Array.from(groups.entries())
+})
+
+/** 中转媒体流按真实共享者分组（同上） */
+const groupedRelayStreams = computed<Array<[string, string[]]>>(() => {
+  const groups = new Map<string, string[]>()
+  for (const key of mediaRelayKeys.value) {
+    const real = shareFromId(key)
+    const arr = groups.get(real) || []
+    arr.push(key)
+    groups.set(real, arr)
+  }
+  for (const arr of groups.values()) arr.sort((a, b) => mediaStreamKeyIdx(a) - mediaStreamKeyIdx(b))
+  return Array.from(groups.entries())
+})
+
+/** 根据路数返回网格布局类（1=单屏 2=两格 3~4=2x2 5~9=3x3 10+ = 4x4） */
+const cameraGridClass = (count: number): string => {
+  if (count <= 1) return 'grid-cols-1'
+  if (count === 2) return 'grid-cols-2'
+  if (count <= 4) return 'grid-cols-2'
+  if (count <= 9) return 'grid-cols-3'
+  return 'grid-cols-4'
+}
+
+/** 根据路数返回单格高度类（路数多时格子更矮，保持整体高度合理） */
+const cameraCellClass = (count: number): string => {
+  if (count <= 1) return 'max-h-64'
+  if (count === 2) return 'max-h-48'
+  if (count <= 4) return 'max-h-40'
+  if (count <= 9) return 'max-h-32'
+  return 'max-h-24'
+}
+
+/** 每组视频容器高度（网格模式固定中等高度，避免多路卡片超高） */
+const cameraGroupHeightClass = (count: number): string => {
+  if (count <= 1) return ''
+  return 'h-56 sm:h-64 md:h-72'
+}
+
+/** 该共享者是否多摄（≥2 路） */
+const isMultiCameraGroup = (keys: string[]): boolean => keys.length >= 2
+
+/** 组内是否是屏幕共享（显示 Monitor 图标；按共享者元数据判定） */
+const isScreenGroup = (sharerId: string): boolean =>
+  activeSharesMeta.value[sharerId]?.mediaType === 'screen'
 
 /** 把中转媒体 objectURL 绑定到 <video> 元素 */
 const bindMediaRelayVideo = (el: unknown, fromId: string) => {
@@ -1183,23 +1395,31 @@ const enterViewMode = (fromId: string) => {
   viewModeFromId.value = real
 }
 
-/** 观看模式大画面：绑定 P2P 流或中转 MediaSource，并处理自动播放 */
-const bindViewModeVideo = (el: unknown) => {
+/** 观看模式的多路 keys：该共享者的全部媒体流（P2P 或中转），多摄时网格分割显示 */
+const viewModeKeys = computed(() => {
+  const id = viewModeFromId.value
+  if (!id) return []
+  const p2p = groupedMediaStreams.value.find(([sid]) => sid === id)?.[1] || []
+  const relay = groupedRelayStreams.value.find(([sid]) => sid === id)?.[1] || []
+  // 两套不应同时存在（P2P 与中转互斥），取非空者
+  return p2p.length > 0 ? p2p : relay
+})
+
+/** 观看模式下每格的视频绑定（按复合键取流/源） */
+const bindViewModeCamera = (el: unknown, key: string) => {
   const video = el as HTMLVideoElement | null
   if (!video) return
-  const fromId = viewModeFromId.value
-  if (!fromId) return
-  mediaVideoEls.set(fromId, video)
-  const stream = directStore.getIncomingMediaStream(fromId)
+  mediaVideoEls.set(key, video)
+  const stream = directStore.getIncomingMediaStream(key)
   if (stream) {
     if (video.srcObject !== stream) video.srcObject = stream
-    startMediaVideoPlayback(video, fromId)
+    startMediaVideoPlayback(video, key)
   } else {
-    const url = directStore.getMediaRelayUrl(fromId)
+    const url = directStore.getMediaRelayUrl(key)
     if (url && video.src !== url) {
       video.src = url
     }
-    if (url) startMediaVideoPlayback(video, fromId)
+    if (url) startMediaVideoPlayback(video, key)
   }
 }
 
@@ -1207,6 +1427,7 @@ const bindViewModeVideo = (el: unknown) => {
 const endMyShare = () => {
   shareMicFailed.value = false
   shareUsesCamera.value = false
+  localCameraIdxList.value = []
   connection.stopMediaShare()
 }
 
@@ -1216,6 +1437,11 @@ const shareQualitySelectValue = ref('auto')
 const currentQualityLabel = computed(() => shareQualitySelectValue.value)
 /** 是否正在共享视频（控制栏据此显示摄像头切换；屏幕共享不显示） */
 const isSharingVideo = computed(() => connection.localMediaType?.value === 'video')
+
+/** 是否正在多摄共享（主流 + 至少一路附加摄像头；多摄共享中隐藏"摄像头切换"下拉） */
+const isMultiCameraSharing = computed(
+  () => isSharingVideo.value && (connection.localCameraStreams?.size ?? 0) > 0
+)
 
 /** 分辨率列表（共享控制栏下拉选择） */
 const shareQualityTiers = computed(() => [
@@ -1235,24 +1461,17 @@ const applyShareQuality = async (value: string) => {
   alertStore.showAlert(t('direct.room.qualityApplied'), 'success')
 }
 
-/** 共享中的摄像头切换（视频共享显示）：下拉选择设备/朝向，即时生效 */
+/** 共享中的摄像头切换（视频共享显示）：下拉选择具体设备，即时生效 */
 const shareCameraOptions = computed(() =>
-  cameraSelectMode.value === 'position'
-    ? [
-        { value: 'user', label: t('direct.quality.frontCamera') },
-        { value: 'environment', label: t('direct.quality.backCamera') },
-      ]
-    : videoDevices.value.map((d) => ({
-        value: d.deviceId,
-        label: d.label || t('direct.quality.videoCamera'),
-      }))
+  videoDevices.value.map((d) => ({
+    value: d.deviceId || 'default',
+    label: d.label || t('direct.quality.videoCamera'),
+  }))
 )
-const shareCameraValue = computed(() => selectedCamera.value || 'user')
+const shareCameraValue = computed(() => selectedCamera.value || '')
 const onShareCameraChange = async (value: string) => {
   try {
-    const ok = cameraSelectMode.value === 'position'
-      ? await connection.switchCamera(value as 'user' | 'environment')
-      : await connection.switchCamera(undefined, value)
+    const ok = await connection.switchCamera(undefined, value)
     if (ok) {
       selectedCamera.value = value
       alertStore.showAlert(t('direct.room.cameraSwitched'), 'success')
@@ -1365,44 +1584,96 @@ const audioMultiOptions = computed(() => {
 /** 音频来源勾选集合（多选；屏幕共享可同时勾选 麦克风+系统声音） */
 const audioSourceSelections = ref<string[]>([])
 
-/** 可用摄像头设备列表（桌面端按设备模式枚举；权限授予后填充） */
+/** 可用摄像头设备列表（权限授予后填充；部分浏览器未授权时 deviceId 可能为空，仍列出） */
 const videoDevices = ref<MediaDeviceInfo[]>([])
-/** 摄像头设备选项（桌面端按设备模式；value=deviceId） */
+/** 摄像头设备选项：value=deviceId；未授权/空 deviceId 的设备用占位 'default'（让浏览器选默认摄像头） */
 const videoDeviceOptions = computed(() =>
   videoDevices.value.map((d) => ({
-    value: d.deviceId,
+    value: d.deviceId || 'default',
     label: d.label || t('direct.quality.videoCamera'),
   }))
 )
 
-/** 摄像头选择方式：移动端/平板=位置（前后置，系统自动选该方向最合适的摄像头）；桌面=设备（具体摄像头）。
- *  getUserMedia 同一时刻仅一路视频源，故均为单选——共享中切换走 switchCamera。 */
-const cameraSelectMode = ref<'position' | 'device'>('position')
+/** 摄像头选择方式：统一按具体硬件设备列出（不再区分手机/电脑的前后置位置模式） */
+const cameraSelectMode = ref<'position' | 'device'>('device')
 
-/** 摄像头选项（按端）：平板/手机=前后置；桌面=枚举出的设备列表 */
-const cameraPickOptions = computed(() =>
-  isMobile
-    ? [
-        { value: 'user', label: t('direct.quality.frontCamera') },
-        { value: 'environment', label: t('direct.quality.backCamera') },
-      ]
-    : videoDeviceOptions.value
+/** 摄像头选项：始终为具体设备列表（把枚举到的摄像头硬件全部列给用户选择） */
+const cameraPickOptions = computed(() => videoDeviceOptions.value)
+
+/** 已选摄像头（position=user/environment；device=deviceId）。初始为空 = 用户尚未选择，由用户自行挑选 */
+const selectedCamera = ref<string>('')
+
+/** 多选摄像头集合（桌面端多摄使用；元素为 deviceId）。单选模式保持空数组走既有切换逻辑 */
+const selectedCameras = ref<string[]>([])
+
+/** 用户是否已选择摄像头（打开弹窗不自动选，需用户在下拉中主动选择） */
+const cameraSelected = computed(() => !!selectedCamera.value)
+
+/** 是否可多选摄像头：枚举到 ≥2 个具体设备即可选（桌面/手机皆然；实际能否多路并行打开
+ *  由共享时逐路采集决定——不支持多路的浏览器/设备会自动回退到仅主摄，不会阻断）。
+ *  移动端通常只报 0~1 个设备（前后置归为位置），此时走前后置单选切换。 */
+const multiCamerasEnabled = computed(() => videoDevices.value.length >= 2)
+
+/** 是否处于多摄多选模式：多选可用 + 至少选中 2 个摄像头 */
+const multiCameraMode = computed(
+  () => multiCamerasEnabled.value && selectedCameras.value.length >= 2
 )
 
-/** 已选摄像头（position=user/environment；device=deviceId） */
-const selectedCamera = ref<string>('user')
+/** 共享配置阶段的多摄多选变更：更新集合并同步主摄像头（首个选中为主摄）。
+ *  next 为空（用户取消全部）→ 仅清空选择，不自动预览；用户重新勾选再预览。 */
+const onCamerasMultiSelect = async (next: string[]) => {
+  selectedCameras.value = next
+  if (next.length === 0) {
+    selectedCamera.value = ''
+  } else {
+    // 首个选中作为主摄像头（含音频），其余为附加路；选中后预览
+    const first = next[0]
+    selectedCamera.value = first
+    await previewSelectedCamera()
+  }
+}
 
-/** 摄像头选择提示（平板/手机：系统自动选该方向最合适的摄像头，无需选具体设备） */
-const cameraSelectHint = computed(() =>
-  isMobile ? t('direct.quality.cameraPositionHint') : ''
+/** 摄像头选择提示：统一设备模式，无额外提示 */
+const cameraSelectHint = computed(() => '')
+
+/** 是否仅检测到 1 路可用摄像头（单摄共享提示，避免用户误以为可选择多路） */
+const singleCameraOnly = computed(
+  () => !cameraLoading.value && videoDevices.value.length === 1
 )
 
-/** 预览当前选中的摄像头（切换时重开预览） */
+/** 预览当前选中的摄像头（切换时重开预览）。
+   *  多摄多选模式：逐路采集选中设备（浏览器支持多路时才进入本分支），每路存 previewStreams；
+   *  单摄模式：仅主摄单路。采集期间置 cameraLoading，完成后清除（含失败）。 */
 const previewSelectedCamera = async () => {
-  await refreshCameraPreview(
-    cameraSelectMode.value === 'position' ? selectedCamera.value : undefined,
-    cameraSelectMode.value === 'device' ? selectedCamera.value : undefined
-  )
+  cameraLoading.value = true
+  try {
+    if (multiCameraMode.value && selectedCameras.value.length > 0) {
+      // 多路预览：并行采集选中设备（浏览器支持多路时才进入本分支）。
+      // 防御：同时打开过多 getUserMedia 流在低内存设备/部分浏览器上会崩溃，
+      // 因此预览最多同时开 MAX_PREVIEW_CAMERAS 路，其余路仅展示但延迟到确认共享时再采集。
+      connection.stopSharePreview()
+      const clearing = new Set(previewFailedKeys.value)
+      for (const key of selectedCameras.value) clearing.delete(key)
+      previewFailedKeys.value = clearing
+      const active = selectedCameras.value.slice(0, MAX_PREVIEW_CAMERAS)
+      await Promise.all(
+        active.map(async (key) => {
+          const ok = await connection.startSharePreview('video', undefined, key)
+          if (!ok) {
+            const failed = new Set(previewFailedKeys.value)
+            failed.add(key)
+            previewFailedKeys.value = failed
+          }
+        })
+      )
+      previewStreamVersion.value++
+    } else {
+      // 统一设备模式：始终按 deviceId 采集预览（不传 facingMode）
+      await refreshCameraPreview(undefined, selectedCamera.value)
+    }
+  } finally {
+    cameraLoading.value = false
+  }
 }
 
 /** 切换摄像头（单选）：更新选择并重新预览 */
@@ -1429,9 +1700,39 @@ const qualityModalTitle = computed(() =>
   pendingQualityKind.value === 'screen' ? t('direct.quality.screenTitle') : t('direct.quality.videoTitle')
 )
 
-/** 打开质量选择：默认值 = 本地偏好 > 后台默认 > auto；视频共享同时预取摄像头并显示实时预览配置 */
+/** 摄像头/麦克风权限状态检查（部分浏览器支持 navigator.permissions）：
+ *  若被浏览器永久拒绝（denied），getUserMedia 不会再弹权限、预览必失败 —
+ *  此时明确提示用户去浏览器设置开启，避免"不弹权限也不知道为什么"。 */
+const checkCameraPermissionStatus = async () => {
+  try {
+    if (!navigator.permissions?.query) return
+    const camera = await navigator.permissions.query({ name: 'camera' as PermissionName })
+    if (camera.state === 'denied') {
+      alertStore.showAlert(t('direct.quality.cameraPermissionDenied'), 'error')
+      return
+    }
+    // 部分浏览器将 摄像头+麦克风 合并在 camera，缺失时单独查 microphone（降级）
+    try {
+      const mic = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+      if (mic.state === 'denied') {
+        alertStore.showAlert(t('direct.quality.micPermissionDenied'), 'error')
+      }
+    } catch {
+      /* microphone 权限不支持查询，忽略 */
+    }
+  } catch {
+    /* 浏览器不支持 permissions API（如部分 iOS Safari），静默 */
+  }
+}
+
+/** 打开质量选择：立即弹出配置弹窗；视频共享在弹窗内异步预取摄像头并显示实时预览配置。
+ *  关键：先 showQualityModal 再启动摄像头枚举/预览（await 期间弹窗已在），
+ *  采集失败/无摄像头也不阻断弹窗——预览区显示失败态（cameraPreviewError），而非整个弹窗不弹。 */
 const openQualityPicker = async (kind: 'screen' | 'video') => {
   pendingQualityKind.value = kind
+  showQualityModal.value = true // 立即弹窗，避免异步采集中或失败导致弹窗不出现
+  cameraLoading.value = kind === 'video' // 视频共享：摄像头异步加载期间显示加载动画/提示
+  cameraLoadingStart.value = Date.now()
   const saved = readPreference(STORAGE_KEY_QUALITY, '')
   const backendDefault = config.value.mediaDefaultQuality || 'auto'
   const validTiers = ['low', 'sd', 'hd', 'uhd', 'origin', 'auto']
@@ -1445,35 +1746,30 @@ const openQualityPicker = async (kind: 'screen' | 'video') => {
     audioSourceSelections.value =
       prefer === 'mic' ? ['mic'] : prefer === 'system' ? ['system'] : ['mic', 'system']
   }
-  // 视频共享：按端确定选择方式 + 预取摄像头预览
+  // 视频共享：全部统一为「设备模式」——枚举所有摄像头硬件，把具体设备列给用户自选，
+  // 不再分手机/电脑的前后置位置模式（安卓多摄/鸿蒙等直接列主摄、广角、长焦等硬件）。
+  // 不做自动选择/自动预览——用户在下拉里挑好摄像头后再预览。
   if (kind === 'video') {
-    if (isMobile) {
-      // 平板/手机：按位置（前后置），系统自动选该方向最合适的摄像头
-      cameraSelectMode.value = 'position'
-      if (selectedCamera.value !== 'user' && selectedCamera.value !== 'environment') {
-        selectedCamera.value = 'user'
-      }
-      await previewSelectedCamera()
-    } else {
-      // 桌面：按设备（枚举具体摄像头）
-      cameraSelectMode.value = 'device'
-      // 首次预取：触发权限授权，使 enumerateDevices 能返回带 deviceId 的摄像头列表
+    try {
+      // 权限状态检查：若浏览器已记住"拒绝"（常见于之前误点拒绝），getUserMedia 不再弹权限 →
+      // 预览会失败且无弹窗，此处先明确提示，并给出去浏览器设置开启的指引。
+      // granted/prompt 则正常（granted=已授权不再弹，prompt=将弹出）。
+      void checkCameraPermissionStatus()
+      // 首次预取：触发权限授权，使 enumerateDevices 能返回带 deviceId/label 的摄像头列表
       await connection.startSharePreview('video')
       const devices = await connection.listVideoInputDevices()
       videoDevices.value = devices
-      if (devices.length > 0) {
-        const keep = devices.some((d) => d.deviceId === selectedCamera.value)
-        selectedCamera.value = keep ? selectedCamera.value : devices[0].deviceId
-        await refreshCameraPreview(undefined, selectedCamera.value)
-      } else {
-        // 无摄像头设备：回退前置
-        cameraSelectMode.value = 'position'
-        selectedCamera.value = 'user'
-        await previewSelectedCamera()
-      }
+      // 每次打开弹窗：清空已选摄像头，让用户自己挑选（不自动选第一个）
+      selectedCamera.value = ''
+      selectedCameras.value = []
+      cameraSelectMode.value = 'device'
+      // 设备数 ≥2 → 多选；=1 → 单选；0 → 无摄像头失败态（预览区提示）
+    } catch (err) {
+      // 摄像头采集/枚举异常：弹窗已打开，预览区走失败态（cameraPreviewError），不阻断配置
+      console.warn('[direct] 摄像头枚举/预览失败', err)
+      cameraLoading.value = false
     }
   }
-  showQualityModal.value = true
 }
 
 /** 预览失败（采集被拒/设备不支持并发）的摄像头 key 集合 */
@@ -1482,14 +1778,52 @@ const previewFailedKeys = ref<Set<string>>(new Set())
 /** 预览流版本号：采集成功后递增，强制重建 video 元素重新绑定新流（切换摄像头时预览跟随更新） */
 const previewStreamVersion = ref(0)
 
-/** 当前预览摄像头 key（单路：deviceId 或 facing 值） */
-const previewCameraKey = computed(() => selectedCamera.value || 'user')
+/** 摄像头是否正在异步加载（首次枚举/采集、切换摄像头时置 true）——驱动加载动画与提示 */
+const cameraLoading = ref(false)
+/** 本次/上次加载起始时间（用于超时兜底，防止权限弹窗悬挂导致无限加载） */
+const cameraLoadingStart = ref(0)
+/** 摄像头加载超时（ms）：超过后仍无结果则提示用户，避免无限转圈 */
+const CAMERA_LOAD_TIMEOUT = 15000
+
+/** 摄像头加载超时兜底：loading 置 true 时启动定时器，超时仍未完成则停止加载并提示（如权限弹窗悬挂） */
+watch(cameraLoading, (loading) => {
+  if (!loading) return
+  setTimeout(() => {
+    if (cameraLoading.value) {
+      cameraLoading.value = false
+      alertStore.showAlert(t('direct.quality.cameraLoadTimeout'), 'warning')
+    }
+  }, CAMERA_LOAD_TIMEOUT)
+})
+
+/** 当前预览摄像头 key（单路：deviceId 或 facing 值）。用户未选择摄像头时为空字符串 */
+const previewCameraKey = computed(() => selectedCamera.value || '')
+
+/** 预览/共享同时打开的摄像头路数上限：资源受限浏览器（VIA 等）限 1 路（防崩溃闪退），
+ *  普通设备上限 4 路（多开 getUserMedia 流在低内存/部分浏览器会崩溃，故设上限） */
+const MAX_PREVIEW_CAMERAS = isLowEndBrowser() ? 1 : 4
+
+/** 预览 key 列表：多摄多选模式 → 全部选中设备逐路预览；单摄 → 主摄单路。
+ *  未选择摄像头时为空数组（预览区显示"请选择摄像头"提示）。
+ *  预览最多展示 MAX_PREVIEW_CAMERAS 路（与预览采集上限一致，避免格内无流的空窗）。 */
+const previewKeys = computed(() => {
+  if (!selectedCamera.value) return []
+  if (multiCameraMode.value && selectedCameras.value.length > 0) return [...selectedCameras.value].slice(0, MAX_PREVIEW_CAMERAS)
+  return [previewCameraKey.value]
+})
+
+/** 预览格内标签：多摄 → "摄像头 N"；单摄 → "实时预览" */
+const multiCameraPreviewLabel = (index: number, count: number, key: string): string => {
+  if (count > 1) return `${t('direct.quality.videoCamera')} ${index + 1}`
+  return t('direct.quality.configPreview')
+}
 
 /** 采集指定摄像头并刷新预览：成败均由采集结果驱动，不再依赖 ref 回调时机误判失败。
    *  成功 → 递增版本号强制 video 重建并绑定新流（解决"切换摄像头预览不更新/卡失败"）；
    *  失败 → 标记该 key 显示占位（cameraPreviewError 已记录细分原因，如权限被拒/无摄像头）。 */
 const refreshCameraPreview = async (facingMode?: string, deviceId?: string) => {
   const key = deviceId && deviceId !== 'user' && deviceId !== 'environment' ? deviceId : (facingMode || 'user')
+  cameraLoading.value = true // 切换/重试期间显示加载动画
   // 切换开始：先清除该 key 的旧失败标记，避免"正在采集"期间误显失败占位
   const clearing = new Set(previewFailedKeys.value)
   clearing.delete(key)
@@ -1506,13 +1840,12 @@ const refreshCameraPreview = async (facingMode?: string, deviceId?: string) => {
     failed.add(key)
     previewFailedKeys.value = failed
   }
+  cameraLoading.value = false
 }
 
-/** 重试单路预览：重新采集（成败由采集结果驱动） */
+/** 重试单路预览：重新采集（统一设备模式，按 deviceId；成败由采集结果驱动） */
 const retryCameraPreview = (key: string) =>
-  cameraSelectMode.value === 'position'
-    ? refreshCameraPreview(key)
-    : refreshCameraPreview(undefined, key)
+  refreshCameraPreview(undefined, key)
 
 /** 预览失败原因（DOMException.name 或能力预检的 'insecure'/'unsupported'） */
 const previewFailReason = computed(() => connection.cameraPreviewError?.value || '')
@@ -1561,6 +1894,11 @@ const cancelQuality = () => {
 const confirmQuality = async () => {
   const kind = pendingQualityKind.value
   if (!kind) return
+  // 视频共享：用户未选择摄像头时不开始，提示先选（不做自动默认选择）
+  if (kind === 'video' && !cameraSelected.value) {
+    alertStore.showAlert(t('direct.quality.cameraNotSelected'), 'warning')
+    return
+  }
   writePreference(STORAGE_KEY_QUALITY, selectedQuality.value)
   // 音频来源：屏幕/视频共享均取下拉多选结果；屏幕共享额外存入本地偏好
   const audioSource = selectedAudioSource.value
@@ -1568,17 +1906,34 @@ const confirmQuality = async () => {
   showQualityModal.value = false
   pendingQualityKind.value = null
   // 视频共享：接管选中摄像头预览流（不停止轨道）；码率/帧率由档位决定，不再手动调节。
-  // 单摄像头：位置（前后置）或设备（deviceId），共享中切换走 switchCamera
+  // 统一按设备（deviceId）共享：主摄（含音频）+ 附加路（仅视频）同时传输，接收端分屏显示。
   const preview = kind === 'video' ? connection.getPreviewStream(selectedCamera.value) || null : null
+  // 附加摄像头：多摄多选模式下除主摄外的其余选中设备（idx 从 1 开始递增）。
+  // 防御：同时共享太多路（每路一路 getUserMedia 实时流）在低内存/部分浏览器会崩溃闪退，
+  // 故附加路最多 MAX_PREVIEW_CAMERAS-1（主流 + 附加合计 ≤ MAX_PREVIEW_CAMERAS）。
+  const extraCameras = multiCameraMode.value
+    ? selectedCameras.value
+        .filter((id) => id !== selectedCamera.value)
+        .slice(0, MAX_PREVIEW_CAMERAS - 1)
+        .map((id, i) => ({ idx: i + 1, deviceId: id }))
+    : []
   try {
     const result = await connection.startMediaShare(kind, selectedQuality.value, audioSource, {
       stream: preview,
-      facingMode: kind === 'video' && cameraSelectMode.value === 'position' ? selectedCamera.value : undefined,
-      deviceId: kind === 'video' && cameraSelectMode.value === 'device' ? selectedCamera.value : undefined,
+      deviceId: kind === 'video' ? selectedCamera.value : undefined,
+      cameras: extraCameras,
     })
     if (!result.ok) {
       alertStore.showAlert(mediaErrorText(result.reason), 'error')
       return
+    }
+    // 多摄部分失败提示（附加路打不开不阻断主流共享）
+    if (connection.shareCameraFailures > 0) {
+      alertStore.showAlert(t('direct.quality.cameraPartialFailed', { count: connection.shareCameraFailures }), 'warning')
+    }
+    // 多摄超过同时共享上限（为防闪退截断至 4 路）→ 提示用户
+    if (multiCameraMode.value && selectedCameras.value.length > MAX_PREVIEW_CAMERAS) {
+      alertStore.showAlert(t('direct.quality.maxCamerasCapped', { max: MAX_PREVIEW_CAMERAS }), 'warning')
     }
     // 共享开始：初始化控制面板状态（档位标签 + 音频/系统音可用性）
     shareQualitySelectValue.value = selectedQuality.value
@@ -1592,10 +1947,11 @@ const confirmQuality = async () => {
     shareMicFailed.value = !!connection.micFailed?.value
     // 屏幕共享降级为前置摄像头（当前浏览器无屏幕采集 API）：明确告知用户
     shareUsesCamera.value = !!connection.screenUsesCamera?.value
-    // 视频共享：刷新设备列表供共享中切换
+    // 视频共享：刷新设备列表供共享中切换 + 同步本地附加路预览列表（多摄）
     if (kind === 'video') {
       const devices = await connection.listVideoInputDevices()
       if (devices.length > 0) videoDevices.value = devices
+      refreshLocalCameraIdxList()
     }
   } catch {
     // 异常兜底：提示失败且不进入共享状态（按钮可再次点击重试）
@@ -1611,6 +1967,25 @@ const bindLocalPreview = (el: unknown) => {
   if (stream && video.srcObject !== stream) {
     video.srcObject = stream
   }
+}
+
+/** 共享者本地预览：绑定附加摄像头流（多摄共享时逐路显示，仅视频轨） */
+const bindLocalCameraPreview = (el: unknown, idx: number) => {
+  const video = el as HTMLVideoElement | null
+  if (!video) return
+  const stream = connection.localCameraStreams?.get(idx)
+  if (stream && video.srcObject !== stream) {
+    video.srcObject = stream
+  }
+}
+
+/** 共享中的附加摄像头 idx 列表（响应式 key 列表触发渲染） */
+const localCameraIdxList = ref<number[]>([])
+
+/** 共享开始/结束时同步本地附加路预览列表 */
+const refreshLocalCameraIdxList = () => {
+  const idxs = connection.localCameraStreams ? Array.from(connection.localCameraStreams.keys()).sort((a, b) => a - b) : []
+  localCameraIdxList.value = [...idxs]
 }
 
 /** 本地预览静音状态：默认静音防回声；打开后可试听本机拾取的音频（不影响发送） */

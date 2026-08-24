@@ -4,6 +4,7 @@
  */
 import { Sha256 } from '@/utils/sha256'
 import { encodeDirectFrame } from '@/utils/direct-frame'
+import { encryptRelayChunk } from '@/utils/relay-crypto'
 import type { DirectTransferMode } from '@/types/direct'
 import type { DirectConnectionContext } from './context'
 
@@ -17,7 +18,6 @@ export interface FileSendCryptoApi {
   relayKeys: Map<string, CryptoKey>
 }
 
-const CHUNK_SIZE = 256 * 1024 // 分片大小 256KB
 const DRAIN_THRESHOLD = 4 * 1024 * 1024 // 发送缓冲背压阈值 4MB
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -105,10 +105,11 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
     const mode: DirectTransferMode = dc ? 'p2p' : 'relay'
     ctx.directStore.setFileMode(transferId, mode)
 
-    // 2. 中继模式受后台限制（大小 / 中转开关）；P2P 不受限制
+    // 2. 中继模式受后台限制（文件大小 / 中转开关）；P2P 不受限制
     if (mode === 'relay') {
-      const limit = ctx.configStore.uploadSizeLimit
-      if (limit > 0 && file.size > limit) {
+      // 房间文件中转单文件大小上限（MB，0=不限制），独立于全局 uploadSize（文件柜普通上传）
+      const maxRelayMb = Number(ctx.configStore.config.directMaxRelaySize) || 0
+      if (maxRelayMb > 0 && file.size > maxRelayMb * 1024 * 1024) {
         ctx.directStore.markRecipientFailed(transferId, targetClientId)
         ctx.directStore.addSystem(ctx.t('direct.file.relayLimitExceeded'))
         return
@@ -119,6 +120,9 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
         return
       }
     }
+    // 分片大小：后台可配置（directRelayChunkSize，KB），兜底 64KB
+    const chunkSizeKb = Number(ctx.configStore.config.directRelayChunkSize) || 64
+    const chunkSize = Math.min(256 * 1024, Math.max(16 * 1024, chunkSizeKb * 1024)) // 限制 16KB~256KB
 
     ctx.directStore.setFileStatus(transferId, 'transferring')
     const startPayload = {
@@ -155,7 +159,7 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
     let index = 0
     let failed = false
     while (offset < file.size) {
-      const end = Math.min(offset + CHUNK_SIZE, file.size)
+      const end = Math.min(offset + chunkSize, file.size)
       let buf: ArrayBuffer
       try {
         buf = await file.slice(offset, end).arrayBuffer()
@@ -181,8 +185,18 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
           break
         }
       } else {
-        // 中继：加密分片
-        const framed = encodeDirectFrame(transferId, index, buf, true)
+        // 中继：只加密「分片载荷」（AES-GCM → nonce + 密文），再套明文帧头。
+        // 接收端 decodeDirectFrame 按明文帧头(0xA5)解析 → decryptRelayChunk(frame.payload)。
+        // 绝不能把整个 framed（含明文帧头）再整体加密，否则接收端收到的首字节是 nonce，
+        // 命中 0xA5 概率仅 1/256 → 帧被静默丢弃 → 接收进度 0、发送端 hash_mismatch 失败。
+        let encryptedBuf: ArrayBuffer
+        try {
+          encryptedBuf = relayKey ? await encryptRelayChunk(relayKey, buf) : buf
+        } catch {
+          failed = true
+          break
+        }
+        const framed = encodeDirectFrame(transferId, index, encryptedBuf, true)
         // 中继背压：WebSocket 缓冲过大时等待（避免慢网内存上涨）
         while (ctx.ws.value && ctx.ws.value.readyState === WebSocket.OPEN && ctx.ws.value.bufferedAmount > DRAIN_THRESHOLD) await sleep(30)
         if (!ctx.ws.value || ctx.ws.value.readyState !== WebSocket.OPEN) {
@@ -190,7 +204,9 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
           break
         }
         ctx.sendSignal({ type: 'file_chunk', transfer_id: transferId, index })
-        if (!(await ctx.sendBinary(framed, relayKey))) {
+        try {
+          ctx.ws.value.send(framed)
+        } catch {
           failed = true
           break
         }

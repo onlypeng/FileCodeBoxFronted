@@ -185,8 +185,6 @@ const uploadSuccess = ref(false)
 
 /** 大文件走分片上传的阈值（超过则分片，避免单请求内存/超时问题） */
 const CHUNK_UPLOAD_THRESHOLD = 50 * 1024 * 1024
-/** 分片大小（与后端 /chunk 分片接口声明一致） */
-const CHUNK_SIZE = 5 * 1024 * 1024
 
 // 已上传成功的文件记录
 interface UploadedFileInfo {
@@ -371,6 +369,9 @@ const uploadFileWithChunk = async (
   fileIndex: number,
   totalCount: number
 ): Promise<{ id: number; filename: string; file_size: number; status: string }> => {
+  // 分片大小：后台 uploadChunkSize（MB）→ 字节，限 1MB~100MB，兜底 5MB
+  const chunkSizeMb = Number(config.value.uploadChunkSize) || 0
+  const chunkSize = Math.min(100 * 1024 * 1024, Math.max(1 * 1024 * 1024, chunkSizeMb > 0 ? chunkSizeMb * 1024 * 1024 : 5 * 1024 * 1024))
   const onItemProgress = (percentage: number) => {
     const item = uploadingList.value.find(u => u.id === upItemId)
     if (item) item.progress = percentage
@@ -396,24 +397,24 @@ const uploadFileWithChunk = async (
     uploader_name: uploaderName.value,
     file_name: file.name,
     file_size: file.size,
-    chunk_size: CHUNK_SIZE,
+    chunk_size: chunkSize,
     file_hash: fileHash
   })
   if (initRes.code !== 200 || !initRes.detail?.upload_id) {
     throw new Error(initRes.message || '分片上传初始化失败')
   }
   const { upload_id: uploadId } = initRes.detail
-  const chunks = Math.ceil(file.size / CHUNK_SIZE)
+  const chunks = Math.ceil(file.size / chunkSize)
   const uploadedChunks = new Set<number>(initRes.detail.uploaded_chunks || [])
 
   try {
     for (let index = 0; index < chunks; index++) {
       if (uploadedChunks.has(index)) continue
-      const start = index * CHUNK_SIZE
-      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const start = index * chunkSize
+      const end = Math.min(start + chunkSize, file.size)
       const chunkBlob = file.slice(start, end)
       const chunkRes = await delivery.uploadChunk(uploadId, index, new Blob([chunkBlob], { type: file.type }), (progress) => {
-        const completedBytes = calculateCompletedBytes(uploadedChunks, CHUNK_SIZE, file.size)
+        const completedBytes = calculateCompletedBytes(uploadedChunks, chunkSize, file.size)
         const percentage = Math.round(((completedBytes + progress.loaded) * 100) / file.size)
         onItemProgress(Math.min(percentage, 99))
       })
