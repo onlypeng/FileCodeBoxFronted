@@ -1150,6 +1150,7 @@ export default {
       previewAudioToggle: '开启/关闭本地预览声音（仅试听，不影响发送）',
       qualityApplied: '已切换分辨率，查看者将重新建立画面',
       cameraSwitched: '已切换摄像头，查看者将重新建立画面',
+      cameraSwitching: '正在切换摄像头…',
       cameraSwitchFailed: '摄像头切换失败，请重试',
       cameraPartialFailed: '{count} 个附加摄像头打开失败（设备可能不支持并发），已共享主摄像头',
       maxCamerasCapped: '为保障稳定性，最多同时共享 {max} 路摄像头，超出部分未启用',
@@ -1213,7 +1214,9 @@ export default {
       autoDesc: '根据实时带宽自动选择档位（P2P 实测/中转限速）',
       // 共享前配置页（实时调节共享参数）
       videoCamera: '摄像头',
+      defaultCamera: '默认摄像头（系统自动选择）',
       cameraPickHint: '请先选择要共享的摄像头',
+      cameraMobileDefault: '将使用默认摄像头共享（手机/平板不提供摄像头选择）',
       cameraNotSelected: '请先选择摄像头再共享视频',
       cameraPreviewFailed: '该摄像头无法打开（设备可能不支持多路同时开启）',
       cameraNotFound: '未检测到摄像头，无法共享视频',

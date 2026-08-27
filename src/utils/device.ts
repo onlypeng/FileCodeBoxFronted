@@ -1,50 +1,51 @@
 /**
- * 移动端检测：结合【触屏能力】+ UA 关键字 + userAgentData + 平台架构，避免纯 UA 误判/漏判。
- * 优先级：
- *  - userAgentData.mobile（权威标签）
- *  - UA 关键字（安卓/iOS/鸿蒙/华为浏览器/EMUI 等）
- *  - ARM 架构（手机/平板几乎全是 ARM）
- *  - 触屏能力（粗指针 + 多点触控；触屏笔记本误判为移动端的代价远低于鸿蒙/安卓漏判）
- * 用途：屏幕共享音频来源、前后置摄像头选择等移动端差异逻辑（不是多摄像头支持与否的判定依据）。
+ * 移动端检测：UA 标识为主 + 触屏兜底，判断 手机/平板/电脑。
+ * 判断优先级：
+ *  1) userAgentData.mobile：true → 移动；false 不提前返回（部分 WebView/鸿蒙 UA-CH 标签异常为 false，
+ *     若因此返回 false 会漏判手机显示"传屏幕"）→ 继续后续 UA/触屏判断
+ *  2) UA 关键字（iPhone/Android+Mobile/鸿蒙/HarmonyOS/EMUI/HuaweiBrowser 等；iPad/Android 平板）
+ *  3) 触屏兜底：粗指针(pointer:coarse) 或 多点触控(maxTouchPoints>0) → 手持设备必为触屏，
+ *     确保 UA 不完整的手机/平板不漏判为桌面。
+ * 用途：隐藏移动端不可用的"传屏幕"、音频来源收敛等移动端差异逻辑。
  */
 export function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false
-  // 1) userAgentData：浏览器提供的权威移动设备标签（Chrome/Edge 桌面 UA + 未开移动模拟时为 false）
+  // 1) userAgentData：正向信号（true=移动），false 不提前返回（继续 UA/触屏判断）
   try {
-    const uad = (navigator as unknown as { userAgentData?: { mobile?: boolean } }).userAgentData
-    if (uad && typeof uad.mobile === 'boolean') return uad.mobile
+    const uad = (navigator as unknown as { userAgentData?: { mobile?: boolean; platform?: string } }).userAgentData
+    if (uad && typeof uad.mobile === 'boolean') {
+      if (uad.mobile) return true
+      if (uad.platform && /iPad|iOS|Android/i.test(uad.platform)) return true
+      // mobile=false 且 platform 非移动：不返回，继续走 UA/触屏兜底
+    }
   } catch {
     /* fallthrough */
   }
-  // 2) UA 关键字（含鸿蒙/华为/EMUI 等；鸿蒙浏览器 UA 常不带 Mobile，但带系统/内核标识）
+  // 2) UA 关键字（先平板再手机）
   const ua = navigator.userAgent || ''
-  if (/(Android|iPhone|iPod|HarmonyOS|鸿蒙|Mobile|Opera Mini|IEMobile|WPDesktop|PlayStation Vita|HuaweiBrowser|ArkWeb|EMUI)/i.test(ua)) {
+  if (isTabletDevice()) return true
+  if (/(iPhone|iPod|Android.*Mobile|HarmonyOS|鸿蒙|Mobile|Opera Mini|IEMobile|WPDesktop|PlayStation Vita|HuaweiBrowser|ArkWeb|EMUI)/i.test(ua)) {
     return true
   }
-  // iPad：旧版 Safari 上报 Macintosh 桌面 UA，但仍是触屏平板（移动端行为）
-  if (/iPad|Macintosh/.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1) {
-    return true
-  }
-  // 3) ARM 架构：手机/平板几乎全为 ARM；桌面 x86/AMD64 不在此列。
-  //    鸿蒙/安卓浏览器 UA 可能完全中性（无 Android/Mobile），此信号能覆盖这类漏判。
-  try {
-    const platform = (navigator as { platform?: string }).platform || ''
-    if (/arm|aarch64|armv/i.test(platform) && !/win|macintosh|linux x86/i.test(platform)) {
-      return true
-    }
-  } catch {
-    /* ignore */
-  }
-  // 4) 触屏能力兜底：粗指针触屏 + 支持多点触控。
-  //    不限制屏幕尺寸/DPR：触屏笔记本误判为移动端的代价（前后置模式+音频收敛）远小于鸿蒙漏判
+  // 3) 触屏兜底：粗指针 或 多点触控 → 手持设备必为触屏（触屏笔记本误判代价小：仅隐藏传屏幕/音频收敛）
   try {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches
-    if (coarse && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0) {
-      return true
-    }
+    const touch = typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0
+    if (coarse || touch) return true
   } catch {
     /* ignore */
   }
+  return false
+}
+
+/** 平板检测（iPad / Android Tablet…）：UA 标识判断，供移动端差异逻辑细分 */
+export function isTabletDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  if (/iPad/i.test(ua)) return true
+  // Android 平板：Android 但无 Mobile 标记（表尺寸）
+  if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return true
+  // 触屏本（如 Surface）不算平板 UA
   return false
 }
 

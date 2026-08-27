@@ -134,19 +134,29 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     return kind === 'video' ? MEDIA_QUALITY_PRESETS.hd : MEDIA_QUALITY_PRESETS.hd
   }
 
-  /** 对视频轨道施加分辨率/帧率约束（按档位；origin 档 width=0 表示保留采集源原始分辨率，不约束） */
-  async function applyTrackQuality(track: MediaStreamTrack, preset: MediaQualityPreset): Promise<void> {
+  /** 对视频轨道施加分辨率/帧率约束（按档位；origin 档 width=0 表示保留采集源原始分辨率，不约束）。
+   *  视频共享（手机竖屏摄像头）只压【高度】理想值、不指定宽度/宽高比——否则竖屏流会被浏览器按
+   *  横屏档位（如 1280x720 16:9）重采样/裁切成横屏。屏幕共享（getDisplayMedia 横屏）保留横屏宽高。 */
+  async function applyTrackQuality(track: MediaStreamTrack, preset: MediaQualityPreset, videoShare = false): Promise<void> {
     try {
       if (preset.width <= 0) {
         // 原画：只放开帧率上限（不强制），保留原始分辨率
         await track.applyConstraints({ frameRate: { max: preset.frameRate } })
         return
       }
-      await track.applyConstraints({
-        width: { ideal: preset.width },
-        height: { ideal: preset.height },
-        frameRate: { ideal: preset.frameRate, max: preset.frameRate },
-      })
+      if (videoShare) {
+        // 视频共享：只压高度，保留竖屏/横屏原始方向
+        await track.applyConstraints({
+          height: { ideal: preset.height },
+          frameRate: { ideal: preset.frameRate, max: preset.frameRate },
+        })
+      } else {
+        await track.applyConstraints({
+          width: { ideal: preset.width },
+          height: { ideal: preset.height },
+          frameRate: { ideal: preset.frameRate, max: preset.frameRate },
+        })
+      }
     } catch {
       /* 部分浏览器/设备不支持约束时忽略（仍可传输，只是未降档） */
     }
@@ -346,8 +356,10 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     // 'default' 是"未授权/空 deviceId 摄像头"的占位值 → 让浏览器自动选默认视频源
     const isDefault = deviceId === 'default'
     const validDevice = !!deviceId && !isDefault && deviceId !== 'user' && deviceId !== 'environment'
-    // 温和分辨率约束（ideal 非强制）：既避免后摄模糊，也不激进请求 1080p（弱浏览器识别/编码异常易崩）
-    const hd = { width: { ideal: 1280 }, height: { ideal: 720 } }
+    // 分辨率约束：只请求"高度"理想值、不指定宽度/宽高比——若同时指定 1280x720(16:9)，
+    // 竖屏手机摄像头流(9:16)会被浏览器按横屏重采样/裁切成横屏。只给高度 ideal，
+    // 浏览器保留采集源原始方向（竖屏保持竖屏），配合播放端 object-contain 完整显示。
+    const hd = { height: { ideal: 720 } }
     let base: MediaTrackConstraints
     if (isDefault) {
       base = {} // 默认摄像头：不带任何约束，浏览器自动选默认视频源
@@ -384,6 +396,10 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     if (validDevice) {
       // 桌面 exact deviceId 失败 → 按 facingMode 降级 → 无约束纯视频兜底（浏览器选默认摄像头）
       attempts.push({ video: facingMode ? { facingMode, ...hd } : { facingMode: 'user', ...hd }, audio: false })
+      attempts.push({ video: true, audio: false })
+    } else if (!facingMode) {
+      // 默认采集（无方向/无指定设备）：facingMode user 失败 → 无约束纯视频兜底。
+      // 部分手机无前置 / 不支持 facingMode 约束时，{video:true} 能让浏览器选任意可用摄像头，避免"获取失败"。
       attempts.push({ video: true, audio: false })
     }
     // 手机 position 模式（facingMode）：不加无约束兜底，失败即返回（避免回退前置的假切换）
@@ -519,10 +535,10 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     if (quality === 'auto') quality = 'auto'
     const preset = await resolveQuality(kind, quality)
     ctx.currentMediaPreset.value = preset
-    // 1) 各路轨道分辨率/帧率约束（主流 + 附加摄像头）
+    // 1) 各路轨道分辨率/帧率约束（主流 + 附加摄像头；均为视频 → 只压高度保留原始方向）
     for (const s of ctx.localCameraStreams.values()) {
       const vTrack = s.getVideoTracks()[0]
-      if (vTrack) await applyTrackQuality(vTrack, preset)
+      if (vTrack) await applyTrackQuality(vTrack, preset, true)
     }
     // 2) P2P 各连接码率上限
     if (p2pApi) {
@@ -565,66 +581,147 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
   }
 
   /** 共享中切换摄像头：采集新视频轨 → 替换本地流 → P2P replaceTrack（无需重新协商）→ 中转重启录制。
-   *  facingMode：移动端前置/后置（系统自动选该方向摄像头）；deviceId：桌面端指定设备。 */
+   *  facingMode：移动端前置/后置（系统自动选该方向摄像头）；deviceId：桌面端指定设备。
+   *  切换策略：
+   *  - 桌面支持并发的浏览器：优先【不停旧轨】直接开新路（无缝），失败回退串行。
+   *  - 手机/单路浏览器：同一时刻只能一路 → 先【停旧轨释放】再开新路，串行成功。
+   *    采集带较长超时（手机设备初始化常见 3~6s），且失败时【补回旧轨】避免共享黑屏。
+   *  切换完成后中转录制后台重建（不阻塞切换成功返回）。 */
   async function switchCamera(facingMode?: string, deviceId?: string): Promise<boolean> {
     const local = ctx.localMediaStream.value
     if (!local) return false
-    // 1) 采集新摄像头视频轨（仅视频；失败即返回，不动原状态）
+    if (local.getVideoTracks().length === 0) return false // 无视频轨（如屏幕共享）不可切
+    const isMobileSwitch = isMobileDevice()
     let newTrack: MediaStreamTrack | null = null
-    try {
-      // 防御：deviceId 可能混入位置值（user/environment）或 'default'（未授权空 deviceId 的占位）
-      const isDefault = deviceId === 'default'
-      const validDevice = !!deviceId && !isDefault && deviceId !== 'user' && deviceId !== 'environment'
-      const videoC: MediaTrackConstraints | boolean = isDefault
-        ? true // 默认摄像头：交给浏览器选默认视频源
-        : validDevice
-          ? { deviceId: { exact: deviceId } }
-          : facingMode
-            ? { facingMode }
-            : { facingMode: 'user' }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: videoC })
-      newTrack = stream.getVideoTracks()[0] || null
+    // 采集超时上限：手机切设备初始化常 3~6s，给足 8s；超时按失败处理（避免死等），但不会误杀正常切换
+    const GUM_TIMEOUT = 8000
+    /** 单次采集（带超时保护，避免旧轨未释放时 getUserMedia 无限挂起） */
+    const tryAcquire = async (): Promise<MediaStreamTrack | null> => {
+      try {
+        const isDefault = deviceId === 'default'
+        const validDevice = !!deviceId && !isDefault && deviceId !== 'user' && deviceId !== 'environment'
+        const videoC: MediaTrackConstraints | boolean = isDefault
+          ? true
+          : validDevice
+            ? { deviceId: { exact: deviceId } }
+            : facingMode
+              ? { facingMode }
+              : { facingMode: 'user' }
+        const stream = await Promise.race([
+          navigator.mediaDevices.getUserMedia({ video: videoC }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('gum-timeout')), GUM_TIMEOUT)),
+        ])
+        const track = stream.getVideoTracks()[0] || null
+        if (!track) for (const t of stream.getTracks()) t.stop()
+        return track
+      } catch {
+        return null
+      }
+    }
+    // 停止并移除本地旧视频轨；同时持有旧轨引用，失败时补回
+    const oldTracks: MediaStreamTrack[] = []
+    const stopLocalVideoTrack = () => {
+      try {
+        for (const t of local.getVideoTracks()) {
+          oldTracks.push(t)
+          local.removeTrack(t)
+          t.stop()
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    // 失败回滚：补回旧轨（新建外层流或直接加回），避免共享失去画面
+    const restoreOldTrack = () => {
+      try {
+        if (local.getVideoTracks().length === 0) {
+          for (const t of oldTracks) local.addTrack(t)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (isMobileSwitch) {
+      // 手机：先停旧轨释放 → 短等(200ms)确保硬件释放 → 采集新轨；失败重试一次
+      stopLocalVideoTrack()
+      await new Promise((r) => setTimeout(r, 200))
+      newTrack = await tryAcquire()
       if (!newTrack) {
-        for (const t of stream.getTracks()) t.stop()
+        await new Promise((r) => setTimeout(r, 200))
+        newTrack = await tryAcquire()
+      }
+      if (!newTrack) {
+        restoreOldTrack() // 切换失败：补回旧轨，保持画面不黑
         return false
       }
-    } catch {
-      return false
-    }
-    // 2) 先 P2P replaceTrack：全部成功后才替换本地流。
-    //    任一失败 → stop 新轨、返回 false，本地流保持原状（避免"本地已换、P2P 未换"的黑屏卡死）
-    if (p2pApi) {
-      const entries = Array.from(ctx.p2p.values())
-      const senders: Array<RTCRtpSender | null> = entries.map((entry) =>
-        entry.pc.getSenders().find((s) => s.track && s.track.kind === 'video') || null
-      )
-      for (const sender of senders) {
-        if (!sender) continue
-        try {
-          await sender.replaceTrack(newTrack)
-        } catch {
-          // replaceTrack 失败（连接已关闭/协商中）：回滚已替换的 sender，并放弃本次切换
-          for (const done of senders) {
-            if (done) done.replaceTrack(local.getVideoTracks()[0] ?? null).catch(() => {})
+      // 补回本地流 + P2P 替换
+      local.addTrack(newTrack)
+      if (p2pApi) {
+        for (const entry of Array.from(ctx.p2p.values())) {
+          const sender = entry.pc.getSenders().find((s) => s.track && s.track.kind === 'video')
+          if (sender) {
+            try {
+              await sender.replaceTrack(newTrack)
+            } catch {
+              /* ignore */
+            }
           }
-          newTrack.stop()
-          return false
         }
       }
+    } else {
+      // 桌面：优先不停旧轨直接开（无缝）；失败 → 先停旧轨再开（回退）
+      newTrack = await tryAcquire()
+      if (!newTrack) {
+        stopLocalVideoTrack()
+        await new Promise((r) => setTimeout(r, 200))
+        newTrack = await tryAcquire()
+        if (!newTrack) {
+          restoreOldTrack()
+          return false
+        }
+        local.addTrack(newTrack)
+        if (p2pApi) {
+          for (const entry of Array.from(ctx.p2p.values())) {
+            const sender = entry.pc.getSenders().find((s) => s.track && s.track.kind === 'video')
+            if (sender) {
+              try {
+                await sender.replaceTrack(newTrack)
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+        }
+        void restartMediaRelay().catch(() => {})
+        return true
+      }
+      // 桌面无缝成功：P2P replaceTrack 全量替换
+      if (p2pApi) {
+        const senders: Array<RTCRtpSender | null> = Array.from(ctx.p2p.values()).map((entry) =>
+          entry.pc.getSenders().find((s) => s.track && s.track.kind === 'video') || null
+        )
+        for (const sender of senders) {
+          if (!sender) continue
+          try {
+            await sender.replaceTrack(newTrack)
+          } catch {
+            for (const done of senders) {
+              if (done) done.replaceTrack(local.getVideoTracks()[0] ?? null).catch(() => {})
+            }
+            newTrack.stop()
+            return false
+          }
+        }
+      }
+      for (const t of local.getVideoTracks()) {
+        local.removeTrack(t)
+        t.stop()
+      }
+      local.addTrack(newTrack)
     }
-    // 3) 替换本地流的视频轨（此时 P2P 已全部就绪）
-    for (const t of local.getVideoTracks()) {
-      local.removeTrack(t)
-      t.stop()
-    }
-    local.addTrack(newTrack)
-    // 4) 中转：重启录制（新 transfer_id → 查看者重建 MediaSource）。
-    //    失败不阻断主流程（本地/P2P 已切换成功），仅停止录制；下次订阅会重建
-    try {
-      await restartMediaRelay()
-    } catch {
-      /* 中转重启失败：本地与 P2P 已切换，录制待下次订阅重建 */
-    }
+    // 中转：重启录制（新 transfer_id → 查看者重建 MediaSource）。
+    // 不阻塞切换完成：后台重建录制/转发目标（查看者稍后自行重建），切换立即返回已成功。
+    void restartMediaRelay().catch(() => {})
     return true
   }
 
@@ -731,9 +828,9 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     // 媒体获取之后再解析档位（避免媒体采集调用远离用户手势）
     const preset = await resolveQuality(kind, quality)
     ctx.currentMediaPreset.value = preset
-    // 压缩：对视频轨道施加分辨率/帧率约束（按档位，降低码率与带宽）
+    // 压缩：对视频轨道施加分辨率/帧率约束（按档位；视频共享只压高度保留竖屏方向，屏幕共享压横屏宽高）
     const vTrack = stream.getVideoTracks()[0]
-    if (vTrack) await applyTrackQuality(vTrack, preset)
+    if (vTrack) await applyTrackQuality(vTrack, preset, kind === 'video')
     // 记录当前音频来源（控制面板据此显示系统声音开关）
     ctx.currentShareAudioKind.value = kind === 'screen' ? (audio as 'none' | 'mic' | 'system' | 'both') : 'mic'
     ctx.localMediaStream.value = stream

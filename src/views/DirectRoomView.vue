@@ -161,6 +161,18 @@
                 controls
                 class="w-full max-h-40 bg-black"
               ></video>
+              <!-- 摄像头切换中：悬浮在预览视频上方 -->
+              <div
+                v-if="cameraSwitching"
+                class="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]"
+              >
+                <span class="px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5"
+                  :class="[isDarkMode ? 'bg-gray-900/80 text-indigo-200' : 'bg-white/90 text-indigo-700']"
+                >
+                  <span class="w-3 h-3 rounded-full border-2 border-transparent border-t-current border-b-current animate-spin"></span>
+                  {{ t('direct.room.cameraSwitching') }}
+                </span>
+              </div>
               <!-- 本地预览静音开关：仅试听本机拾取的音频（不影响发送给对方的音轨） -->
               <button
                 @click="toggleLocalPreviewMute"
@@ -738,11 +750,20 @@
           @update:model-value="selectedQuality = $event as string"
         />
 
-        <!-- 摄像头选择：桌面且有 ≥2 个摄像头 → 多选同时共享；否则单选（单摄共享中切换） -->
+        <!-- 摄像头选择：多选仅桌面（手机/平板单选）；无设备 → 明确提示 -->
         <div v-if="pendingQualityKind === 'video'" class="pt-1 space-y-2">
           <p class="text-sm font-medium" :class="[isDarkMode ? 'text-gray-200' : 'text-gray-700']">
             {{ t('direct.quality.videoCamera') }}
           </p>
+          <!-- 无摄像头设备：直接提示，不渲染选择下拉 -->
+          <p
+            v-if="!cameraLoading && videoDevices.length === 0"
+            class="text-xs mt-1"
+            :class="[isDarkMode ? 'text-red-400' : 'text-red-500']"
+          >
+            {{ t('direct.quality.cameraNotFound') }}
+          </p>
+          <template v-else>
           <ThemeDropdown
             v-if="multiCamerasEnabled"
             :options="cameraPickOptions"
@@ -757,8 +778,10 @@
             :options="cameraPickOptions"
             :model-value="selectedCamera"
             width="w-full"
+            :placeholder="t('direct.quality.cameraPickPlaceholder')"
             @update:model-value="onCameraSelect($event as string)"
           />
+          </template>
           <p v-if="cameraSelectHint" class="text-[11px]" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
             {{ cameraSelectHint }}
           </p>
@@ -827,7 +850,7 @@
                   muted
                   autoplay
                   playsinline
-                  class="w-full h-full object-cover"
+                  class="w-full h-full object-contain"
                 ></video>
                 <!-- 摄像头文字：视频左上角 -->
                 <span class="absolute top-1 left-1 px-1 py-px rounded text-[9px] bg-black/50 text-white leading-none">
@@ -1469,7 +1492,11 @@ const shareCameraOptions = computed(() =>
   }))
 )
 const shareCameraValue = computed(() => selectedCamera.value || '')
+/** 摄像头切换中（采集新轨需数百 ms~数秒；期间显示"切换中"提示，避免用户重复点击/误以为卡死） */
+const cameraSwitching = ref(false)
 const onShareCameraChange = async (value: string) => {
+  if (cameraSwitching.value || value === selectedCamera.value) return // 切换中防重入；选同项忽略
+  cameraSwitching.value = true
   try {
     const ok = await connection.switchCamera(undefined, value)
     if (ok) {
@@ -1480,6 +1507,8 @@ const onShareCameraChange = async (value: string) => {
     }
   } catch {
     alertStore.showAlert(t('direct.room.cameraSwitchFailed'), 'error')
+  } finally {
+    cameraSwitching.value = false
   }
 }
 
@@ -1586,7 +1615,8 @@ const audioSourceSelections = ref<string[]>([])
 
 /** 可用摄像头设备列表（权限授予后填充；部分浏览器未授权时 deviceId 可能为空，仍列出） */
 const videoDevices = ref<MediaDeviceInfo[]>([])
-/** 摄像头设备选项：value=deviceId；未授权/空 deviceId 的设备用占位 'default'（让浏览器选默认摄像头） */
+/** 摄像头设备选项：value=deviceId；未授权/空 deviceId 的设备用占位 'default'（让浏览器选默认摄像头）。
+ *  label 直接用设备名，超长由 ThemeDropdown 的 truncate + min-w-0 自动省略号截断（不手动截断，避免双省略/溢出） */
 const videoDeviceOptions = computed(() =>
   videoDevices.value.map((d) => ({
     value: d.deviceId || 'default',
@@ -1609,10 +1639,10 @@ const selectedCameras = ref<string[]>([])
 /** 用户是否已选择摄像头（打开弹窗不自动选，需用户在下拉中主动选择） */
 const cameraSelected = computed(() => !!selectedCamera.value)
 
-/** 是否可多选摄像头：枚举到 ≥2 个具体设备即可选（桌面/手机皆然；实际能否多路并行打开
- *  由共享时逐路采集决定——不支持多路的浏览器/设备会自动回退到仅主摄，不会阻断）。
- *  移动端通常只报 0~1 个设备（前后置归为位置），此时走前后置单选切换。 */
-const multiCamerasEnabled = computed(() => videoDevices.value.length >= 2)
+/** 是否可多选摄像头：仅桌面端且枚举到 ≥2 个具体设备才允许多选（同时共享多路）。
+ *  手机/平板【不允许多选】——移动端系统通常不支持多路并行采集，且前后置切换更直观，
+ *  故移动端完全不提供摄像头选择 UI（无多选也无单选），共享直接用默认/首个摄像头。 */
+const multiCamerasEnabled = computed(() => !isMobile && videoDevices.value.length >= 2)
 
 /** 是否处于多摄多选模式：多选可用 + 至少选中 2 个摄像头 */
 const multiCameraMode = computed(
@@ -1751,21 +1781,32 @@ const openQualityPicker = async (kind: 'screen' | 'video') => {
   // 不做自动选择/自动预览——用户在下拉里挑好摄像头后再预览。
   if (kind === 'video') {
     try {
-      // 权限状态检查：若浏览器已记住"拒绝"（常见于之前误点拒绝），getUserMedia 不再弹权限 →
-      // 预览会失败且无弹窗，此处先明确提示，并给出去浏览器设置开启的指引。
-      // granted/prompt 则正常（granted=已授权不再弹，prompt=将弹出）。
+      // 权限状态检查：若浏览器已记住"拒绝"，getUserMedia 不再弹权限 → 明确提示指引
       void checkCameraPermissionStatus()
-      // 首次预取：触发权限授权，使 enumerateDevices 能返回带 deviceId/label 的摄像头列表
-      await connection.startSharePreview('video')
+      // 首次预取：触发权限授权；返回 false 表示无摄像头/采集失败——据此清 loading 并提示。
+      const preOk = await connection.startSharePreview('video')
       const devices = await connection.listVideoInputDevices()
-      videoDevices.value = devices
-      // 每次打开弹窗：清空已选摄像头，让用户自己挑选（不自动选第一个）
+      // 枚举不到设备但预取成功（有摄像头可用）→ 补一个"默认摄像头"占位，保证下拉至少可选，
+      // 避免"只有请选择摄像头文本、无下拉选项"的空列表。
+      if (devices.length === 0 && preOk) {
+        videoDevices.value = [{ kind: 'videoinput', deviceId: '', label: t('direct.quality.defaultCamera'), groupId: '', toJSON: () => ({}) } as unknown as MediaDeviceInfo]
+      } else {
+        videoDevices.value = devices
+      }
+      // 每次打开弹窗：清空已选摄像头，让用户自己挑选
       selectedCamera.value = ''
       selectedCameras.value = []
       cameraSelectMode.value = 'device'
-      // 设备数 ≥2 → 多选；=1 → 单选；0 → 无摄像头失败态（预览区提示）
+      // 无论预取成功与否，枚举完成后即结束加载态：
+      //  - 有设备 → loading 结束（用户自选后再预览）
+      //  - 无设备（无摄像头/未授权）→ 结束 loading + 明确提示，不挂起也不报"加载超时"
+      cameraLoading.value = false
+      if (!preOk && devices.length === 0) {
+        // 无摄像头设备：预览区显示"未检测到摄像头"占位（cameraPreviewError 驱动文案）
+        alertStore.showAlert(t('direct.quality.cameraNotFound'), 'warning')
+      }
     } catch (err) {
-      // 摄像头采集/枚举异常：弹窗已打开，预览区走失败态（cameraPreviewError），不阻断配置
+      // 摄像头采集/枚举异常：弹窗已打开，预览区走失败态；结束加载态
       console.warn('[direct] 摄像头枚举/预览失败', err)
       cameraLoading.value = false
     }
@@ -1785,7 +1826,9 @@ const cameraLoadingStart = ref(0)
 /** 摄像头加载超时（ms）：超过后仍无结果则提示用户，避免无限转圈 */
 const CAMERA_LOAD_TIMEOUT = 15000
 
-/** 摄像头加载超时兜底：loading 置 true 时启动定时器，超时仍未完成则停止加载并提示（如权限弹窗悬挂） */
+/** 摄像头加载超时兜底：loading 置 true 时启动定时器，超时仍未完成则停止加载并提示（如权限弹窗悬挂）。
+ *  注意：无摄像头/采集失败路径会及时清 cameraLoading=false（不走超时），因此超时提示只在
+ *  真正"卡住"（如权限弹窗悬挂、getUserMedia 无返回）时出现，不会误报。 */
 watch(cameraLoading, (loading) => {
   if (!loading) return
   setTimeout(() => {
@@ -1894,7 +1937,7 @@ const cancelQuality = () => {
 const confirmQuality = async () => {
   const kind = pendingQualityKind.value
   if (!kind) return
-  // 视频共享：用户未选择摄像头时不开始，提示先选（不做自动默认选择）
+  // 视频共享：未选择摄像头时不开始，提示先选（桌面/手机均由用户自选后共享）
   if (kind === 'video' && !cameraSelected.value) {
     alertStore.showAlert(t('direct.quality.cameraNotSelected'), 'warning')
     return
@@ -1907,7 +1950,11 @@ const confirmQuality = async () => {
   pendingQualityKind.value = null
   // 视频共享：接管选中摄像头预览流（不停止轨道）；码率/帧率由档位决定，不再手动调节。
   // 统一按设备（deviceId）共享：主摄（含音频）+ 附加路（仅视频）同时传输，接收端分屏显示。
-  const preview = kind === 'video' ? connection.getPreviewStream(selectedCamera.value) || null : null
+  // 手机/平板未提供选择 UI → 用默认/首个设备：deviceId = 已选 或 设备列表第一个 或 'default'
+  const shareDeviceId = kind === 'video'
+    ? (selectedCamera.value || videoDevices.value[0]?.deviceId || 'default')
+    : undefined
+  const preview = kind === 'video' && shareDeviceId ? connection.getPreviewStream(shareDeviceId) || null : null
   // 附加摄像头：多摄多选模式下除主摄外的其余选中设备（idx 从 1 开始递增）。
   // 防御：同时共享太多路（每路一路 getUserMedia 实时流）在低内存/部分浏览器会崩溃闪退，
   // 故附加路最多 MAX_PREVIEW_CAMERAS-1（主流 + 附加合计 ≤ MAX_PREVIEW_CAMERAS）。
@@ -1920,7 +1967,7 @@ const confirmQuality = async () => {
   try {
     const result = await connection.startMediaShare(kind, selectedQuality.value, audioSource, {
       stream: preview,
-      deviceId: kind === 'video' ? selectedCamera.value : undefined,
+      deviceId: shareDeviceId,
       cameras: extraCameras,
     })
     if (!result.ok) {

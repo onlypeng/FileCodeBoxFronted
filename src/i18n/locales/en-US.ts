@@ -1192,6 +1192,7 @@ export default {
       previewAudioToggle: 'Toggle local preview sound (listen only, does not affect sending)',
       qualityApplied: 'Quality switched, viewers will rebuild the picture',
       cameraSwitched: 'Camera switched, viewers will rebuild the picture',
+      cameraSwitching: 'Switching camera…',
       cameraSwitchFailed: 'Camera switch failed, please retry',
       cameraPartialFailed: '{count} additional camera(s) failed to open (device may not support concurrency); sharing main camera',
       maxCamerasCapped: 'For stability, at most {max} cameras are shared simultaneously; the rest were not enabled',
@@ -1255,7 +1256,9 @@ export default {
       autoDesc: 'Auto-match quality from live bandwidth (P2P measured / relay limit)',
       // Pre-share configuration page (live parameter adjustment)
       videoCamera: 'Camera',
+      defaultCamera: 'Default camera (auto-selected by system)',
       cameraPickHint: 'Select a camera to share first',
+      cameraMobileDefault: 'The default camera will be used (camera selection is not available on phones/tablets)',
       cameraNotSelected: 'Please select a camera before sharing video',
       cameraPreviewFailed: 'This camera could not be opened (device may not support multiple simultaneous feeds)',
       cameraNotFound: 'No camera detected; video sharing is unavailable',

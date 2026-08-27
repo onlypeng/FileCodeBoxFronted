@@ -12,7 +12,6 @@ import { calculateFileHash } from '@/utils/file-processing'
 import { buildSentRecord } from '@/utils/send-record'
 import { createSentRecordActions } from '@/utils/sent-record-actions'
 import type { MultiFileItem } from '@/types/collection'
-import { FileService } from '@/services'
 import { useSendSubmit } from './useSendSubmit'
 
 export function useSendFlow() {
@@ -56,9 +55,7 @@ export function useSendFlow() {
     alertStore.showAlert(message, type)
   }
   const sentRecordActions = createSentRecordActions(notifyCopyResult)
-  /** 只读查询文件分享详情（不消耗取件次数），供发件记录查看刷新 */
-  const getFileInfo = (code: string) => FileService.getFileInfo(code)
-  const { resetPresignUpload, submitFile } = useSendSubmit({
+  const { resetPresignUpload, submitFile, getFileInfo } = useSendSubmit({
     getMaxFileSize: () => configStore.uploadSizeLimit,
     notify: (message, type) => alertStore.showAlert(message, type),
     translate: t,

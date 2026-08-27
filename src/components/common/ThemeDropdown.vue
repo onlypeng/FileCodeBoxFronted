@@ -93,7 +93,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
           : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
       ]"
     >
-      <span class="truncate leading-none shrink-0 min-w-0">{{ summaryText }}</span>
+      <span class="flex-1 truncate leading-none min-w-0">{{ summaryText }}</span>
       <ChevronDownIcon class="w-4 h-4 shrink-0 transition-transform duration-200" :class="open ? 'rotate-180' : ''" />
     </button>
 
@@ -144,8 +144,9 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
               :checked="selectedSet.has(opt.value)"
               class="accent-indigo-500 shrink-0 pointer-events-none"
             />
-            <span class="flex-1 min-w-0 leading-none">
-              <span class="truncate inline-block align-middle">{{ opt.label }}</span>
+            <span class="flex-1 min-w-0 leading-none overflow-hidden">
+              <!-- block + max-w-full，确保超长 label 在此容器内截断省略，不超出选择框 -->
+              <span class="block w-full max-w-full truncate align-middle">{{ opt.label }}</span>
               <span v-if="opt.desc" class="block text-[11px] leading-tight opacity-75 mt-0.5">{{ opt.desc }}</span>
             </span>
             <CheckIcon v-if="!multi && selectedSet.has(opt.value)" class="w-4 h-4 shrink-0" />

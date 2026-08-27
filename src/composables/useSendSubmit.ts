@@ -173,6 +173,9 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
   /** 取件（发件记录详情页刷新多文件列表用） */
   const selectFile = (code: string) => FileService.selectFile(code)
 
+  /** 只读查询文件分享详情（不消耗取件次数），供发件记录查看刷新 */
+  const getFileInfo = (code: string) => FileService.getFileInfo(code)
+
   /** 多文件分享 ZIP 下载 URL */
   const getMultiFileZipUrl = (code: string) => CollectionService.getMultiFileZipUrl(code)
 
@@ -184,6 +187,7 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     resetPresignUpload,
     submitFile,
     selectFile,
+    getFileInfo,
     getMultiFileZipUrl,
     getMultiFileDownloadUrl,
   }
