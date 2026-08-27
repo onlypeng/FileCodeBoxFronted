@@ -67,6 +67,37 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
     }
   }
 
+  /**
+   * 房间文件缓存多源转发：我是某文件的缓存持有者，收到新成员/其他成员的
+   * "从此缓存源收取"请求 → 用我已接收的文件重启一次发送（复用 offerFiles 广播 file_offer，
+   * 请求者会响应接受并建立传输；其余成员忽略该 offer）。
+   */
+  async function respondChatRequest(requesterId: string, cacheTransferId: string, fileName?: string, fileSize?: number) {
+    const data = await ctx.directStore.consumeIncomingBlob(cacheTransferId)
+    if (!data) {
+      // 本地已无该文件数据（如接收后已清理/更换设备）→ 无法转发
+      ctx.sendSignal({
+        type: 'file_error',
+        transfer_id: cacheTransferId,
+        reason: 'cache_missing',
+        target: requesterId,
+      })
+      return
+    }
+    const file = new File([data.blob], fileName || data.name || 'file', { type: 'application/octet-stream' })
+    const created = ctx.directStore.offerFiles([file])
+    for (const item of created) {
+      ctx.sendSignal({
+        type: 'file_offer',
+        transfer_id: item.transferId,
+        file_name: file.name,
+        file_size: file.size,
+        // 告知"源自缓存转发"，请求者 UI 可标注来源；转发语义等同普通发送
+        cache_source: cacheTransferId,
+      })
+    }
+  }
+
   /** 串行处理发送队列（逐个接收者传输） */
   function processSendQueue() {
     if (ctx.queueProcessing) return
@@ -266,5 +297,6 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
     sendToRecipient,
     sendToRecipientInner,
     cancelOutgoing,
+    respondChatRequest,
   }
 }

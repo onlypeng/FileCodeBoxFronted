@@ -54,6 +54,36 @@
               {{ t('direct.create.maxMembersHint', { max: maxMembersLimit }) }}
             </p>
           </div>
+
+          <!-- 房间选项：保存消息到服务器（随房间过期删除） -->
+          <label
+            class="flex items-start gap-2.5 cursor-pointer select-none"
+          >
+            <input v-model="saveMessages" type="checkbox" class="mt-0.5 accent-indigo-500 shrink-0" />
+            <span>
+              <span class="block text-sm font-medium" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-800']">
+                {{ t('direct.create.saveMessagesLabel') }}
+              </span>
+              <span class="block text-xs mt-0.5" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                {{ t('direct.create.saveMessagesHint') }}
+              </span>
+            </span>
+          </label>
+
+          <!-- 房间选项：文件缓存（已接收成员作为多源，可转发给其他成员/新成员收取） -->
+          <label
+            class="flex items-start gap-2.5 cursor-pointer select-none"
+          >
+            <input v-model="cacheEnabled" type="checkbox" class="mt-0.5 accent-indigo-500 shrink-0" />
+            <span>
+              <span class="block text-sm font-medium" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-800']">
+                {{ t('direct.create.cacheEnabledLabel') }}
+              </span>
+              <span class="block text-xs mt-0.5" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                {{ t('direct.create.cacheEnabledHint') }}
+              </span>
+            </span>
+          </label>
           <button
             type="submit"
             :disabled="isCreating"
@@ -130,6 +160,10 @@ const maxMembersLimit = computed(() => {
   return n > 0 ? n : 10
 })
 const maxMembers = ref(maxMembersLimit.value)
+/** 是否保存聊天消息/文件元信息到服务器（随房间过期删除） */
+const saveMessages = ref(false)
+/** 是否启用房间文件缓存（已接收成员可作为多源转发，其他成员/新成员可收取） */
+const cacheEnabled = ref(false)
 
 const expireOptions = computed(() =>
   config.value.expireStyle.map((value) => ({ value, label: getUnit(value) }))
@@ -180,6 +214,8 @@ const handleCreate = async () => {
       expire_style: expireStyle.value,
       expire_value: expireValue.value ? parseInt(expireValue.value) : 1,
       max_members: Math.max(1, Math.min(Number(maxMembers.value) || 1, maxMembersLimit.value)),
+      save_messages: saveMessages.value,
+      cache_enabled: cacheEnabled.value,
     })
     // 记录到首页「记录」抽屉
     fileDataStore.addDirectRecord({

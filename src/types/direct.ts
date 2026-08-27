@@ -9,6 +9,8 @@ export interface DirectRoomInfo {
   expire_value: number
   expired_at: string | null
   created_at: string | null
+  save_messages?: boolean
+  cache_enabled?: boolean
 }
 
 /** 创建临时房间房间请求 */
@@ -18,6 +20,10 @@ export interface CreateDirectRoomRequest {
   expire_value: number
   /** 人员上限（1~后台配置 defaultMaxMembers；缺省用后台默认） */
   max_members?: number
+  /** 是否保存聊天消息/文件元信息到服务器（随房间过期删除） */
+  save_messages?: boolean
+  /** 是否启用房间文件缓存（已接收成员作为多源转发，新成员可收取） */
+  cache_enabled?: boolean
 }
 
 /** 房间成员（在线） */
@@ -118,6 +124,9 @@ export interface DirectWSMessage {
     | 'media_unsubscribe'
     | 'media_subscribe'
     | 'turn_servers'
+    | 'file_cache_list'
+    | 'file_cache_update'
+    | 'file_cache_request'
   // 通用
   client_id?: string
   nickname?: string
@@ -131,6 +140,12 @@ export interface DirectWSMessage {
   message?: string
   // TURN 凭据（加入房间后服务端下发；公共配置接口已剥离凭据）
   servers?: Array<{ urls: string; username?: string; credential?: string }>
+  // 房间文件缓存（cache_enabled）
+  files?: Array<{ transfer_id?: string; file_name?: string; file_size?: number; holders?: string[] }>
+  holder_id?: string
+  holder_nickname?: string
+  requester_id?: string
+  cache_source?: string
   // 文件确认
   transfer_id?: string
   file_name?: string

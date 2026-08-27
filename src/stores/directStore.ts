@@ -58,6 +58,35 @@ export const useDirectStore = defineStore('direct', () => {
   const items = ref<DirectChatItem[]>([])
   const typingUsers = ref<string[]>([])
 
+  // ==================== 房间文件缓存（cache_enabled=1 时由服务器下发/广播） ====================
+  /** 房间已缓存文件列表：{ transfer_id, file_name, file_size, holders[] } */
+  const cachedFiles = ref<Array<{ transfer_id: string; file_name: string; file_size: number; holders: string[] }>>([])
+
+  function setCachedFiles(list: Array<{ transfer_id: string; file_name: string; file_size: number; holders: string[] }>) {
+    cachedFiles.value = list || []
+  }
+
+  /** 追加/更新一条缓存文件（file_cache_update 广播到达时） */
+  function upsertCachedFile(entry: { transfer_id: string; file_name: string; file_size: number; holder_id: string }) {
+    if (!entry.transfer_id) return
+    const idx = cachedFiles.value.findIndex((c) => c.transfer_id === entry.transfer_id)
+    if (idx >= 0) {
+      const cur = cachedFiles.value[idx]
+      if (!cur.holders.includes(entry.holder_id)) cur.holders.push(entry.holder_id)
+      cachedFiles.value = [...cachedFiles.value]
+    } else {
+      cachedFiles.value = [
+        ...cachedFiles.value,
+        {
+          transfer_id: entry.transfer_id,
+          file_name: entry.file_name,
+          file_size: entry.file_size,
+          holders: [entry.holder_id],
+        },
+      ]
+    }
+  }
+
   // ==================== 文件传输 ====================
   const outgoingHandles = new Map<string, File>() // transfer_id -> File
   const incomingChunks = new Map<string, ArrayBuffer[]>() // 内存累积模式的分片
@@ -846,6 +875,7 @@ export const useDirectStore = defineStore('direct', () => {
     p2pActive.value = false
     items.value = []
     typingUsers.value = []
+    cachedFiles.value = []
     outgoingHandles.clear()
     incomingChunks.clear()
     incomingHashers.clear()
@@ -887,6 +917,9 @@ export const useDirectStore = defineStore('direct', () => {
     p2pActive,
     items,
     typingUsers,
+    cachedFiles,
+    setCachedFiles,
+    upsertCachedFile,
     onlineUsers,
     onlineCount,
     typingText,

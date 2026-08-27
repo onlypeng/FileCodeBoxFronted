@@ -312,6 +312,18 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
       if (item?.offerFromId) {
         ctx.sendSignal({ type: 'file_error', transfer_id: transferId, reason: 'hash_mismatch', target: item.offerFromId })
       }
+    } else if (result === 'done' && ctx.directStore.activeRoom?.cache_enabled) {
+      // 房间启用文件缓存：接收完成 → 广播"已缓存"，其他成员/新成员可从本端收取该文件
+      const item = directStore.getFileItem(transferId)
+      if (item) {
+        ctx.sendSignal({
+          type: 'file_cache_ready',
+          transfer_id: transferId,
+          file_name: item.fileName || '',
+          file_size: item.fileSize || 0,
+          owner_id: ctx.directStore.myClientId || '',
+        })
+      }
     }
   }
 
@@ -477,6 +489,40 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
           directStore.addSystem(t('direct.file.hashMismatch'))
         }
         break
+      // ---- 房间文件缓存（cache_enabled） ----
+      case 'file_cache_list':
+        // 新成员加入时收到服务器下发的已缓存文件列表
+        if (Array.isArray(msg.files)) {
+          directStore.setCachedFiles(
+            msg.files.map((f) => ({
+              transfer_id: f.transfer_id || '',
+              file_name: f.file_name || '',
+              file_size: f.file_size || 0,
+              holders: Array.isArray(f.holders) ? f.holders : [],
+            }))
+          )
+        }
+        break
+      case 'file_cache_update':
+        // 某成员完成接收并广播缓存（其他成员可从此缓存源收取）
+        if (msg.transfer_id && msg.holder_id) {
+          directStore.upsertCachedFile({
+            transfer_id: msg.transfer_id,
+            file_name: msg.file_name || '',
+            file_size: msg.file_size || 0,
+            holder_id: msg.holder_id,
+          })
+          directStore.addSystem(
+            t('direct.file.cacheReady', { name: msg.file_name || '', holder: msg.holder_nickname || '' })
+          )
+        }
+        break
+      case 'file_cache_request':
+        // 我是缓存持有者：有人请求从此缓存源收取文件 → 主动向请求者发起 file_offer（复用文件发送）
+        if (msg.requester_id && msg.transfer_id) {
+          fileSend.respondChatRequest(msg.requester_id, msg.transfer_id, msg.file_name, msg.file_size)
+        }
+        break
     }
   }
 
@@ -550,6 +596,16 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
     offerFiles: fileSend.offerFiles,
     respondFileOffer: fileSend.respondFileOffer,
     cancelOutgoing: fileSend.cancelOutgoing,
+    /** 房间文件缓存：请求从某缓存持有者收取文件（持有者会以发送者身份转发） */
+    requestCachedFile: (entry: { transfer_id: string; file_name?: string; file_size?: number; holder_id: string }) => {
+      ctx.sendSignal({
+        type: 'file_cache_request',
+        transfer_id: entry.transfer_id,
+        file_name: entry.file_name || '',
+        file_size: entry.file_size || 0,
+        holder_id: entry.holder_id,
+      })
+    },
     startMediaShare: media.startMediaShare,
     stopMediaShare: media.stopMediaShare,
     pullMedia: media.pullMedia,

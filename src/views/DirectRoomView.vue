@@ -456,6 +456,43 @@
           </div>
         </div>
 
+        <!-- 房间文件缓存（cache_enabled 房间：已接收成员可作为多源，其他成员可收取） -->
+        <div
+          v-if="directStore.cachedFiles.length > 0"
+          class="flex justify-start"
+        >
+          <div class="max-w-[85%] min-w-0 w-full">
+            <div class="rounded-xl border p-2" :class="[isDarkMode ? 'border-indigo-900/50 bg-indigo-950/30' : 'border-indigo-100 bg-indigo-50/60']">
+              <p class="text-[11px] font-medium mb-1.5" :class="[isDarkMode ? 'text-indigo-300' : 'text-indigo-700']">
+                📦 {{ t('direct.room.roomCacheTitle') }}
+              </p>
+              <div class="space-y-1">
+                <div
+                  v-for="cf in directStore.cachedFiles"
+                  :key="cf.transfer_id"
+                  class="flex items-center gap-2 min-w-0"
+                >
+                  <span class="text-xs truncate flex-1 min-w-0" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">
+                    {{ cf.file_name }}
+                    <span class="opacity-60">({{ formatBytes(cf.file_size) }})</span>
+                  </span>
+                  <span class="text-[10px] shrink-0" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                    {{ cf.holders.length }} {{ t('direct.room.roomCacheHolders') }}
+                  </span>
+                  <button
+                    v-if="cf.holders.length > 0"
+                    type="button"
+                    @click="fetchCachedFile(cf)"
+                    class="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+                  >
+                    {{ t('direct.room.roomCacheFetch') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 正在输入 -->
         <div v-if="directStore.typingUsers.length > 0" class="flex justify-start">
           <span class="text-xs italic px-1" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
@@ -1205,6 +1242,32 @@ const endFloatDrag = () => {
   window.removeEventListener('touchend', endFloatDrag)
   window.removeEventListener('touchcancel', endFloatDrag)
 }
+/** 格式化字节数（KB/MB/GB） */
+const formatBytes = (bytes: number): string => {
+  if (!bytes || bytes <= 0) return '0B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const val = bytes / Math.pow(1024, i)
+  return `${val >= 100 ? Math.round(val) : val.toFixed(1)}${units[i]}`
+}
+
+/** 从缓存源收取文件：向该文件首个缓存持有者发起 file_cache_request（持有者会以发送者身份转发） */
+const fetchCachedFile = async (cf: { transfer_id: string; file_name: string; file_size: number; holders: string[] }) => {
+  const holderId = cf.holders[0]
+  if (!holderId) return
+  if (holderId === directStore.myClientId) {
+    alertStore.showAlert(t('direct.room.roomCacheSelf'), 'warning')
+    return
+  }
+  connection.requestCachedFile?.({
+    transfer_id: cf.transfer_id,
+    file_name: cf.file_name,
+    file_size: cf.file_size,
+    holder_id: holderId,
+  })
+  alertStore.showAlert(t('direct.room.roomCacheRequested'), 'info')
+}
+
 /** 昵称查询 */
 const memberNickname = (clientId: string) =>
   directStore.members.find((m) => m.client_id === (clientId.includes(':') ? clientId.split(':')[0] : clientId))?.nickname || ''
