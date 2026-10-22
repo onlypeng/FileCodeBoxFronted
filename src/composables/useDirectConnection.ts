@@ -364,6 +364,8 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
           // 服务端签发的身份：缓存供断线重连沿用（服务端校验未被占用才允许）
           persistClientId(msg.client_id)
           p2p.maybeInitP2P()
+          // 短期成员凭证：供 HTTP 接口（缓存上传/删除）在 WS 断开期间证明成员身份
+          if (msg.member_token) directStore.setMemberToken(msg.member_token)
           // 保存消息房间：每次握手都重新加载历史（聊天 + 传输文件元信息 + 历史缓存文件）。
           // 传 force=true —— 断线重连后也能拿到断开期间别人发的消息，
           // 不再因为"每个房间只加载一次"而永远看不到。

@@ -53,6 +53,12 @@ export const useDirectStore = defineStore('direct', () => {
   const members = ref<DirectMember[]>([]) // 在线成员（含自己）
   const isConnected = ref(false)
   const myClientId = ref('')
+  /**
+   * 房间成员令牌（welcome 时由服务端下发，短期有效）。
+   * 用于 HTTP 接口在 WS 断开期间仍能证明"我是本房间成员"，
+   * 避免切后台/弱网重连后就管不了自己刚上传的文件。
+   */
+  const memberToken = ref('')
   const p2pActive = ref(false) // 是否已有可用的直连通道
 
   // ==================== 聊天流 ====================
@@ -371,7 +377,7 @@ export const useDirectStore = defineStore('direct', () => {
     const res = await DirectService.uploadCacheFile(
       roomCode,
       file,
-      opts,
+      { ...opts, memberToken: memberToken.value },
       (percent) => setCacheProgress(opts.transferId, percent, 'uploading')
     )
     if (res.code === 200 && res.detail) {
@@ -404,7 +410,9 @@ export const useDirectStore = defineStore('direct', () => {
 
   /** 删除房间缓存文件（上传者本人） */
   async function deleteCacheFile(roomCode: string, transferId: string, clientId: string) {
-    const res = await DirectService.deleteCacheFile(roomCode, transferId, clientId)
+    const res = await DirectService.deleteCacheFile(
+      roomCode, transferId, clientId, memberToken.value
+    )
     if (res.code === 200) {
       removeCachedFile(transferId)
     }
@@ -503,6 +511,10 @@ export const useDirectStore = defineStore('direct', () => {
 
   function setMyClientId(id: string) {
     myClientId.value = id
+  }
+
+  function setMemberToken(token: string) {
+    memberToken.value = token || ''
   }
 
   function setMembers(list: DirectMember[]) {
@@ -1544,6 +1556,7 @@ export const useDirectStore = defineStore('direct', () => {
     members.value = []
     isConnected.value = false
     myClientId.value = ''
+    memberToken.value = ''
     p2pActive.value = false
     items.value = []
     typingUsers.value = []
@@ -1591,6 +1604,7 @@ export const useDirectStore = defineStore('direct', () => {
     members,
     isConnected,
     myClientId,
+    memberToken,
     p2pActive,
     items,
     typingUsers,
@@ -1626,6 +1640,7 @@ export const useDirectStore = defineStore('direct', () => {
     loadRoom,
     setConnected,
     setMyClientId,
+    setMemberToken,
     setMembers,
     setP2PActive,
     addTextMessage,

@@ -66,6 +66,8 @@ export class DirectService {
       cacheHours: number
       /** 内容哈希（SHA-256）：服务端据此去重，相同文件只落盘一份 */
       fileHash?: string
+      /** 房间成员令牌（welcome 下发）：WS 断开后仍可证明成员身份 */
+      memberToken?: string
     },
     /** 上传进度回调（0-100），驱动卡片上的"缓存到服务器"进度条 */
     onProgress?: (percent: number) => void
@@ -77,6 +79,7 @@ export class DirectService {
     form.append('uploader_name', params.uploaderName)
     form.append('cache_hours', String(params.cacheHours))
     if (params.fileHash) form.append('file_hash', params.fileHash)
+    if (params.memberToken) form.append('member_token', params.memberToken)
     return api.post(`/room/${roomCode}/file/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => {
@@ -93,9 +96,12 @@ export class DirectService {
   static async deleteCacheFile(
     roomCode: string,
     transferId: string,
-    clientId: string
+    clientId: string,
+    memberToken?: string
   ): Promise<ApiResponse> {
-    return api.delete(`/room/${roomCode}/file/${transferId}`, { params: { client_id: clientId } })
+    return api.delete(`/room/${roomCode}/file/${transferId}`, {
+      params: { client_id: clientId, member_token: memberToken || '' },
+    })
   }
 
   /** 服务器缓存文件下载直链（可直接点击下载，无需 P2P、发送方无需在线） */

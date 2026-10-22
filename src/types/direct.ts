@@ -217,6 +217,8 @@ export interface DirectWSMessage {
     | 'room_cache_removed'
   // 通用
   client_id?: string
+  /** welcome：短期成员令牌，供 HTTP 接口在 WS 断开期间证明成员身份 */
+  member_token?: string
   nickname?: string
   online_users?: string[]
   members?: DirectMember[]
