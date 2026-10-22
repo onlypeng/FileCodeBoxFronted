@@ -304,27 +304,42 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
     directStore.appendChunk(payload, frame.transferId, frame.index)
   }
 
-  /** file_end 收尾：完整性校验，失败通知发送方 */
+  /** file_end 收尾：完整性校验，失败通知发送方；缓存分片完成则交由 store 合并 */
   async function handleFileEnd(transferId: string, fileHash?: string) {
+    const item = directStore.getFileItem(transferId)
+    // 多源缓存分片（transfer_id 形如 `${原tid}#${k}`）：先完成分片（置 done 并组装），
+    // 再交 store 收集；全部到齐后合并为完整文件
+    if (item?.cacheOf) {
+      await directStore.onFileEnd(transferId, fileHash)
+      await directStore.cachePartDone(item.cacheOf, transferId)
+      return
+    }
     const result = await directStore.onFileEnd(transferId, fileHash)
     if (result === 'mismatch') {
       const item = directStore.getFileItem(transferId)
       if (item?.offerFromId) {
         ctx.sendSignal({ type: 'file_error', transfer_id: transferId, reason: 'hash_mismatch', target: item.offerFromId })
       }
-    } else if (result === 'done' && ctx.directStore.activeRoom?.cache_enabled) {
-      // 房间启用文件缓存：接收完成 → 广播"已缓存"，其他成员/新成员可从本端收取该文件
+    } else if (result === 'done') {
       const item = directStore.getFileItem(transferId)
-      if (item) {
-        ctx.sendSignal({
-          type: 'file_cache_ready',
-          transfer_id: transferId,
-          file_name: item.fileName || '',
-          file_size: item.fileSize || 0,
-          owner_id: ctx.directStore.myClientId || '',
-        })
-      }
+      notifyCacheReady(transferId, item?.fileName || '', item?.fileSize || 0)
     }
+  }
+
+  /**
+   * 通知服务端"本端已持有该文件" → 登记为 P2P 缓存来源，其他成员/新成员可从本端收取。
+   * 两个场景调用：P2P 接收完成、从服务器下载完成。
+   */
+  function notifyCacheReady(transferId: string, fileName: string, fileSize: number) {
+    if (!transferId) return
+    if (!ctx.directStore.activeRoom?.cache_enabled) return
+    ctx.sendSignal({
+      type: 'file_cache_ready',
+      transfer_id: transferId,
+      file_name: fileName,
+      file_size: fileSize,
+      owner_id: ctx.directStore.myClientId || '',
+    })
   }
 
   /** 接收侧回应：接受则加入发送队列开始传输，拒绝则标记状态 */
@@ -349,6 +364,10 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
           // 服务端签发的身份：缓存供断线重连沿用（服务端校验未被占用才允许）
           persistClientId(msg.client_id)
           p2p.maybeInitP2P()
+          // 保存消息房间：每次握手都重新加载历史（聊天 + 传输文件元信息 + 历史缓存文件）。
+          // 传 force=true —— 断线重连后也能拿到断开期间别人发的消息，
+          // 不再因为"每个房间只加载一次"而永远看不到。
+          void directStore.loadHistory(ctx.currentCode.value, true)
         }
         break
       case 'turn_servers':
@@ -359,8 +378,9 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
         break
       case 'user_joined':
         if (msg.members) directStore.setMembers(msg.members)
+        // 进出提醒改为轻量悬浮提示（不占聊天流），仅提示他人、忽略自己
         if (msg.nickname && msg.nickname !== ctx.currentNickname.value) {
-          directStore.addSystem(`${msg.nickname} 加入了房间`)
+          directStore.pushRoomEvent(t('direct.room.joinedRoom', { name: msg.nickname }))
         }
         // 成员变化 → 尝试与在线成员建立直连通道（预协商）
         p2p.maybeInitP2P()
@@ -374,8 +394,9 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
         break
       case 'user_left':
         if (msg.members) directStore.setMembers(msg.members)
-        if (msg.nickname) {
-          directStore.addSystem(`${msg.nickname} 离开了房间`)
+        // 离开提醒：悬浮提示（忽略自己，避免离开页面前的自提醒）
+        if (msg.nickname && msg.nickname !== ctx.currentNickname.value) {
+          directStore.pushRoomEvent(t('direct.room.leftRoom', { name: msg.nickname }))
         }
         // 兜底清理：若离开者正在共享（或本端正查看其共享），清掉其媒体流/中转源与视频窗
         // （正常退出会收到 media_cancel，此处覆盖刷新/断网等未发 media_cancel 的场景）
@@ -445,6 +466,28 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
           sender: msg.sender || '匿名',
           from_id: msg.from_id || '',
         })
+        // 多源缓存分片 offer（transfer_id 形如 `${原tid}#${k}`）：登记分片并自动接受，
+        // 由各源并行传输，全部完成后 store 合并为完整文件。
+        //
+        // 只有"这个 cache_source 是本端主动发起收取的"才自动接受：
+        // cache_source / transfer_id 都由消息发送方填写，若不校验，任何房间成员都能
+        // 伪造一条带 cache_source 的 offer，让本端在没点过"接受"的情况下被动收文件
+        // （吃带宽与磁盘）。此前正是无条件自动接受。
+        if (msg.cache_source && msg.transfer_id && msg.transfer_id.includes('#')) {
+          if (!directStore.isCacheRequested(msg.cache_source)) {
+            console.warn(`[direct] 忽略非本端发起的缓存分片 offer: ${msg.cache_source}`)
+            break
+          }
+          // 严格解析分片序号，非法时不得回退为 0（否则会覆盖真实 k=0 的分片，
+          // 导致 received 永远凑不满、条目卡在"接收中"）
+          const k = Number(msg.transfer_id.split('#').pop())
+          if (!Number.isInteger(k) || k < 0) {
+            console.warn(`[direct] 缓存分片序号非法，忽略: ${msg.transfer_id}`)
+            break
+          }
+          directStore.registerCachePart(msg.cache_source, k, msg.transfer_id)
+          fileSend.respondFileOffer(msg.transfer_id, true)
+        }
         break
       case 'file_response':
         onFileResponse(msg)
@@ -499,6 +542,7 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
               file_name: f.file_name || '',
               file_size: f.file_size || 0,
               holders: Array.isArray(f.holders) ? f.holders : [],
+              holder_names: Array.isArray(f.holder_names) ? f.holder_names : [],
             }))
           )
         }
@@ -511,16 +555,42 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
             file_name: msg.file_name || '',
             file_size: msg.file_size || 0,
             holder_id: msg.holder_id,
+            holder_nickname: msg.holder_nickname || '',
           })
           directStore.addSystem(
             t('direct.file.cacheReady', { name: msg.file_name || '', holder: msg.holder_nickname || '' })
           )
         }
         break
+      case 'room_cache_added':
+        // 文件已落盘到服务器：更新缓存入口，任何人可直接下载（无需 P2P、发送方无需在线）
+        if (msg.file?.transfer_id) {
+          directStore.upsertServerCachedFile(msg.file)
+          // 其他人：文件消息进入聊天流，按时间顺序排在消息列表末尾
+          // （不再额外弹「xxx 已缓存到服务器，可直接下载」系统提示 ——
+          //  卡片上已有"已缓存"标记，重复提示反而干扰阅读）
+          directStore.upsertCacheFileMessage(msg.file)
+        }
+        break
+      case 'room_cache_removed':
+        // 缓存文件被上传者删除
+        if (msg.transfer_id) {
+          directStore.removeCachedFile(msg.transfer_id)
+        }
+        break
       case 'file_cache_request':
-        // 我是缓存持有者：有人请求从此缓存源收取文件 → 主动向请求者发起 file_offer（复用文件发送）
+        // 我是缓存持有者：有人请求从此缓存源收取文件 → 主动向请求者发起 file_offer（复用文件发送；
+        // 多源分片时带 part_id/range，只需重发该字节区间）
         if (msg.requester_id && msg.transfer_id) {
-          fileSend.respondChatRequest(msg.requester_id, msg.transfer_id, msg.file_name, msg.file_size)
+          fileSend.respondChatRequest(
+            msg.requester_id,
+            msg.transfer_id,
+            msg.file_name,
+            msg.file_size,
+            msg.part_id,
+            msg.range_start,
+            msg.range_end
+          )
         }
         break
     }
@@ -594,16 +664,33 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
     sendChatMessage,
     sendTyping,
     offerFiles: fileSend.offerFiles,
+    /** 发起发送并返回条目（含 transfer_id），供 P2P 与服务器上传共用同一标识 */
+    offerFilesDetailed: fileSend.offerFilesDetailed,
+    /** 用本地已建好的条目补发 P2P 信令（消息顺序与发送时刻一致） */
+    offerExistingFile: fileSend.offerExistingFile,
     respondFileOffer: fileSend.respondFileOffer,
     cancelOutgoing: fileSend.cancelOutgoing,
-    /** 房间文件缓存：请求从某缓存持有者收取文件（持有者会以发送者身份转发） */
-    requestCachedFile: (entry: { transfer_id: string; file_name?: string; file_size?: number; holder_id: string }) => {
+    /** 声明本端已持有某文件（接收完成 / 从服务器下载完成），登记为可被其他成员收取的来源 */
+    notifyCacheReady,
+    /** 房间文件缓存：请求从某缓存持有者收取文件（多源加速时按分片请求字节区间） */
+    requestCachedFile: (entry: {
+      transfer_id: string
+      file_name?: string
+      file_size?: number
+      holder_id: string
+      part_id?: string
+      range_start?: number
+      range_end?: number
+    }) => {
       ctx.sendSignal({
         type: 'file_cache_request',
         transfer_id: entry.transfer_id,
         file_name: entry.file_name || '',
         file_size: entry.file_size || 0,
         holder_id: entry.holder_id,
+        part_id: entry.part_id || '',
+        range_start: entry.range_start ?? 0,
+        range_end: entry.range_end ?? 0,
       })
     },
     startMediaShare: media.startMediaShare,

@@ -14,6 +14,14 @@ export interface AdminRoomItem {
   created_at: string | null
   /** 次数模式剩余次数（-1 表示非次数模式） */
   expired_count?: number
+  /** 保存聊天消息/文件元信息到服务器（随房间过期删除） */
+  save_messages: boolean
+  /** 启用房间文件缓存（已接收成员作为多源转发） */
+  cache_enabled: boolean
+  /** 已保存的房间消息数 */
+  message_count?: number
+  /** 房间缓存文件数 */
+  cached_count?: number
   /** 前端展示：创建时间 */
   displayCreatedAt?: string
   /** 前端展示：过期时间 */

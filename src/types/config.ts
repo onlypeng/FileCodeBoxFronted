@@ -91,4 +91,12 @@ export interface ConfigState {
   mediaDefaultQuality: string
   /** 上传文件类型白名单（逗号分隔扩展名，如 "jpg,png,pdf"；空 = 不限制） */
   fileTypeWhitelist: string
+  /** 共享域名：生成对外分享链接时使用的站点地址（留空 = 使用当前访问地址） */
+  shareDomain: string
+  /** 是否允许房间文件缓存到服务器（1=允许，0=仅 P2P） */
+  roomCacheEnabled: number
+  /** 单个房间缓存文件大小上限（MB；0 = 不限制）。超限文件只能走 P2P 直传 */
+  roomCacheMaxSize: number
+  /** 房间文件服务器缓存默认时长（小时） */
+  roomCacheDefaultHours: number
 }

@@ -231,6 +231,23 @@ const onThemeChange = async (event: Event) => {
 
           <div class="space-y-2">
             <label class="block text-sm font-medium" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">
+              {{ t('admin.settings.shareDomain') }}
+            </label>
+            <input type="text" v-model="config.shareDomain"
+              :placeholder="t('admin.settings.shareDomainPlaceholder')"
+              class="w-full rounded-md shadow-sm px-4 py-2.5 transition-all duration-200 ease-in-out border focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              :class="[
+                isDarkMode
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 hover:border-gray-500'
+                  : 'border-gray-300 hover:border-gray-400 placeholder-gray-500'
+              ]" />
+            <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+              {{ t('admin.settings.shareDomainHint') }}
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-sm font-medium" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">
               {{ t('manage.settings.notificationTitle') }}
             </label>
             <input type="text" v-model="config.notify_title"

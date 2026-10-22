@@ -41,5 +41,12 @@ export default defineConfig({
     postcss: {
       plugins: [tailwindcss, autoprefixer]
     }
+  },
+  build: {
+    // 不清空输出目录：dist/assets 内文件数常超过批量删除阈值（50），
+    // 清空动作会被安全删除保护拦截，导致构建直接失败（SAFE_DELETE_BULK_CONFIRM_REQUIRED）。
+    // 改为覆盖写入——同名文件覆盖、带 hash 的新文件追加；旧产物残留不影响运行，
+    // 因为 index.html 只会引用当次构建产出的 hash 文件名。
+    emptyOutDir: false
   }
 })

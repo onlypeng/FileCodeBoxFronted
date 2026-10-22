@@ -56,8 +56,12 @@ export function useUnifiedAdmin() {
   const extendAdminRoom = (roomId: number, expireStyle: string, expireValue: number) =>
     RoomService.extendAdminRoom(roomId, expireStyle, expireValue)
 
-  /** 后台修改房间人员上限 */
-  const updateAdminRoom = (roomId: number, maxMembers: number) => RoomService.updateAdminRoom(roomId, maxMembers)
+  /** 后台修改房间设置（人员上限 / 保存消息 / 文件缓存） */
+  const updateAdminRoom = (roomId: number, data: {
+    max_members?: number
+    save_messages?: number
+    cache_enabled?: number
+  }) => RoomService.updateAdminRoom(roomId, data)
 
   /** 后台保存房间过期（按当前时间重设） */
   const saveAdminRoomExpire = (roomId: number, expireStyle: string, expireValue: number) =>

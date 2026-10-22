@@ -384,7 +384,7 @@
         </button>
       </div>
 
-      <!-- 房间表格：名称 / 房间码 / 访问人员 / 状态 / 创建时间 / 过期时间 / 操作 -->
+      <!-- 房间表格：名称 / 房间码 / 访问人员 / 功能 / 状态 / 创建时间 / 过期时间 / 操作 -->
       <div class="overflow-auto rounded-lg border max-h-[68vh] custom-scrollbar" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
         <table class="min-w-full divide-y" :class="[isDarkMode ? 'divide-gray-700' : 'divide-gray-200']">
           <thead class="sticky top-0 z-10" :class="[isDarkMode ? 'bg-gray-900' : 'bg-gray-50']">
@@ -400,6 +400,7 @@
               <th class="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer select-none" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']" @click="sortRoomsBy('title')">{{ t('admin.unifiedManage.name') }}{{ sortArrow(roomSort, 'title') }}</th>
               <th class="px-4 py-3 text-left text-xs font-medium uppercase" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">{{ t('admin.unifiedManage.spaceCode') }}</th>
               <th class="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer select-none" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']" @click="sortRoomsBy('online_count')">{{ t('admin.unifiedManage.accessCount') }}{{ sortArrow(roomSort, 'online_count') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium uppercase" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">{{ t('admin.unifiedManage.roomFeature') }}</th>
               <th class="px-4 py-3 text-left text-xs font-medium uppercase" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">{{ t('admin.unifiedManage.status') }}</th>
               <th class="px-4 py-3 text-left text-xs font-medium uppercase cursor-pointer select-none" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']" @click="sortRoomsBy('created_at')">{{ t('admin.unifiedManage.createdAt') }}{{ sortArrow(roomSort, 'created_at') }}</th>
               <th class="px-4 py-3 text-left text-xs font-medium uppercase" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">{{ t('admin.unifiedManage.expireInfo') }}</th>
@@ -408,7 +409,7 @@
           </thead>
           <tbody class="divide-y" :class="[isDarkMode ? 'divide-gray-700' : 'divide-gray-100']">
             <tr v-if="visibleRoomList.length === 0">
-              <td colspan="8" class="px-4 py-6 text-center text-sm" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ t('common.noData') }}</td>
+              <td colspan="9" class="px-4 py-6 text-center text-sm" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">{{ t('common.noData') }}</td>
             </tr>
             <tr v-for="room in visibleRoomList" :key="room.id" class="hover:bg-opacity-50 transition-colors" :class="[isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50']">
               <td class="px-4 py-3">
@@ -443,6 +444,27 @@
                   <span v-if="room.online_count > 0" class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
                   {{ room.online_count }}
                 </span>
+              </td>
+              <!-- 功能：保存消息 / 文件缓存（后加房间功能信息） -->
+              <td class="px-4 py-3">
+                <div class="flex flex-col gap-1 min-w-[88px]">
+                  <span
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium w-fit"
+                    :class="room.save_messages
+                      ? (isDarkMode ? 'bg-indigo-900/40 text-indigo-300' : 'bg-indigo-50 text-indigo-600')
+                      : (isDarkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400')"
+                  >
+                    {{ room.save_messages ? t('admin.unifiedManage.roomSaveMessages') : t('admin.unifiedManage.roomFeatureOff') }}
+                  </span>
+                  <span
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium w-fit"
+                    :class="room.cache_enabled
+                      ? (isDarkMode ? 'bg-fuchsia-900/40 text-fuchsia-300' : 'bg-fuchsia-50 text-fuchsia-600')
+                      : (isDarkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400')"
+                  >
+                    {{ room.cache_enabled ? t('admin.unifiedManage.roomCacheEnabled') : t('admin.unifiedManage.roomFeatureOff') }}
+                  </span>
+                </div>
               </td>
               <td class="px-4 py-3">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="[
@@ -667,6 +689,38 @@
                 <span :class="[primaryTextClass]">{{ selectedRoom.max_members }}</span>
               </div>
               <div class="flex items-center justify-between gap-3">
+                <span class="text-xs" :class="[mutedTextColor]">{{ t('admin.unifiedManage.roomSaveMessages') }}</span>
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="selectedRoom.save_messages
+                    ? (isDarkMode ? 'bg-indigo-900/40 text-indigo-300' : 'bg-indigo-50 text-indigo-600')
+                    : (isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500')"
+                >{{ selectedRoom.save_messages ? t('admin.unifiedManage.roomFeatureOn') : t('admin.unifiedManage.roomFeatureOff') }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-xs" :class="[mutedTextColor]">{{ t('admin.unifiedManage.roomCacheEnabled') }}</span>
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="selectedRoom.cache_enabled
+                    ? (isDarkMode ? 'bg-fuchsia-900/40 text-fuchsia-300' : 'bg-fuchsia-50 text-fuchsia-600')
+                    : (isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500')"
+                >{{ selectedRoom.cache_enabled ? t('admin.unifiedManage.roomFeatureOn') : t('admin.unifiedManage.roomFeatureOff') }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-xs" :class="[mutedTextColor]">{{ t('admin.unifiedManage.messageCount') }}</span>
+                <span :class="[primaryTextClass]">{{ selectedRoom.message_count ?? 0 }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-xs" :class="[mutedTextColor]">{{ t('admin.unifiedManage.cachedFileCount') }}</span>
+                <div class="flex items-center gap-2">
+                  <span :class="[primaryTextClass]">{{ selectedRoom.cached_count ?? 0 }}</span>
+                  <button
+                    v-if="(selectedRoom.cached_count ?? 0) > 0"
+                    type="button"
+                    @click="openRoomCache(selectedRoom)"
+                    class="px-2 py-0.5 rounded-md text-[11px] font-medium bg-fuchsia-600 text-white hover:bg-fuchsia-500 transition-colors"
+                  >{{ t('admin.unifiedManage.viewCacheFiles') }}</button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-3">
                 <span class="text-xs" :class="[mutedTextColor]">{{ t('admin.unifiedManage.status') }}</span>
                 <span
                   class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -696,6 +750,64 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 房间缓存文件弹窗（后台查看 + 强制清理，落盘文件会删除磁盘数据） -->
+    <div v-if="showRoomCacheModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/50" @click="showRoomCacheModal = false"></div>
+      <div
+        class="relative w-full max-w-lg mx-4 rounded-2xl shadow-xl border p-4 max-h-[70vh] overflow-y-auto"
+        :class="[isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200']"
+      >
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold" :class="[primaryTextClass]">
+            {{ t('admin.unifiedManage.roomCacheTitle') }}
+            <span class="text-xs font-normal" :class="[mutedTextColor]">（{{ selectedRoom?.room_code }}）</span>
+          </h3>
+          <button @click="showRoomCacheModal = false" class="p-1 rounded-md" :class="[mutedTextColor]">
+            <XIcon class="w-4 h-4" />
+          </button>
+        </div>
+
+        <p v-if="roomCacheLoading" class="text-xs text-center py-6" :class="[mutedTextColor]">
+          {{ t('admin.unifiedManage.roomCacheLoading') }}
+        </p>
+        <p v-else-if="roomCacheFiles.length === 0" class="text-xs text-center py-6" :class="[mutedTextColor]">
+          {{ t('admin.unifiedManage.roomCacheEmpty') }}
+        </p>
+        <ul v-else class="space-y-1.5">
+          <li
+            v-for="f in roomCacheFiles"
+            :key="f.id"
+            class="flex items-center gap-2.5 rounded-lg border p-2.5"
+            :class="[isDarkMode ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-white']"
+          >
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium truncate" :class="[primaryTextClass]">{{ f.file_name }}</p>
+              <p class="text-[11px]" :class="[mutedTextColor]">
+                {{ formatFileSize(f.file_size) }}
+                <span v-if="f.uploader_name"> · {{ f.uploader_name }}</span>
+                · {{ f.server_cached ? t('admin.unifiedManage.roomCacheOnServer') : t('admin.unifiedManage.roomCachePeerOnly') }}
+              </p>
+            </div>
+            <a
+              v-if="f.download_url"
+              :href="buildAbsoluteUrl(f.download_url)"
+              target="_blank"
+              rel="noopener"
+              class="px-2 py-1 rounded-md text-[11px] font-medium bg-indigo-600 text-white hover:bg-indigo-500 shrink-0"
+            >{{ t('admin.unifiedManage.roomCacheDownload') }}</a>
+            <button
+              type="button"
+              @click="removeRoomCacheFile(f)"
+              class="p-1 rounded-md text-red-500 hover:text-red-600 shrink-0"
+              :title="t('admin.unifiedManage.roomCacheDelete')"
+            >
+              <TrashIcon class="w-4 h-4" />
+            </button>
+          </li>
+        </ul>
       </div>
     </div>
 
@@ -818,7 +930,7 @@
                   ></textarea>
                 </div>
               </template>
-              <!-- 房间：人员上限编辑（不超后台配置） -->
+              <!-- 房间：人员上限编辑（不超后台配置） + 功能开关（保存消息/文件缓存） -->
               <template v-else-if="manageKind === 'room'">
                 <div>
                   <span class="text-xs block mb-1.5" :class="[mutedTextColor]">{{ t('admin.unifiedManage.editMaxMembers') }}</span>
@@ -831,6 +943,20 @@
                     :class="[isDarkMode ? 'bg-gray-900 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900']"
                   />
                 </div>
+                <SettingSwitch
+                  :model-value="editSaveMessages"
+                  :label="t('admin.unifiedManage.roomSaveMessages')"
+                  :enabled-text="t('admin.unifiedManage.roomFeatureOn')"
+                  :disabled-text="t('admin.unifiedManage.roomFeatureOff')"
+                  @toggle="editSaveMessages = editSaveMessages ? 0 : 1"
+                />
+                <SettingSwitch
+                  :model-value="editCacheEnabled"
+                  :label="t('admin.unifiedManage.roomCacheEnabled')"
+                  :enabled-text="t('admin.unifiedManage.roomFeatureOn')"
+                  :disabled-text="t('admin.unifiedManage.roomFeatureOff')"
+                  @toggle="editCacheEnabled = editCacheEnabled ? 0 : 1"
+                />
               </template>
             </div>
             <!-- 过期时间编辑（文件/房间：单个；收件箱：整箱/投递/取件） -->
@@ -916,13 +1042,16 @@ import {
 } from 'lucide-vue-next'
 import { useUnifiedAdmin, useClipboard } from '@/composables'
 import { useAlertStore } from '@/stores/alertStore'
+import { RoomService, type AdminRoomCacheFile } from '@/services'
 import { useConfirmStore } from '@/stores/confirmStore'
 import { useConfigStore } from '@/stores/configStore'
 import ThemeDropdown from '@/components/common/ThemeDropdown.vue'
 import ExpirationSelector from '@/components/common/ExpirationSelector.vue'
 import QuickExtendMenu from '@/components/common/QuickExtendMenu.vue'
+import SettingSwitch from '@/components/common/SettingSwitch.vue'
 import QRCode from 'qrcode.vue'
 import { formatFileSize, formatTimestamp } from '@/utils/common'
+import { buildAbsoluteUrl } from '@/utils/share-url'
 import { buildAppUrl, buildRetrieveUrl } from '@/utils/share-url'
 import type { AdminCollectionItem, CollectionFileItem } from '@/types/collection'
 import type { AdminRoomItem } from '@/types/room'
@@ -1152,6 +1281,9 @@ const manageItem = ref<any>(null)
 /** 编辑备注（文件）/ 人员上限（房间）草稿 */
 const editRemarkText = ref('')
 const editMaxMembersNum = ref(10)
+/** 房间功能开关草稿（0/1）：保存消息 / 文件缓存 */
+const editSaveMessages = ref(0)
+const editCacheEnabled = ref(0)
 const savingManage = ref(false)
 /** 管理弹窗：过期时间编辑（ExpirationSelector 字符串数值） */
 const editExpireStyle = ref('day')
@@ -1203,6 +1335,8 @@ const manageDirty = computed(() => {
       editExpireRetrieveValueStr.value !== String(item.retrieve_expire_value ?? 1)
   }
   return editMaxMembersNum.value !== (Number(item.max_members) || 10) ||
+    editSaveMessages.value !== (item.save_messages ? 1 : 0) ||
+    editCacheEnabled.value !== (item.cache_enabled ? 1 : 0) ||
     editExpireStyle.value !== (item.expire_style || 'day') ||
     editExpireValueStr.value !== String(item.expire_value ?? 1)
 })
@@ -1211,6 +1345,8 @@ const openManage = (kind: 'file' | 'collection' | 'room', item: any) => {
   manageItem.value = item
   editRemarkText.value = item?.remark || ''
   editMaxMembersNum.value = Number(item?.max_members) || 10
+  editSaveMessages.value = item?.save_messages ? 1 : 0
+  editCacheEnabled.value = item?.cache_enabled ? 1 : 0
   // 过期编辑默认值：文件/房间 → 主过期；收件箱 → 整箱/投递/取件
   if (kind === 'collection') {
     editExpireBoxStyle.value = item?.expire_style || 'day'
@@ -1262,11 +1398,24 @@ const saveManage = async () => {
       const value = Number(editExpireValueStr.value) || 1
       await adminApi.saveAdminRoomExpire(item.id, style, value)
       item.expire_style = style; item.expire_value = value
+      // 人员上限 + 功能开关（保存消息/文件缓存）合并为一次 PATCH 提交
+      const payload: { max_members?: number; save_messages?: number; cache_enabled?: number } = {}
       const members = Math.max(1, Math.min(Number(editMaxMembersNum.value) || 1, maxMembersLimit.value))
       if (members !== (Number(item.max_members) || 10)) {
-        await adminApi.updateAdminRoom(item.id, members)
-        item.max_members = members
+        payload.max_members = members
         editMaxMembersNum.value = members
+      }
+      if (editSaveMessages.value !== (item.save_messages ? 1 : 0)) {
+        payload.save_messages = editSaveMessages.value
+      }
+      if (editCacheEnabled.value !== (item.cache_enabled ? 1 : 0)) {
+        payload.cache_enabled = editCacheEnabled.value
+      }
+      if (Object.keys(payload).length > 0) {
+        await adminApi.updateAdminRoom(item.id, payload)
+        if (payload.max_members !== undefined) item.max_members = payload.max_members
+        if (payload.save_messages !== undefined) item.save_messages = !!payload.save_messages
+        if (payload.cache_enabled !== undefined) item.cache_enabled = !!payload.cache_enabled
       }
     }
     alertStore.showAlert(t('admin.unifiedManage.saved'), 'success')
@@ -1522,6 +1671,42 @@ const selectedRoom = ref<AdminRoomItem | null>(null)
 const showRoomDetail = (room: AdminRoomItem) => {
   selectedRoom.value = room
   showRoomDetailModal.value = true
+}
+
+// ============ 房间缓存文件（后台查看 + 强制清理） ============
+const showRoomCacheModal = ref(false)
+const roomCacheFiles = ref<AdminRoomCacheFile[]>([])
+const roomCacheLoading = ref(false)
+
+const openRoomCache = async (room: AdminRoomItem | null) => {
+  if (!room) return
+  selectedRoom.value = room
+  showRoomCacheModal.value = true
+  roomCacheLoading.value = true
+  roomCacheFiles.value = []
+  try {
+    const res = await RoomService.getAdminRoomCacheFiles(room.id)
+    if (res.code === 200 && Array.isArray(res.detail?.files)) {
+      roomCacheFiles.value = res.detail.files
+    }
+  } catch {
+    alertStore.showAlert(t('admin.unifiedManage.roomCacheLoadFailed'), 'error')
+  } finally {
+    roomCacheLoading.value = false
+  }
+}
+
+const removeRoomCacheFile = async (file: AdminRoomCacheFile) => {
+  try {
+    const res = await RoomService.deleteAdminRoomCacheFile(file.id)
+    if (res.code === 200) {
+      roomCacheFiles.value = roomCacheFiles.value.filter((f) => f.id !== file.id)
+      alertStore.showAlert(t('admin.unifiedManage.roomCacheDeleted'), 'success')
+      void reloadAll()
+    }
+  } catch {
+    alertStore.showAlert(t('admin.unifiedManage.deleteFailed'), 'error')
+  }
 }
 
 // ============ 通用 ============

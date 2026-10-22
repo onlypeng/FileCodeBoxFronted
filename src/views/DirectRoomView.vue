@@ -71,6 +71,20 @@
           >+{{ directStore.members.length - 4 }}</span>
         </button>
 
+        <!-- 缓存文件入口：房间内所有服务器缓存文件的统一查看/下载入口 -->
+        <button
+          @click="toggleCachePanel"
+          class="relative p-2 rounded-lg transition-colors shrink-0"
+          :class="[showCache ? (isDarkMode ? 'text-indigo-400 bg-gray-800' : 'text-indigo-600 bg-gray-100') : (isDarkMode ? 'text-gray-400 hover:text-indigo-400 hover:bg-gray-800' : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-100')]"
+          :title="t('direct.cache.title')"
+        >
+          <FolderIcon class="w-4.5 h-4.5" style="width: 18px; height: 18px" />
+          <span
+            v-if="cacheFileCount > 0"
+            class="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-[3px] rounded-full text-[9px] font-bold flex items-center justify-center bg-indigo-600 text-white"
+          >{{ cacheFileCount }}</span>
+        </button>
+
         <button
           @click="showShare = true"
           class="p-2 rounded-lg transition-colors shrink-0"
@@ -79,6 +93,20 @@
         >
           <ShareIcon class="w-4.5 h-4.5" style="width: 18px; height: 18px" />
         </button>
+      </div>
+
+      <!-- 进出房间提醒浮条：悬浮显示几秒后自动消失（不占聊天流） -->
+      <div class="pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 z-40 flex flex-col items-center gap-1.5 px-4">
+        <TransitionGroup name="room-event">
+          <div
+            v-for="ev in directStore.roomEvents"
+            :key="ev.id"
+            class="px-3 py-1.5 rounded-full text-xs font-medium shadow-lg backdrop-blur-sm border whitespace-nowrap"
+            :class="[isDarkMode ? 'bg-gray-900/85 text-indigo-200 border-indigo-700/40' : 'bg-white/95 text-indigo-700 border-indigo-100']"
+          >
+            {{ ev.content }}
+          </div>
+        </TransitionGroup>
       </div>
 
       <!-- ========== 共享通知条：有人共享屏幕/视频时显示在标题下方（不随消息滚动） ========== -->
@@ -118,11 +146,21 @@
         </div>
       </div>
 
+      <!-- 文件管理已改为弹窗（见模板末尾），不再内嵌在聊天区域 -->
+
       <!-- ========== 消息列表（微信风格） ========== -->
       <div ref="msgListRef" class="flex-1 overflow-y-auto custom-scrollbar px-4 py-3 space-y-1.5" @scroll="handleScroll">
-        <!-- 系统消息 -->
-        <div v-for="(item, index) in directStore.items" :key="item.id">
-          <div v-if="showTimeSeparator(index)" class="flex justify-center my-2">
+        <!-- 上滑到顶：还有更早的历史（微信式分页，滚动触发） -->
+        <div v-if="directStore.historyHasMore" class="flex justify-center py-2">
+          <span class="text-[11px]" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+            {{ t('direct.room.loadingEarlier') }}
+          </span>
+        </div>
+
+        <!-- ========== 统一消息流 ==========
+             历史与实时在同一条时间轴上按时间排序（微信式），不再分成上下两块。 -->
+        <div v-for="(item, index) in chatFeed" :key="item.id">
+          <div v-if="showFeedSeparator(index)" class="flex justify-center my-2">
             <span class="text-[11px] px-2.5 py-0.5 rounded-full" :class="[isDarkMode ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400']">
               {{ formatDateSeparator(item.ts) }}
             </span>
@@ -136,6 +174,28 @@
 
           <ChatBubble v-else-if="item.kind === 'text'" :item="item" @retry="handleRetry" />
 
+          <!-- 历史文件：归档卡片，点击尝试从服务器缓存取回 -->
+          <div
+            v-else-if="item.kind === 'file' && item.archived"
+            class="flex my-1"
+            :class="item.isSelf ? 'justify-end' : 'justify-start'"
+          >
+            <button
+              type="button"
+              @click="openArchivedFile(item)"
+              class="max-w-[72%] rounded-2xl px-3 py-2 border flex items-center gap-2.5 text-sm text-left transition-opacity hover:opacity-90"
+              :class="item.isSelf
+                ? (isDarkMode ? 'bg-indigo-600/90 text-white border-indigo-500' : 'bg-indigo-500 text-white border-indigo-400')
+                : (isDarkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-white text-gray-800 border-gray-200')"
+            >
+              <FileTextIcon class="w-4 h-4 shrink-0 opacity-90" />
+              <div class="min-w-0">
+                <p class="text-xs font-medium truncate max-w-[200px]">{{ item.fileName || '未知文件' }}</p>
+                <p class="text-[11px] opacity-80">{{ formatBytes(item.fileSize || 0) }} · {{ item.sender }}</p>
+              </div>
+            </button>
+          </div>
+
           <FileMessageBubble
             v-else-if="item.kind === 'file'"
             :item="item"
@@ -143,6 +203,7 @@
             @decline="handleDecline"
             @cancel="handleCancelOutgoing"
             @save="handleSaveIncoming"
+            @download="handleDownloadFromMessage"
           />
         </div>
 
@@ -456,42 +517,7 @@
           </div>
         </div>
 
-        <!-- 房间文件缓存（cache_enabled 房间：已接收成员可作为多源，其他成员可收取） -->
-        <div
-          v-if="directStore.cachedFiles.length > 0"
-          class="flex justify-start"
-        >
-          <div class="max-w-[85%] min-w-0 w-full">
-            <div class="rounded-xl border p-2" :class="[isDarkMode ? 'border-indigo-900/50 bg-indigo-950/30' : 'border-indigo-100 bg-indigo-50/60']">
-              <p class="text-[11px] font-medium mb-1.5" :class="[isDarkMode ? 'text-indigo-300' : 'text-indigo-700']">
-                📦 {{ t('direct.room.roomCacheTitle') }}
-              </p>
-              <div class="space-y-1">
-                <div
-                  v-for="cf in directStore.cachedFiles"
-                  :key="cf.transfer_id"
-                  class="flex items-center gap-2 min-w-0"
-                >
-                  <span class="text-xs truncate flex-1 min-w-0" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']">
-                    {{ cf.file_name }}
-                    <span class="opacity-60">({{ formatBytes(cf.file_size) }})</span>
-                  </span>
-                  <span class="text-[10px] shrink-0" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
-                    {{ cf.holders.length }} {{ t('direct.room.roomCacheHolders') }}
-                  </span>
-                  <button
-                    v-if="cf.holders.length > 0"
-                    type="button"
-                    @click="fetchCachedFile(cf)"
-                    class="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
-                  >
-                    {{ t('direct.room.roomCacheFetch') }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- 缓存文件不再混在消息流里：统一收进顶部「缓存文件」入口查看与下载 -->
 
         <!-- 正在输入 -->
         <div v-if="directStore.typingUsers.length > 0" class="flex justify-start">
@@ -612,6 +638,22 @@
           <VideoIcon class="w-5 h-5" />
         </button>
 
+        <!-- 发送目标：房间超过 2 人时才需要选择；默认房间全体（沿用广播语义） -->
+        <div v-if="otherMembers.length > 1" class="flex items-center gap-2 mb-1.5 px-1">
+          <span class="text-[11px] shrink-0" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+            {{ t('direct.room.sendTo') }}
+          </span>
+          <select
+            v-model="sendTarget"
+            class="rounded-md px-2 py-0.5 text-[11px] border outline-none min-w-0 flex-1"
+            :class="[isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white border-gray-300 text-gray-800']"
+          >
+            <option value="">{{ t('direct.room.allMembers') }}</option>
+            <option v-for="m in otherMembers" :key="m.client_id" :value="m.client_id">
+              {{ m.nickname }}
+            </option>
+          </select>
+        </div>
         <textarea
           v-model="inputText"
           rows="1"
@@ -966,6 +1008,19 @@
         </div>
       </div>
     </BaseModal>
+
+    <!-- 文件管理弹窗：房间服务器缓存文件的查看 / 上传 / 下载 / 删除 -->
+    <BaseModal :show="showCache" :title="t('direct.cache.title')" @close="showCache = false">
+      <RoomCachePanel
+        :rows="cacheRows"
+        :loading="cacheLoading"
+        :uploading="cacheUploading"
+        :error-msg="cacheError"
+        @upload="onCacheUpload"
+        @delete="onCacheDelete"
+        @download="handleDownloadFromMessage"
+      />
+    </BaseModal>
   </div>
 </template>
 
@@ -978,6 +1033,7 @@ import {
   ArrowLeftIcon,
   ShareIcon,
   MessageSquareIcon,
+  FileTextIcon,
   PaperclipIcon,
   MonitorIcon,
   VideoIcon,
@@ -989,22 +1045,25 @@ import {
   XIcon,
   Volume2Icon,
   VolumeXIcon,
+  FolderIcon,
 } from 'lucide-vue-next'
 import ChatBubble from '@/components/common/ChatBubble.vue'
 import FileMessageBubble from '@/components/common/FileMessageBubble.vue'
+import RoomCachePanel from '@/components/common/RoomCachePanel.vue'
 import SuccessModal from '@/components/common/SuccessModal.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ThemeDropdown from '@/components/common/ThemeDropdown.vue'
 import { useDirectStore } from '@/stores/directStore'
 import { useConfigStore } from '@/stores/configStore'
-import { useDirectConnection } from '@/composables'
+import { CACHE_HOUR_OPTIONS, useDirectConnection, useRoomCacheFiles } from '@/composables'
 import { useAlertStore } from '@/stores/alertStore'
 import { useFileDataStore } from '@/stores/fileData'
 import { STORAGE_KEYS } from '@/constants'
-import { buildAppUrl } from '@/utils/share-url'
+import { buildAbsoluteUrl, buildAppUrl } from '@/utils/share-url'
+import { DirectService } from '@/services'
 import { downloadBlob } from '@/utils/download-action'
 import { readPreference, writePreference } from '@/utils/preference-storage'
-import type { DirectChatItem } from '@/types/direct'
+import type { DirectChatItem, RoomCacheRow } from '@/types/direct'
 
 const props = defineProps<{ code: string }>()
 
@@ -1022,10 +1081,65 @@ const fileDataStore = useFileDataStore()
 const connection = useDirectConnection()
 const { isConnected } = connection
 
+// ==================== 房间缓存文件（独立入口，不再混在消息流里） ====================
+const showCache = ref(false)
+const cache = useRoomCacheFiles({
+  roomCode: () => roomCode.value,
+  clientId: () => directStore.myClientId,
+  nickname: () =>
+    directStore.members.find((m) => m.client_id === directStore.myClientId)?.nickname || '',
+})
+
+// 解构为顶层 ref：对象内的 ref 在模板中不会自动解包
+const cacheLoading = cache.loading
+const cacheUploading = cache.uploading
+const cacheError = cache.errorMsg
+
+/** 展示行：补齐展示字段后交给面板组件，组件本身不做业务判断 */
+const cacheRows = computed<RoomCacheRow[]>(() =>
+  cache.serverFiles.value.map((f) => ({
+    ...f,
+    expireText: cache.expireText(f),
+    canDelete: cache.isMine(f),
+    downloadUrl: cache.downloadUrl(f),
+  }))
+)
+
+/** 顶部入口徽章：可直接下载的落盘文件数 */
+const cacheFileCount = computed(() => cache.serverFiles.value.length)
+
+const toggleCachePanel = async () => {
+  showCache.value = !showCache.value
+  if (showCache.value) {
+    await cache.refresh()
+  }
+}
+
+const onCacheUpload = async (file: File, cacheHours: number) => {
+  const saved = await cache.upload(file, cacheHours)
+  if (saved) {
+    alertStore.showAlert(t('direct.cache.uploaded'), 'success')
+  } else if (cache.errorMsg.value) {
+    alertStore.showAlert(cache.errorMsg.value, 'error')
+  }
+}
+
+const onCacheDelete = async (transferId: string) => {
+  const ok = await cache.remove(transferId)
+  if (!ok && cache.errorMsg.value) {
+    alertStore.showAlert(cache.errorMsg.value, 'error')
+  }
+}
+
 // ==================== 输入 ====================
 const inputText = ref('')
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+/** 文件发送目标：空 = 房间全体（广播）；指定 client_id = 只投递给该成员 */
+const sendTarget = ref('')
+const otherMembers = computed(() =>
+  directStore.members.filter((m) => m.client_id !== directStore.myClientId)
+)
 const msgListRef = ref<HTMLElement | null>(null)
 const atBottom = ref(true)
 const savedIncomingIds = new Set<string>()
@@ -1184,15 +1298,66 @@ const handleDrop = (event: DragEvent) => {
   sendFiles(files)
 }
 
+/**
+ * 发送文件时的服务器缓存时长（小时）：默认 3 天（72 小时）。
+ * 需要指定其他时长，请到右上角「文件管理」里上传（那里可手动选择过期时间）。
+ */
+const cacheHours = ref(Number(config.value.roomCacheDefaultHours) || 72)
+/** 后台是否允许房间文件缓存（关闭时不再显示缓存时长选择，发送仅走 P2P） */
+const cacheEnabledForRoom = computed(() => Number(config.value.roomCacheEnabled) !== 0)
+
+/** 判断文件能否缓存到服务器：后台总开关 + 单文件大小上限（超限只能 P2P 直传） */
+function canCacheFile(file: File): boolean {
+  if (Number(config.value.roomCacheEnabled) === 0) return false
+  const limitMb = Number(config.value.roomCacheMaxSize) || 0
+  return limitMb === 0 || file.size <= limitMb * 1024 * 1024
+}
+
+/** 把文件缓存到服务器；transferId 与 P2P 共用，保证消息与缓存文件是同一条 */
+async function cacheFileToServer(file: File, transferId?: string) {
+  try {
+    await directStore.uploadFileToCache(roomCode.value, file, {
+      transferId: transferId || `cache-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      clientId: directStore.myClientId,
+      uploaderName: memberNickname(directStore.myClientId) || '',
+      cacheHours: cacheHours.value,
+    })
+  } catch {
+    // 房间未启用缓存 / 配额不足 / 类型不允许：降级为纯 P2P，不阻断本次发送
+    alertStore.showAlert(t('direct.cache.uploadFailed'), 'warning')
+  }
+}
+
 function sendFiles(files: File[]) {
   if (files.length === 0) return
-  if (directStore.onlineCount < 2) {
-    alertStore.showAlert(t('direct.room.needPeer'), 'warning')
-    return
-  }
-  const ok = connection.offerFiles(files)
-  if (!ok) {
-    alertStore.showAlert(t('direct.room.needPeer'), 'warning')
+
+  const hasPeer = directStore.onlineCount >= 2
+  // 定向发送：指定了成员就只投递给他，否则沿用房间全体（广播）语义
+  const targets = sendTarget.value ? [sendTarget.value] : undefined
+
+  for (const file of files) {
+    const cacheable = canCacheFile(file)
+    if (!hasPeer && !cacheable) {
+      // 既不能缓存、又没有其他人在线：文件无处可去
+      alertStore.showAlert(t('direct.cache.blockedNoPeer'), 'warning')
+      continue
+    }
+
+    // 1) 先在本地把消息条目建好。文件消息的先后顺序 = 用户点发送的时刻，
+    //    不会因为"服务器上传是异步的"而插到后面聊天的后头
+    //    （之前是在上传完成回调里才插入，导致 aaaaa/bbbbb/文件/cccc 变成 aaaaa/bbbbb/cccc/文件）。
+    const transferId = `tf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    directStore.offerFileWithId(file, transferId)
+
+    // 2) 有其他人 → 用同一 transfer_id 补发 P2P 直传信令
+    if (hasPeer) {
+      connection.offerExistingFile(transferId, file, targets)
+    }
+
+    // 3) 同时缓存到服务器：新成员加入 / 发送方离线时仍可取到
+    if (cacheable) {
+      void cacheFileToServer(file, transferId)
+    }
   }
 }
 
@@ -1251,20 +1416,73 @@ const formatBytes = (bytes: number): string => {
   return `${val >= 100 ? Math.round(val) : val.toFixed(1)}${units[i]}`
 }
 
-/** 从缓存源收取文件：向该文件首个缓存持有者发起 file_cache_request（持有者会以发送者身份转发） */
-const fetchCachedFile = async (cf: { transfer_id: string; file_name: string; file_size: number; holders: string[] }) => {
-  const holderId = cf.holders[0]
-  if (!holderId) return
-  if (holderId === directStore.myClientId) {
-    alertStore.showAlert(t('direct.room.roomCacheSelf'), 'warning')
+/** 从缓存源收取文件：在线来源 ≥2 且文件较大时多源并行加速（分 ≤3 段），否则单源整份收取。
+ *  缓存文件以"文件消息"形式直接放入共享文件消息框（不单独展示面板）。 */
+const cacheRequested = ref<Set<string>>(new Set())
+
+/** 缓存文件消息框的发送者行：直接显示共享/持有该文件的用户名（旧记录无昵称时在线成员映射兜底） */
+const cacheSourceText = (cf: { holders: string[]; holder_names?: string[] }): string => {
+  let names: string[] = (cf.holder_names || []).filter(Boolean)
+  if (names.length === 0) {
+    // 旧记录无昵称：用在线成员映射 holder client_id
+    names = (cf.holders || []).map((h) => directStore.members.find((m) => m.client_id === h)?.nickname || '').filter(Boolean)
+  }
+  return names.length > 0 ? names.join('、') : t('direct.room.roomCacheTitle')
+}
+
+const fetchCachedFile = async (cf: {
+  transfer_id: string
+  file_name: string
+  file_size: number
+  holders: string[]
+  server_cached?: boolean
+  /** 服务端下发的整文件哈希，多源合并后用于校验内容完整性 */
+  file_hash?: string
+}) => {
+  // 服务器上已有缓存 → 直接下载，不依赖任何成员在线
+  // （此前先判在线来源，导致"点下载却说暂无可用的在线缓存来源"）
+  if (cf.server_cached) {
+    window.open(cache.downloadUrl(cf as never), '_blank')
     return
   }
-  connection.requestCachedFile?.({
-    transfer_id: cf.transfer_id,
-    file_name: cf.file_name,
-    file_size: cf.file_size,
-    holder_id: holderId,
-  })
+  const myId = directStore.myClientId
+  const online = (cf.holders || []).filter((h) => h && h !== myId && directStore.members.some((m) => m.client_id === h))
+  if (online.length === 0) {
+    alertStore.showAlert(t('direct.room.roomCacheNoSource'), 'warning')
+    return
+  }
+  cacheRequested.value = new Set([...cacheRequested.value, cf.transfer_id])
+  const size = Number(cf.file_size) || 0
+  const K = online.length >= 2 && size >= 2 * 1024 * 1024 ? Math.min(online.length, 3) : 1
+  if (K === 1) {
+    connection.requestCachedFile?.({
+      transfer_id: cf.transfer_id,
+      file_name: cf.file_name,
+      file_size: size,
+      holder_id: online[0],
+    })
+  } else {
+    // 多源加速：按字节均分 K 段，分别请求不同在线来源，并行传输后合并
+    // 带上服务端下发的整文件哈希，合并后据此校验内容完整性
+    directStore.startCacheFetch(cf.transfer_id, cf.file_name, size, K, cf.file_hash || '')
+    // 登记"本端主动发起的收取"：只有登记过的 cache_source 才会被自动接受，
+    // 防止他人伪造分片 offer 让本端被动收文件
+    directStore.markCacheRequested(cf.transfer_id)
+    for (let k = 0; k < K; k++) {
+      const start = Math.floor((size * k) / K)
+      const end = k === K - 1 ? size - 1 : Math.floor((size * (k + 1)) / K) - 1
+      const partId = `${cf.transfer_id}#${k}`
+      connection.requestCachedFile?.({
+        transfer_id: cf.transfer_id,
+        file_name: cf.file_name,
+        file_size: size,
+        holder_id: online[k],
+        part_id: partId,
+        range_start: start,
+        range_end: end,
+      })
+    }
+  }
   alertStore.showAlert(t('direct.room.roomCacheRequested'), 'info')
 }
 
@@ -2124,6 +2342,51 @@ const handleAccept = (transferId: string) => {
   connection.respondFileOffer(transferId, true)
 }
 
+/**
+ * 接收失败回退：优先从已下载该文件的成员多源获取；
+ * 没有可用成员、但服务器有缓存时，直接从服务器下载。
+ * 覆盖场景：发送方已离线或 P2P 不通。
+ */
+async function fallbackToCacheOrServer(transferId: string) {
+  const cf = directStore.cachedFiles.find((c) => c.transfer_id === transferId)
+  if (!cf) return
+
+  const myId = directStore.myClientId
+  const online = (cf.holders || []).filter(
+    (h) => h && h !== myId && directStore.members.some((m) => m.client_id === h)
+  )
+
+  if (online.length > 0) {
+    // 有其他已下载成员：从他们获取（文件较大时自动分片并行加速）
+    await fetchCachedFile(cf)
+    return
+  }
+
+  if (cf.server_cached) {
+    // 无可用成员但服务器有缓存：直接下载
+    window.open(cache.downloadUrl(cf), '_blank')
+    alertStore.showAlert(t('direct.cache.fallbackDownload'), 'info')
+  }
+}
+
+// 直传失败自动回退到"已下载成员 / 服务器缓存"，避免中断后无法获取文件
+watch(
+  () =>
+    directStore.items
+      .filter(
+        (it) =>
+          it.kind === 'file' && it.fileDirection === 'incoming' && it.fileStatus === 'failed'
+      )
+      .map((it) => it.transferId || it.id)
+      .join('|'),
+  (ids) => {
+    if (!ids) return
+    for (const id of ids.split('|')) {
+      void fallbackToCacheOrServer(id)
+    }
+  }
+)
+
 const handleDecline = (transferId: string) => {
   connection.respondFileOffer(transferId, false)
 }
@@ -2158,6 +2421,20 @@ const handleScroll = () => {
   const el = msgListRef.value
   if (!el) return
   atBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+
+  // 滑到顶部 → 加载更早的历史（微信式分页）。
+  // 前插内容会改变 scrollHeight，这里补偿滚动位置，避免视图"跳一下"。
+  if (el.scrollTop < 40 && directStore.historyHasMore) {
+    const prevHeight = el.scrollHeight
+    const prevTop = el.scrollTop
+    void directStore.loadMoreHistory().then(() => {
+      void nextTick(() => {
+        const list = msgListRef.value
+        if (!list) return
+        list.scrollTop = prevTop + (list.scrollHeight - prevHeight)
+      })
+    })
+  }
 }
 
 const scrollToBottom = () => {
@@ -2176,13 +2453,132 @@ watch(
   }
 )
 
-function showTimeSeparator(index: number): boolean {
+/**
+ * 消息去重键：历史是每次握手重新拉的，可能与本地实时消息重叠（重连场景），
+ * 以实时消息为准，历史里同一条不再重复出现。时间取分钟级——服务端与本地时间常有秒级偏差。
+ */
+function feedKey(item: DirectChatItem): string {
+  const body = item.kind === 'text' ? item.content || '' : item.fileName || ''
+  return `${item.kind}|${item.sender}|${body}|${Math.floor(item.ts / 60000)}`
+}
+
+/**
+ * 微信式统一消息流：历史与实时放进同一条时间轴按时间排序，
+ * 不再像以前那样分成"历史一块 + 实时一块"并在中间插分隔条。
+ */
+const chatFeed = computed<DirectChatItem[]>(() => {
+  const live = directStore.items
+  const liveKeys = new Set(live.map(feedKey))
+  const history = directStore.historyItems.filter((it) => !liveKeys.has(feedKey(it)))
+  return [...history, ...live].sort((a, b) => a.ts - b.ts)
+})
+
+/** 统一消息流的日期分隔（历史与实时共用同一套规则） */
+function showFeedSeparator(index: number): boolean {
   if (index === 0) return true
-  const prev = directStore.items[index - 1]
-  const curr = directStore.items[index]
+  const prev = chatFeed.value[index - 1]
+  const curr = chatFeed.value[index]
+  if (!prev || !curr) return false
   if (curr.kind === 'system') return false
   return new Date(prev.ts).toDateString() !== new Date(curr.ts).toDateString()
 }
+
+/**
+ * 下载服务器缓存文件，并把数据留在本页作为持有源。
+ * 下载完成后本端就成为一个可用的 P2P 来源，其他成员/新成员能直接从本端加速获取
+ * ——只要不关闭当前页面就一直有效（服务端会收到 file_cache_ready 并登记）。
+ */
+async function downloadAndHoldFile(
+  entry: { transfer_id: string; file_name: string; file_size: number },
+  meta?: { sender?: string; ts?: number }
+) {
+  // 先换一条新签名链接：列表里那条可能已超过 30 分钟有效期，
+  // 直接用会报"下载链接无效或已过期，请重新打开缓存文件列表"
+  let url = cache.downloadUrl(entry as never)
+  try {
+    const res = await DirectService.getCacheDownloadLink(roomCode.value, entry.transfer_id)
+    if (res.code === 200 && res.detail?.download_url) {
+      url = buildAbsoluteUrl(res.detail.download_url)
+    }
+  } catch {
+    // 换链接失败（例如文件未落盘）→ 继续用原链接尝试
+  }
+
+  try {
+    const resp = await fetch(url)
+    if (!resp.ok) throw new Error(String(resp.status))
+    const blob = await resp.blob()
+    // 1) 存入 OPFS（磁盘）→ 成为可被其他成员收取的来源。
+    //    内存里只留一个文件句柄，没人来取就不占内存；刷新后仍在。
+    await directStore.registerDownloadedFile(
+      {
+        transfer_id: entry.transfer_id,
+        file_name: entry.file_name,
+        file_size: entry.file_size,
+        sender: meta?.sender,
+        ts: meta?.ts,
+      },
+      blob
+    )
+    // 2) 同时存到本地磁盘
+    downloadBlob(blob, entry.file_name || 'file')
+    // 3) 告知服务端本端已持有 → 登记进缓存来源列表
+    connection.notifyCacheReady(entry.transfer_id, entry.file_name, entry.file_size)
+  } catch {
+    // fetch 失败（签名过期/跨域等）退回浏览器直接下载，至少保证用户能拿到文件
+    window.open(url, '_blank')
+  }
+}
+
+/** 点击历史文件：服务器还有缓存就直接取回并持有，否则提示已不可用 */
+function openArchivedFile(item: DirectChatItem) {
+  const tid = item.transferId || ''
+  const cf = directStore.cachedFiles.find((c) => c.transfer_id === tid)
+  if (cf && cf.server_cached) {
+    void downloadAndHoldFile(cf, { sender: item.sender, ts: item.ts })
+    return
+  }
+  if (cf) {
+    // 还在某个成员手里：走已有的多源获取流程
+    void fetchCachedFile(cf)
+    return
+  }
+  alertStore.showAlert(t('direct.room.fileUnavailable'), 'warning')
+}
+
+/** 消息卡片上的「下载」按钮：下载并留存为供源 */
+function handleDownloadFromMessage(transferId: string) {
+  const cf = directStore.cachedFiles.find((c) => c.transfer_id === transferId)
+  if (!cf) {
+    alertStore.showAlert(t('direct.room.fileUnavailable'), 'warning')
+    return
+  }
+  if (cf.server_cached) {
+    const item = directStore.getFileItem(transferId)
+    void downloadAndHoldFile(cf, { sender: item?.sender, ts: item?.ts })
+    return
+  }
+  void fetchCachedFile(cf)
+}
+
+// ==================== 进出房间提醒浮条：3 秒自动消失 ====================
+const roomEventTimers = new Map<number, ReturnType<typeof setTimeout>>()
+watch(
+  () => directStore.roomEvents.length,
+  () => {
+    for (const ev of directStore.roomEvents) {
+      if (!roomEventTimers.has(ev.id)) {
+        roomEventTimers.set(
+          ev.id,
+          setTimeout(() => {
+            directStore.removeRoomEvent(ev.id)
+            roomEventTimers.delete(ev.id)
+          }, 3000)
+        )
+      }
+    }
+  }
+)
 
 function formatDateSeparator(ts: number): string {
   const d = new Date(ts)
@@ -2235,6 +2631,8 @@ function setupRoom() {
         roomCode: roomCode.value,
       })
       connection.connect(roomCode.value, readPreference(STORAGE_KEYS.DIRECT_NICKNAME, '') || '匿名')
+      // 保底加载历史：不依赖 welcome 握手消息（若握手未带 client_id，welcome 分支不会触发加载）
+      void directStore.loadHistory(roomCode.value)
       scrollToBottom()
     })
     .catch((err: unknown) => {
@@ -2261,6 +2659,9 @@ onUnmounted(() => {
   endFloatDrag()
   connection.disconnect()
   directStore.reset()
+  // 清理未触发的提醒浮条计时器
+  for (const timer of roomEventTimers.values()) clearTimeout(timer)
+  roomEventTimers.clear()
 })
 </script>
 
@@ -2274,5 +2675,27 @@ onUnmounted(() => {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(99, 102, 241, 0.4);
   border-radius: 3px;
+}
+/* 进出房间提醒浮条动画：淡入上浮，停留后淡出 */
+.room-event-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.room-event-enter-active {
+  transition: all 0.25s ease;
+}
+.room-event-enter-to {
+  opacity: 1;
+  transform: translateY(0);
+}
+.room-event-leave-from {
+  opacity: 1;
+}
+.room-event-leave-active {
+  transition: all 0.3s ease;
+}
+.room-event-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

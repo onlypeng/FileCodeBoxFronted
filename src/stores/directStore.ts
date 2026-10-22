@@ -11,6 +11,7 @@ import type {
   DirectRoomInfo,
   DirectTransferMode,
   FileRecipient,
+  RoomCacheFile,
 } from '@/types/direct'
 
 const MAX_ITEMS = 300 // 内存中最多保留的聊天流条目
@@ -57,32 +58,380 @@ export const useDirectStore = defineStore('direct', () => {
   // ==================== 聊天流 ====================
   const items = ref<DirectChatItem[]>([])
   const typingUsers = ref<string[]>([])
+  // 历史记录（save_messages 房间：进入时加载 /room/history，只读展示在实时流上方）
+  const historyItems = ref<DirectChatItem[]>([])
+  const historyLoadedCode = ref('')
+  /** 是否还有更早的历史可加载（上滑到顶时分页拉取，微信式） */
+  const historyHasMore = ref(false)
+  // 进出房间等轻量事件：悬浮几秒自动消失（不占聊天流）
+  const roomEvents = ref<Array<{ id: number; content: string }>>([])
 
   // ==================== 房间文件缓存（cache_enabled=1 时由服务器下发/广播） ====================
-  /** 房间已缓存文件列表：{ transfer_id, file_name, file_size, holders[] } */
-  const cachedFiles = ref<Array<{ transfer_id: string; file_name: string; file_size: number; holders: string[] }>>([])
+  /** 房间已缓存文件列表：{ transfer_id, file_name, file_size, holders[], holder_names[] } */
+  const cachedFiles = ref<RoomCacheFile[]>([])
 
-  function setCachedFiles(list: Array<{ transfer_id: string; file_name: string; file_size: number; holders: string[] }>) {
-    cachedFiles.value = list || []
+  /** 多源加速合并计划：tid -> { 文件名/大小/分段数/已收分片(k->Blob)/分片传输id(k->partTransferId)/发起时间 } */
+  const cacheMergePlans = new Map<string, {
+    name: string
+    size: number
+    total: number
+    received: Map<number, Blob>
+    partTransferIds: Map<number, string>
+    startedAt: number
+    /** 服务端下发的整文件 SHA-256；空串表示无法校验 */
+    hash: string
+  }>()
+
+  /**
+   * 我主动发起的"从缓存源收取"的 transfer_id 集合。
+   *
+   * 用途：收到的 file_offer 若带 cache_source，只有它在这个集合里才允许自动接受。
+   * 否则任何房间成员都能伪造一条带 cache_source 的 offer，让受害者在没有点过
+   * "接受"的情况下被动开始接收文件（吃带宽与磁盘）。
+   */
+  const myCacheRequests = new Set<string>()
+
+  function markCacheRequested(tid: string) {
+    if (tid) myCacheRequests.add(tid)
   }
 
-  /** 追加/更新一条缓存文件（file_cache_update 广播到达时） */
-  function upsertCachedFile(entry: { transfer_id: string; file_name: string; file_size: number; holder_id: string }) {
+  function isCacheRequested(tid: string): boolean {
+    return !!tid && myCacheRequests.has(tid)
+  }
+
+  function clearCacheRequest(tid: string) {
+    if (tid) myCacheRequests.delete(tid)
+  }
+
+  /** 合并计划存活上限：超时未收齐即丢弃（含已收分片 Blob），
+   *  避免某个源掉线后计划与其持有的分片永久驻留内存 */
+  const CACHE_MERGE_TTL = 5 * 60 * 1000
+
+  /** 清理超时的合并计划，返回清理条数 */
+  function sweepCacheMergePlans(): number {
+    const now = Date.now()
+    let removed = 0
+    for (const [tid, plan] of cacheMergePlans) {
+      if (now - plan.startedAt > CACHE_MERGE_TTL) {
+        plan.received.clear()
+        cacheMergePlans.delete(tid)
+        myCacheRequests.delete(tid)
+        removed += 1
+      }
+    }
+    if (removed) console.warn(`[direct] 清理超时多源合并计划 ${removed} 个`)
+    return removed
+  }
+
+  /** 发起多源收取前登记计划（total=分段数，hash=服务端下发的整文件 SHA-256，可为空） */
+  function startCacheFetch(tid: string, name: string, size: number, total: number, hash = '') {
+    sweepCacheMergePlans()
+    cacheMergePlans.set(tid, {
+      name,
+      size,
+      total,
+      received: new Map(),
+      partTransferIds: new Map(),
+      startedAt: Date.now(),
+      hash: hash || '',
+    })
+  }
+
+  /** 标记某分片条目 belong 到缓存文件（file_offer 到达时调用；分片传输 id 形如 `${tid}#${k}`） */
+  function registerCachePart(tid: string, k: number, partTransferId: string) {
+    let plan = cacheMergePlans.get(tid)
+    if (!plan) {
+      // total=0 表示"未经 startCacheFetch 登记总数"，cachePartDone 会据此拒绝合并，
+      // 否则 received.size(1) >= total(0) 会立刻成立、拼出空 Blob 当作成功结果
+      plan = {
+        name: '',
+        size: 0,
+        total: 0,
+        received: new Map(),
+        partTransferIds: new Map(),
+        startedAt: Date.now(),
+        hash: '',
+      }
+      cacheMergePlans.set(tid, plan)
+    }
+    plan.partTransferIds.set(k, partTransferId)
+    const item = items.value.find((it) => it.kind === 'file' && it.id === partTransferId)
+    if (item) {
+      item.cacheOf = tid
+      // 分片条目显示序号（合并完成前便于区分各源进度）
+      if (plan.total > 0) item.fileName = `${plan.name || item.fileName || '文件'} (${k + 1}/${plan.total})`
+    }
+  }
+
+  /**
+   * 内容校验的体积上限。纯 JS 的 SHA-256 是 CPU 密集操作，超大文件在主线程
+   * 计算会造成数秒卡顿；超过上限只做大小校验并标记 'unknown'。
+   * （真实项目通常把它放进 Web Worker，本项目暂无 Worker 基础设施，故设上限兜底）
+   */
+  const VERIFY_HASH_MAX_BYTES = 64 * 1024 * 1024
+
+  /**
+   * 分块读取 Blob 并增量计算 SHA-256，避免把整个文件一次性读进内存。
+   * 复用 utils/sha256 的增量实现（与传输过程中的流式哈希同一套）。
+   */
+  async function sha256OfBlob(blob: Blob, chunkSize = 4 * 1024 * 1024): Promise<string> {
+    const hasher = new Sha256()
+    for (let offset = 0; offset < blob.size; offset += chunkSize) {
+      const buf = await blob.slice(offset, Math.min(offset + chunkSize, blob.size)).arrayBuffer()
+      hasher.update(new Uint8Array(buf))
+      // 每块之间让出事件循环，避免大文件校验把 UI 完全卡死
+      await new Promise((r) => setTimeout(r, 0))
+    }
+    return hasher.digestHex()
+  }
+
+  /** 分片接收完成（file_end 到达时由组合器调用）：收集分片，全部到齐后合并为完整文件 */
+  async function cachePartDone(tid: string, partTransferId: string) {
+    const plan = cacheMergePlans.get(tid)
+    if (!plan) return
+    // 严格解析分片序号：非法/缺失时不得回退为 0（会把真实 k=0 的分片覆盖掉，
+    // 进而导致 received.size 永远凑不满 total，条目永久卡在"接收中"）
+    const k = Number(partTransferId.split('#').pop())
+    if (!Number.isInteger(k) || k < 0) {
+      console.warn(`[direct] 分片序号非法，忽略: ${partTransferId}`)
+      return
+    }
+    const data = await consumeIncomingBlob(partTransferId)
+    if (!data) return
+    plan.received.set(k, data.blob)
+    removeFileItem(partTransferId) // 分片条目完成即从聊天流移除，由合并后的完整文件条目取代
+    // 未登记分段数（total<=0）时拒绝合并：否则 received.size(1) >= total(0) 立刻成立，
+    // 会拼出空 Blob 却当作成功结果
+    if (plan.total <= 0) return
+    if (plan.received.size >= plan.total) {
+      // 按分片序号升序拼接
+      const parts: Blob[] = []
+      for (let i = 0; i < plan.total; i++) {
+        const b = plan.received.get(i)
+        if (!b) {
+          // 缺失分片：释放已收分片并丢弃计划，避免内存永久驻留、UI 永久卡住
+          console.warn(`[direct] 分片 ${i} 缺失，放弃合并: ${tid}`)
+          plan.received.clear()
+          cacheMergePlans.delete(tid)
+          clearCacheRequest(tid)
+          return
+        }
+        parts.push(b)
+      }
+      const merged = new Blob(parts, { type: 'application/octet-stream' })
+      // ===== 完整性校验 =====
+      // 1) 大小校验：各分片来自不同 peer，任一源返回错误分片都会让总大小不符
+      const sizeOk = plan.size <= 0 || merged.size === plan.size
+      if (!sizeOk) {
+        console.warn(`[direct] 多源合并大小不符: ${tid} 期望 ${plan.size} 实际 ${merged.size}`)
+      }
+      // 2) 内容校验：与服务端下发的整文件 SHA-256 比对。
+      //    该哈希由服务端落盘时流式算出（非客户端声明），是权威值。
+      let hashStatus: 'ok' | 'mismatch' | 'unknown' = 'unknown'
+      if (plan.hash && merged.size <= VERIFY_HASH_MAX_BYTES) {
+        const actual = await sha256OfBlob(merged)
+        hashStatus = actual === plan.hash ? 'ok' : 'mismatch'
+        if (hashStatus === 'mismatch') {
+          console.warn(`[direct] 多源合并内容校验失败: ${tid} 期望 ${plan.hash} 实际 ${actual}`)
+        }
+      }
+      const mergedItem = {
+        id: tid,
+        kind: 'file' as const,
+        sender: '',
+        isSelf: false,
+        ts: Date.now(),
+        transferId: tid,
+        fileName: plan.name || '缓存文件',
+        fileSize: merged.size,
+        fileDirection: 'incoming' as const,
+        fileStatus: sizeOk && hashStatus !== 'mismatch' ? ('done' as const) : ('failed' as const),
+        hashStatus,
+        transferred: merged.size,
+        _blob: merged,
+      } as DirectChatItem & InternalFileItem
+      items.value.push(mergedItem)
+      trimItems()
+      plan.received.clear()
+      cacheMergePlans.delete(tid)
+      clearCacheRequest(tid)
+    }
+  }
+
+  /**
+   * 把任意来源（历史接口 / WS 广播）的缓存文件数据补全为完整结构。
+   * 历史接口只返回 P2P 持有者信息、缺少落盘字段，统一在此兜底。
+   */
+  function normalizeCacheFile(raw: Partial<RoomCacheFile> & { transfer_id: string }): RoomCacheFile {
+    return {
+      transfer_id: raw.transfer_id,
+      file_name: raw.file_name || '',
+      file_size: raw.file_size || 0,
+      file_hash: raw.file_hash || '',
+      uploader_name: raw.uploader_name || '',
+      owner_id: raw.owner_id || '',
+      holders: raw.holders || [],
+      holder_names: raw.holder_names || [],
+      server_cached: !!raw.server_cached,
+      expires_at: raw.expires_at ?? null,
+      cached_at: raw.cached_at ?? null,
+    }
+  }
+
+  function setCachedFiles(list: Array<Partial<RoomCacheFile> & { transfer_id: string }>) {
+    cachedFiles.value = (list || []).map(normalizeCacheFile)
+  }
+
+  /** 服务器落盘完成（room_cache_added 广播）：整体替换同名条目，保证拿到完整落盘信息 */
+  function upsertServerCachedFile(entry: Partial<RoomCacheFile> & { transfer_id: string }) {
+    if (!entry.transfer_id) return
+    const next = normalizeCacheFile(entry)
+    const idx = cachedFiles.value.findIndex((c) => c.transfer_id === entry.transfer_id)
+    if (idx >= 0) {
+      cachedFiles.value = cachedFiles.value.map((c, i) => (i === idx ? next : c))
+    } else {
+      cachedFiles.value = [...cachedFiles.value, next]
+    }
+  }
+
+  /**
+   * 已缓存文件进入聊天流：房间内其他人收到上传广播后，把文件作为一条普通文件消息
+   * 追加到消息列表末尾（即按时间顺序，不强制置顶/插入固定位置）。
+   * 上传者本地已有自己发出的那条消息，跳过以免重复。
+   */
+  function upsertCacheFileMessage(entry: RoomCacheFile) {
+    if (!entry.transfer_id) return
+    const exists = items.value.some(
+      (it) => it.kind === 'file' && it.transferId === entry.transfer_id
+    )
+    if (exists) return
+
+    // 服务器会把上传广播发给房间内所有人（含上传者自己）。
+    // 上传者收到自己那条时，必须呈现为「自己发出的文件」，
+    // 否则会走接收分支、给发送方显示本应只属于接收方的「接受」按钮。
+    const isMine = !!entry.owner_id && entry.owner_id === myClientId.value
+    items.value.push({
+      id: `cache-${entry.transfer_id}`,
+      kind: 'file',
+      sender: isMine ? myNickname() : entry.uploader_name || '成员',
+      isSelf: isMine,
+      ts: entry.cached_at ? new Date(entry.cached_at).getTime() : Date.now(),
+      transferId: entry.transfer_id,
+      fileName: entry.file_name,
+      fileSize: entry.file_size,
+      // 自己上传：outgoing + done（文件已在服务器，显示"已发送"，无接受按钮）
+      fileDirection: isMine ? 'outgoing' : 'incoming',
+      fileStatus: isMine ? 'done' : 'awaiting_confirm',
+      transferred: isMine ? entry.file_size : 0,
+      // 这条广播本身来自"已落盘"，带上服务器缓存信息，
+      // 接收方卡片才能直接给出下载入口（否则只能走 P2P，发送方离线就取不到）
+      serverCached: !!entry.server_cached,
+      downloadUrl: entry.download_url || '',
+    })
+    trimItems()
+  }
+
+  /** 缓存文件被删除（room_cache_removed 广播） */
+  function removeCachedFile(transferId: string) {
+    if (!transferId) return
+    cachedFiles.value = cachedFiles.value.filter((c) => c.transfer_id !== transferId)
+  }
+
+  /** 拉取房间缓存文件列表（进入房间 / 打开缓存入口时调用） */
+  async function refreshCacheFiles(roomCode: string) {
+    if (!roomCode) return
+    try {
+      const res = await DirectService.getCacheFiles(roomCode)
+      if (res.code === 200 && Array.isArray(res.detail?.files)) {
+        setCachedFiles(res.detail.files)
+      }
+    } catch {
+      // 静默失败：缓存入口不可用时不影响聊天与 P2P 传输
+    }
+  }
+
+  /**
+   * 把文件缓存到服务器（双通道中的"落盘"通道）；返回落盘后的缓存条目。
+   *
+   * 不在客户端计算文件哈希：
+   * 1) 原实现用 file.arrayBuffer() + crypto.subtle 把整个文件读进内存算 SHA-256，
+   *    大文件（缓存单文件上限默认 100MB）在移动端会 OOM；
+   * 2) 客户端声明的哈希可被伪造，服务端无法据此信任去重（缓存投毒面）。
+   * 现由服务端在落盘时流式计算权威哈希并随缓存条目下发。
+   */
+
+  async function uploadFileToCache(
+    roomCode: string,
+    file: File,
+    opts: { transferId: string; clientId: string; uploaderName: string; cacheHours: number }
+  ): Promise<RoomCacheFile> {
+    // 卡片上立刻进入"缓存中"状态，让用户看到文件正在上传到服务器
+    setCacheProgress(opts.transferId, 0, 'uploading')
+    // 哈希由服务端落盘时流式计算，客户端不再预处理（避免大文件整块读进内存）
+    const res = await DirectService.uploadCacheFile(
+      roomCode,
+      file,
+      opts,
+      (percent) => setCacheProgress(opts.transferId, percent, 'uploading')
+    )
+    if (res.code === 200 && res.detail) {
+      upsertServerCachedFile(res.detail)
+      setCacheProgress(opts.transferId, 100, 'cached')
+      return res.detail
+    }
+    // 失败则清掉缓存态，避免卡片一直停在"缓存中"
+    setCacheProgress(opts.transferId, 0, undefined, true)
+    throw new Error(res.message || '文件上传到服务器失败')
+  }
+
+  /** 更新发送方卡片上的"缓存到服务器"进度；clear=true 时清除缓存态（上传失败/取消） */
+  function setCacheProgress(
+    transferId: string,
+    percent: number,
+    status?: 'uploading' | 'cached',
+    clear = false
+  ) {
+    const item = items.value.find((it) => it.kind === 'file' && it.transferId === transferId)
+    if (!item) return
+    if (clear) {
+      item.cacheStatus = undefined
+      item.cacheProgress = undefined
+      return
+    }
+    item.cacheProgress = percent
+    if (status) item.cacheStatus = status
+  }
+
+  /** 删除房间缓存文件（上传者本人） */
+  async function deleteCacheFile(roomCode: string, transferId: string, clientId: string) {
+    const res = await DirectService.deleteCacheFile(roomCode, transferId, clientId)
+    if (res.code === 200) {
+      removeCachedFile(transferId)
+    }
+    return res
+  }
+
+  /** 追加/更新一条缓存文件（file_cache_update 广播到达时），含持有者昵称（展示共享用户名） */
+  function upsertCachedFile(entry: { transfer_id: string; file_name: string; file_size: number; holder_id: string; holder_nickname?: string }) {
     if (!entry.transfer_id) return
     const idx = cachedFiles.value.findIndex((c) => c.transfer_id === entry.transfer_id)
     if (idx >= 0) {
       const cur = cachedFiles.value[idx]
       if (!cur.holders.includes(entry.holder_id)) cur.holders.push(entry.holder_id)
+      if (entry.holder_nickname && !cur.holder_names.includes(entry.holder_nickname)) {
+        cur.holder_names.push(entry.holder_nickname)
+      }
       cachedFiles.value = [...cachedFiles.value]
     } else {
       cachedFiles.value = [
         ...cachedFiles.value,
-        {
+        normalizeCacheFile({
           transfer_id: entry.transfer_id,
           file_name: entry.file_name,
           file_size: entry.file_size,
           holders: [entry.holder_id],
-        },
+          holder_names: entry.holder_nickname ? [entry.holder_nickname] : [],
+        }),
       ]
     }
   }
@@ -245,6 +594,214 @@ export const useDirectStore = defineStore('direct', () => {
     trimItems()
   }
 
+  /** 轻量房间事件（进出房间等）：悬浮提示条，由视图控制几秒后自动移除 */
+  function pushRoomEvent(content: string) {
+    if (!content) return
+    roomEvents.value.push({ id: ++uidCounter, content })
+    if (roomEvents.value.length > 5) roomEvents.value = roomEvents.value.slice(-5)
+  }
+
+  function removeRoomEvent(id: number) {
+    roomEvents.value = roomEvents.value.filter((e) => e.id !== id)
+  }
+
+  /** 历史分页大小（微信式：上滑到顶再拉一页） */
+  const HISTORY_PAGE = 50
+
+  /** 加载房间历史（save_messages 房间：聊天消息 + 传输文件元信息；附历史缓存文件）。 */
+  /**
+   * 历史加载的请求序号。
+   *
+   * welcome 握手时以 `void loadHistory(code, true)` 触发且不等待，网络抖动造成
+   * 重连风暴时会有多个请求并发进行、返回顺序不定 —— 先发出却后返回的请求会用
+   * 旧数据覆盖新数据。用序号保证"只接受最后一次请求的结果"。
+   */
+  let historyLoadSeq = 0
+
+  async function loadHistory(code: string, force = false) {
+    if (!code) return
+    // 此前是"每个房间仅加载一次"，导致断线重连后不再拉取 —— 断开期间别人发的
+    // 消息永远看不到。改为可强制重载（force），由重连/主动刷新触发。
+    if (!force && historyLoadedCode.value === code) return
+    historyLoadedCode.value = code
+    const seq = ++historyLoadSeq
+    try {
+      const res = await DirectService.getRoomHistory(code, { limit: HISTORY_PAGE })
+      // 已有更新的加载请求发出，本次结果作废（避免乱序覆盖）
+      if (seq !== historyLoadSeq) return
+      if (res.code !== 200 || !res.detail) {
+        historyItems.value = []
+        historyHasMore.value = false
+        return
+      }
+      const det = res.detail
+      // 取满一页 → 可能还有更早的，上滑到顶时再拉（微信式分页）
+      historyHasMore.value =
+        Array.isArray(det.messages) && det.messages.length >= HISTORY_PAGE
+      // 历史缓存文件并入缓存列表（去重；cache_enabled 房间的新成员收取入口），
+      // 并登记 transfer_id 集合用于去重：缓存已展示的文件，历史区不再重复出现
+      const cachedTids = new Set<string>()
+      if (Array.isArray(det.files)) {
+        for (const f of det.files) {
+          if (f.transfer_id) cachedTids.add(f.transfer_id)
+          if (f.transfer_id && !cachedFiles.value.some((c) => c.transfer_id === f.transfer_id)) {
+            cachedFiles.value = [
+              ...cachedFiles.value,
+              normalizeCacheFile({ ...f, transfer_id: f.transfer_id }),
+            ]
+          }
+        }
+      }
+      if (det.save_messages && Array.isArray(det.messages)) {
+        // 历史消息（含文件消息）直接进消息流。此前会把"已缓存文件"的历史记录过滤掉，
+        // 再以缓存条目形式另插一条，导致同一条消息出现两次、且文件被挤到后面；
+        // 现在按微信的做法：同一个时间轴，文件就是其中一条普通消息。
+        historyItems.value = det.messages
+          .map((m) => {
+          const ts = m.ts ? new Date(m.ts).getTime() : Date.now()
+          const isSelf = (m.sender || '') === myNickname()
+          if (m.msg_type === 'file') {
+            return {
+              id: `h-file-${m.id}`,
+              kind: 'file' as const,
+              sender: m.sender || '匿名',
+              isSelf,
+              ts,
+              archived: true,
+              transferId: m.content,
+              fileName: m.file_name || '',
+              fileSize: m.file_size || 0,
+              fileDirection: 'incoming' as const,
+              fileStatus: 'done' as const,
+              // 服务器有缓存 → 气泡直接给下载入口（不依赖发送方在线）
+              serverCached: !!m.server_cached,
+              downloadUrl: m.download_url || '',
+            }
+          }
+          return {
+            id: `h-text-${m.id}`,
+            kind: 'text' as const,
+            sender: m.sender || '匿名',
+            isSelf,
+            ts,
+            content: m.content || '',
+            sendStatus: 'sent' as const,
+            archived: true,
+          }
+        })
+      } else {
+        historyItems.value = []
+      }
+
+      // 兜底：仅当缓存文件「没有对应历史消息」时才补一条（旧房间、或发送时未开启
+      // 保存消息的场景），避免同一个文件既在历史消息里、又作为缓存条目重复一次
+      const historyTids = new Set(
+        historyItems.value.filter((it) => it.kind === 'file').map((it) => it.transferId)
+      )
+      const extraCached = cachedFiles.value
+        .filter((c) => !historyTids.has(c.transfer_id))
+        .map((c) => ({
+          id: `cache-${c.transfer_id}`,
+          kind: 'file' as const,
+          sender: c.uploader_name || (c.holder_names || [])[0] || '成员',
+          isSelf: false,
+          ts: c.cached_at ? new Date(c.cached_at).getTime() : Date.now(),
+          transferId: c.transfer_id,
+          fileName: c.file_name,
+          fileSize: c.file_size,
+          fileDirection: 'incoming' as const,
+          fileStatus: 'awaiting_confirm' as const,
+          transferred: 0,
+          archived: true,
+        }))
+      historyItems.value = [...historyItems.value, ...extraCached]
+
+      // 刷新/重进房间后：把 OPFS 里仍然存在的文件重新挂回条目，
+      // 无需重新下载即可继续为其他成员供源（数据在磁盘，不占内存）
+      await restoreOpfsHolds()
+    } catch {
+      // 过期请求不得清除标记：那会误伤更新一次加载的"已加载"状态
+      if (seq !== historyLoadSeq) return
+      // 历史加载失败不阻塞房间连接；清除标记允许重试
+      historyLoadedCode.value = ''
+    }
+  }
+
+  /** 取已加载历史里最旧一条的服务端消息 id（分页游标；历史 id 形如 h-text-123 / h-file-123） */
+  function oldestHistoryServerId(): number {
+    let oldest = 0
+    for (const it of historyItems.value) {
+      const m = /^h-(?:text|file)-(\d+)$/.exec(it.id)
+      if (!m) continue
+      const sid = Number(m[1])
+      if (!oldest || sid < oldest) oldest = sid
+    }
+    return oldest
+  }
+
+  /**
+   * 上滑到顶部时加载更早的历史（微信式）。
+   * 以当前最旧一条的服务端 id 为游标向前取一页，结果前插到列表头部。
+   */
+  async function loadMoreHistory() {
+    const code = historyLoadedCode.value
+    if (!code || !historyHasMore.value) return
+    const beforeId = oldestHistoryServerId()
+    if (!beforeId) {
+      historyHasMore.value = false
+      return
+    }
+    try {
+      const res = await DirectService.getRoomHistory(code, {
+        limit: HISTORY_PAGE,
+        beforeId,
+      })
+      const older =
+        res.code === 200 && Array.isArray(res.detail?.messages) ? res.detail.messages : []
+      historyHasMore.value = older.length >= HISTORY_PAGE
+      if (older.length === 0) return
+
+      const mapped: DirectChatItem[] = older.map((m) => {
+        const ts = m.ts ? new Date(m.ts).getTime() : Date.now()
+        const isSelf = (m.sender || '') === myNickname()
+        if (m.msg_type === 'file') {
+          return {
+            id: `h-file-${m.id}`,
+            kind: 'file' as const,
+            sender: m.sender || '匿名',
+            isSelf,
+            ts,
+            archived: true,
+            transferId: m.content,
+            fileName: m.file_name || '',
+            fileSize: m.file_size || 0,
+            fileDirection: 'incoming' as const,
+            fileStatus: 'done' as const,
+            serverCached: !!m.server_cached,
+            downloadUrl: m.download_url || '',
+          }
+        }
+        return {
+          id: `h-text-${m.id}`,
+          kind: 'text' as const,
+          sender: m.sender || '匿名',
+          isSelf,
+          ts,
+          content: m.content || '',
+          sendStatus: 'sent' as const,
+          archived: true,
+        }
+      })
+
+      // 去重后前插（更早的在最上面）
+      const seen = new Set(historyItems.value.map((it) => it.id))
+      const fresh = mapped.filter((it) => !seen.has(it.id))
+      historyItems.value = [...fresh, ...historyItems.value]
+    } catch {
+      // 拉取失败保持现状，用户再次上滑可重试
+    }
+  }
+
   // ==================== 传输进度（节流 + 速率/剩余时间） ====================
   function applyProgressToItem(transferId: string, p: ProgressEntry) {
     const item = items.value.find((it) => it.kind === 'file' && it.id === transferId)
@@ -309,6 +866,28 @@ export const useDirectStore = defineStore('direct', () => {
 
   function getFileHandle(transferId: string): File | undefined {
     return outgoingHandles.get(transferId)
+  }
+
+  /** 以指定传输 id 发起发送条目（多源缓存分片：holder 重发某字节区间，id 必须用 part_id） */
+  function offerFileWithId(file: File, itemId: string, senderName?: string): DirectChatItem {
+    outgoingHandles.set(itemId, file)
+    const item: DirectChatItem = {
+      id: itemId,
+      kind: 'file',
+      sender: senderName || myNickname(),
+      isSelf: true,
+      ts: Date.now(),
+      transferId: itemId,
+      fileName: file.name,
+      fileSize: file.size,
+      fileDirection: 'outgoing',
+      fileStatus: 'awaiting_confirm',
+      transferred: 0,
+      recipients: [],
+    }
+    items.value.push(item)
+    trimItems()
+    return item
   }
 
   /** 发送侧：更新某个接收者状态 */
@@ -577,6 +1156,7 @@ export const useDirectStore = defineStore('direct', () => {
     if (!item || item.fileDirection !== 'incoming' || item.fileStatus !== 'transferring') return 'ignored'
     await assembleIncoming(transferId)
     if (item.fileStatus !== 'transferring') return 'ignored' // 组装过程中失败
+    let verified = false
     if (fileHash) {
       const hasher = incomingHashers.get(transferId)
       if (hasher) {
@@ -587,10 +1167,13 @@ export const useDirectStore = defineStore('direct', () => {
           failIncomingFile(transferId)
           return 'mismatch'
         }
+        verified = true
       }
     }
     item.fileStatus = 'done'
-    item.hashStatus = 'ok'
+    // 只有真正比对过才置 'ok'：没有期望哈希（fileHash 为空）或本地没有 hasher
+    // （如 OPFS 恢复路径）时置 'unknown'，避免把"未校验"显示成"校验通过"
+    item.hashStatus = verified ? 'ok' : 'unknown'
     item.speed = undefined
     item.eta = undefined
     cleanupIncomingMeta(transferId)
@@ -657,6 +1240,95 @@ export const useDirectStore = defineStore('direct', () => {
       return { name: item.fileName || 'file', blob: item._blob }
     }
     return null
+  }
+
+  /**
+   * 把「从服务器下载」的文件登记为本地持有：挂上 blob 并置为 done。
+   * 这样它就和 P2P 接收完成的文件一样，能作为分片来源提供给其他成员
+   * （只要不关闭当前页面，就能持续为别人供源）。
+   */
+  async function registerDownloadedFile(
+    entry: { transfer_id: string; file_name: string; file_size: number; sender?: string; ts?: number },
+    blob: Blob
+  ): Promise<DirectChatItem> {
+    const existing = items.value.find(
+      (it) => it.kind === 'file' && it.transferId === entry.transfer_id
+    ) as (DirectChatItem & InternalFileItem) | undefined
+
+    let target: DirectChatItem & InternalFileItem
+    if (existing) {
+      existing.fileStatus = 'done'
+      existing.transferred = blob.size
+      target = existing
+    } else {
+      target = {
+        id: `dl-${entry.transfer_id}`,
+        kind: 'file' as const,
+        sender: entry.sender || '成员',
+        isSelf: false,
+        ts: entry.ts || Date.now(),
+        transferId: entry.transfer_id,
+        fileName: entry.file_name,
+        fileSize: entry.file_size || blob.size,
+        fileDirection: 'incoming' as const,
+        fileStatus: 'done' as const,
+        transferred: blob.size,
+      } as DirectChatItem & InternalFileItem
+      items.value.push(target)
+      trimItems()
+    }
+
+    // 数据写 OPFS（磁盘）而不是常驻内存：内存里只留一个文件句柄，
+    // 其他成员来取时才 getFile() 从磁盘读出，没人取就不占内存。
+    if (supportsOpfs()) {
+      try {
+        const dir = await navigator.storage.getDirectory()
+        const safeName = `${entry.transfer_id}_${sanitizeFileName(entry.file_name || 'file')}`.slice(0, 120)
+        const handle = await dir.getFileHandle(safeName, { create: true })
+        const writer = await handle.createWritable()
+        await writer.write(blob)
+        await writer.close()
+        target._opfsHandle = handle
+        return target
+      } catch {
+        // OPFS 写失败 → 回退内存持有，至少当前会话内仍可供源
+      }
+    }
+    target._blob = blob
+    return target
+  }
+
+  /**
+   * 恢复 OPFS 里已持有的文件句柄。
+   * 刷新页面后内存 Map 会清空，但磁盘上的数据还在——按文件名前缀 `transferId_`
+   * 把它们重新挂回对应条目，使其无需重新下载就能继续为其他成员供源。
+   * 返回恢复的条数。
+   */
+  async function restoreOpfsHolds(): Promise<number> {
+    if (!supportsOpfs()) return 0
+    try {
+      const dir = await navigator.storage.getDirectory()
+      const entries = (dir as unknown as { entries: () => AsyncIterable<[string, FileSystemHandle]> }).entries()
+      let restored = 0
+      for await (const [name, handle] of entries) {
+        if (handle.kind !== 'file') continue
+        const tid = name.split('_')[0]
+        if (!tid) continue
+        // 条目可能在实时流，也可能在历史流（房间重进时历史才刚加载）
+        const item = (items.value.find(
+          (it) => it.kind === 'file' && it.transferId === tid
+        ) || historyItems.value.find(
+          (it) => it.kind === 'file' && it.transferId === tid
+        )) as (DirectChatItem & InternalFileItem) | undefined
+        if (!item || item._opfsHandle || item._blob) continue
+        item._opfsHandle = handle as FileSystemFileHandle
+        if (item.fileStatus !== 'done') item.fileStatus = 'done'
+        restored += 1
+      }
+      return restored
+    } catch {
+      return 0
+    }
   }
 
   /** 获取文件项（供 UI/组合函数查询） */
@@ -875,6 +1547,9 @@ export const useDirectStore = defineStore('direct', () => {
     p2pActive.value = false
     items.value = []
     typingUsers.value = []
+    historyItems.value = []
+    historyLoadedCode.value = ''
+    roomEvents.value = []
     cachedFiles.value = []
     outgoingHandles.clear()
     incomingChunks.clear()
@@ -882,7 +1557,9 @@ export const useDirectStore = defineStore('direct', () => {
     incomingNextIndex.clear()
     incomingWriteChains.clear()
     progressMap.clear()
-    incomingWriters.forEach((w) => w.abort().catch(() => {}))
+    cacheMergePlans.clear()
+    myCacheRequests.clear()
+  incomingWriters.forEach((w) => w.abort().catch(() => {}))
     incomingWriters.clear()
     incomingHandles.clear()
     // 清理远端媒体流与共享通知
@@ -917,9 +1594,30 @@ export const useDirectStore = defineStore('direct', () => {
     p2pActive,
     items,
     typingUsers,
+    historyItems,
+    historyLoadedCode,
+    historyHasMore,
+    loadMoreHistory,
+    roomEvents,
+    pushRoomEvent,
+    removeRoomEvent,
+    loadHistory,
     cachedFiles,
     setCachedFiles,
     upsertCachedFile,
+    upsertServerCachedFile,
+    upsertCacheFileMessage,
+    removeCachedFile,
+    refreshCacheFiles,
+    uploadFileToCache,
+    deleteCacheFile,
+    startCacheFetch,
+    registerCachePart,
+    cachePartDone,
+    markCacheRequested,
+    isCacheRequested,
+    clearCacheRequest,
+    offerFileWithId,
     onlineUsers,
     onlineCount,
     typingText,
@@ -953,6 +1651,8 @@ export const useDirectStore = defineStore('direct', () => {
     declineIncomingFile,
     failIncomingFile,
     consumeIncomingBlob,
+    registerDownloadedFile,
+    restoreOpfsHolds,
     getFileItem,
     mediaStreamFromIds,
     activeShares,

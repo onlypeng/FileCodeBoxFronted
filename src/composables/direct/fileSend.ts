@@ -37,19 +37,64 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
    * 选择文件发起发送：加入聊天流并广播 file_offer（等待对方确认）。
    * 返回是否成功发起（房间需有其他成员）。
    */
-  function offerFiles(files: File[]): boolean {
-    if (files.length === 0) return false
-    if (ctx.directStore.onlineCount < 2) return false
+  /**
+   * 定向发送的目标数上限。
+   * 服务端会按 targets 逐个 send_to_client，不加限制时一条消息就能让服务端
+   * 做任意多次遍历（房间人数有限，影响可控，但仍应收口）。
+   */
+  const MAX_OFFER_TARGETS = 32
+
+  /** 收敛定向目标：去空值 + 截断到上限；无有效目标时返回 undefined（走广播语义） */
+  function normalizeTargets(targets?: string[]): string[] | undefined {
+    if (!targets || targets.length === 0) return undefined
+    const cleaned = targets.filter((t) => typeof t === 'string' && t.length > 0).slice(0, MAX_OFFER_TARGETS)
+    return cleaned.length > 0 ? cleaned : undefined
+  }
+
+  /**
+   * 发起文件发送并返回创建的条目。
+   * 供调用方拿到 transfer_id，用于把同一文件关联到服务器缓存（P2P 与上传并行）。
+   */
+  function offerFilesDetailed(files: File[], targets?: string[]) {
+    type CreatedItems = ReturnType<typeof ctx.directStore.offerFiles>
+    if (files.length === 0 || ctx.directStore.onlineCount < 2) {
+      return [] as CreatedItems
+    }
     const created = ctx.directStore.offerFiles(files)
+    const finalTargets = normalizeTargets(targets)
     for (const item of created) {
       ctx.sendSignal({
         type: 'file_offer',
         transfer_id: item.transferId,
         file_name: item.fileName,
         file_size: item.fileSize,
+        // 定向发送：只投递给指定成员。房间内无关成员不再收到文件卡片，
+        // 既省带宽也避免文件名泄漏；未指定时服务端按旧语义广播给所有成员。
+        ...(finalTargets ? { targets: finalTargets } : {}),
       })
     }
-    return created.length > 0
+    return created
+  }
+
+  function offerFiles(files: File[], targets?: string[]): boolean {
+    return offerFilesDetailed(files, targets).length > 0
+  }
+
+  /**
+   * 用**已存在的条目**发起 P2P 发送。
+   * 调用方先用 store.offerFileWithId 在本地建好消息（消息顺序 = 用户点击发送的时刻），
+   * 这里只补发 file_offer 信令。这样文件消息不会再因为"等服务器上传完成才落位"
+   * 而排到后续聊天的后面。
+   */
+  function offerExistingFile(transferId: string, file: File, targets?: string[]) {
+    if (!transferId || ctx.directStore.onlineCount < 2) return
+    ctx.sendSignal({
+      type: 'file_offer',
+      transfer_id: transferId,
+      file_name: file.name,
+      file_size: file.size,
+      ...(normalizeTargets(targets) ? { targets: normalizeTargets(targets) } : {}),
+    })
   }
 
   /** 接收侧回应发送者：接受/拒绝 */
@@ -71,8 +116,17 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
    * 房间文件缓存多源转发：我是某文件的缓存持有者，收到新成员/其他成员的
    * "从此缓存源收取"请求 → 用我已接收的文件重启一次发送（复用 offerFiles 广播 file_offer，
    * 请求者会响应接受并建立传输；其余成员忽略该 offer）。
+   * 多源加速分片（partId + range）：只重发请求的字节区间，part_id 作为该分片的传输 id。
    */
-  async function respondChatRequest(requesterId: string, cacheTransferId: string, fileName?: string, fileSize?: number) {
+  async function respondChatRequest(
+    requesterId: string,
+    cacheTransferId: string,
+    fileName?: string,
+    fileSize?: number,
+    partId?: string,
+    rangeStart?: number,
+    rangeEnd?: number
+  ) {
     const data = await ctx.directStore.consumeIncomingBlob(cacheTransferId)
     if (!data) {
       // 本地已无该文件数据（如接收后已清理/更换设备）→ 无法转发
@@ -84,7 +138,42 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
       })
       return
     }
-    const file = new File([data.blob], fileName || data.name || 'file', { type: 'application/octet-stream' })
+    // 分片：仅发送请求的字节区间
+    let partBlob: Blob = data.blob
+    if (partId && rangeStart !== undefined && rangeEnd !== undefined) {
+      const s = Math.max(0, rangeStart)
+      const e = Math.min(data.blob.size - 1, rangeEnd)
+      // 区间非法（start > end，经裁剪后 e < s）时必须明确拒绝。
+      // 原实现写的是 `if (e > s) partBlob = slice(...)`：区间退化时不切片，
+      // 于是退化成"以分片 id 发送整个文件"——请求端合并必然失败（会拼出 N 倍大小），
+      // 且可被反复触发让持有者重复发送整文件（带宽放大）。
+      // 现在只要区间合法就一律切片（含 start === end 的 1 字节区间）。
+      if (e < s) {
+        console.warn(`[direct] 缓存分片区间非法，拒绝转发: ${cacheTransferId} [${rangeStart}, ${rangeEnd}]`)
+        ctx.sendSignal({
+          type: 'file_error',
+          transfer_id: cacheTransferId,
+          reason: 'bad_range',
+          target: requesterId,
+        })
+        return
+      }
+      partBlob = data.blob.slice(s, e + 1)
+    }
+    const name = fileName || data.name || 'file'
+    const file = new File([partBlob], name, { type: 'application/octet-stream' })
+    if (partId) {
+      // 分片：以 part_id 作为传输 id（请求端按序号合并）
+      const item = ctx.directStore.offerFileWithId(file, partId)
+      ctx.sendSignal({
+        type: 'file_offer',
+        transfer_id: item.transferId,
+        file_name: name,
+        file_size: partBlob.size,
+        cache_source: cacheTransferId,
+      })
+      return
+    }
     const created = ctx.directStore.offerFiles([file])
     for (const item of created) {
       ctx.sendSignal({
@@ -292,6 +381,8 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
     setP2PApi,
     setCryptoApi,
     offerFiles,
+    offerFilesDetailed,
+    offerExistingFile,
     respondFileOffer,
     processSendQueue,
     sendToRecipient,
