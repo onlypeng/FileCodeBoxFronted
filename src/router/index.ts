@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { ROUTE_NAMES, ROUTES } from '@/constants'
 import { readStoredToken, clearStoredToken } from '@/utils/auth-storage'
+import { useAdminStore } from '@/stores/adminStore'
 import { AuthService } from '@/services'
 
 const publicPageMeta = {
@@ -171,6 +172,9 @@ async function isTokenValid(): Promise<boolean> {
     if (res.code === 200) {
       verifiedToken = token
       verifiedAt = Date.now()
+      // 同步"仍在使用默认口令"标记：刷新页面后也要继续强制改密
+      const adminStore = useAdminStore()
+      adminStore.setMustChangePassword(!!res.detail?.must_change_password)
       return true
     }
     return false

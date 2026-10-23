@@ -38,6 +38,8 @@ export function useAdminLogin() {
       }
 
       adminStore.setToken(response.detail.token)
+      // 默认口令未修改时置位，后台布局据此弹出不可关闭的改密弹窗
+      adminStore.setMustChangePassword(!!response.detail.must_change_password)
       return true
     } catch (error: unknown) {
       alertStore.showAlert(getErrorMessage(error, t('manage.login.loginFailed')), 'error')

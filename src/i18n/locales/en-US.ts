@@ -924,6 +924,19 @@ export default {
       loginFailed: 'Login failed',
       noValidToken: 'Login failed: No valid token received',
       backToHome: 'Back to Home'
+    },
+    forcePasswordChange: {
+      title: 'Change the default admin password first',
+      desc: 'You are still using the built-in default password, which lets anyone sign in. Change it before continuing.',
+      newPassword: 'New password (at least 6 characters)',
+      confirmPassword: 'Confirm new password',
+      submit: 'Save and continue',
+      saving: 'Saving…',
+      success: 'Password updated',
+      failed: 'Failed to update password',
+      tooShort: 'Password must be at least 6 characters',
+      mismatch: 'The two passwords do not match',
+      sameAsDefault: 'The default password cannot be reused'
     }
   },
 

@@ -899,6 +899,19 @@ export default {
       loginFailed: '登录失败',
       noValidToken: '登录失败：未获取到有效令牌',
       backToHome: '返回首页'
+    },
+    forcePasswordChange: {
+      title: '请先修改默认管理员密码',
+      desc: '当前仍在使用项目自带的默认密码，任何人都能据此进入后台。修改完成后才能继续使用管理功能。',
+      newPassword: '新密码（至少 6 位）',
+      confirmPassword: '确认新密码',
+      submit: '保存并继续',
+      saving: '保存中…',
+      success: '密码已更新',
+      failed: '密码更新失败',
+      tooShort: '密码至少 6 位',
+      mismatch: '两次输入的密码不一致',
+      sameAsDefault: '不能使用默认密码'
     }
   },
 

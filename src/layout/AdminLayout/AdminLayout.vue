@@ -106,6 +106,9 @@
         <router-view />
       </main>
     </div>
+
+    <!-- 默认口令未修改时强制改密（不可关闭） -->
+    <ForcePasswordChangeDialog />
   </div>
 </template>
 
@@ -126,6 +129,7 @@ import { ROUTE_NAMES, ROUTES } from '@/constants'
 import { useAdminStore } from '@/stores/adminStore'
 import { AuthService } from '@/services'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
+import ForcePasswordChangeDialog from '@/components/manage/ForcePasswordChangeDialog.vue'
 
 interface MenuItem {
   id: string
