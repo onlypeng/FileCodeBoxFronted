@@ -50,6 +50,8 @@ export type PublicConfig = SystemConfig & {
   roomCacheMaxSize?: number
   /** 房间文件服务器缓存默认时长（小时） */
   roomCacheDefaultHours?: number
+  /** 全局存储配额（MB；0 = 不限制）：仅后台使用，不随公共配置下发 */
+  globalStorageQuotaMB?: number
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -63,6 +65,8 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   uploadChunkSize: 5,
   uploadRateLimitCount: 10,
   uploadMinute: 1,
+  // 全局存储配额（MB；0 = 不限制），与后端 DEFAULT_CONFIG 保持一致
+  globalStorageQuotaMB: 0,
   maxCollectionFiles: 100,
   maxSendFiles: 20,
   maxMultiFileCount: 20,
@@ -102,6 +106,7 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   uploadSize: DEFAULT_PUBLIC_CONFIG.uploadSize,
   storage_path: '',
   uploadMinute: 1,
+  globalStorageQuotaMB: 0,
   opacity: 0.9,
   enableChunk: DEFAULT_PUBLIC_CONFIG.enableChunk,
   uploadChunkSize: DEFAULT_PUBLIC_CONFIG.uploadChunkSize,

@@ -666,6 +666,7 @@ export default {
       uploadLimits: '上传设置',
       uploadPerMinute: '上传限流时间窗口',
       uploadRateLimitCount: '窗口内最多上传次数',
+      globalStorageQuota: '全局存储配额（0 = 不限制）',
       maxSendFiles: '发送文件数量上限',
       maxCollectionFiles: '收件箱最大文件数上限',
       maxTextLength: '文本分享/备注最大字符数',

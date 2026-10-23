@@ -715,6 +715,13 @@ const onThemeChange = async (event: Event) => {
               </div>
 
               <SettingNumberInput
+                v-model="config.globalStorageQuotaMB"
+                :label="t('manage.settings.globalStorageQuota')"
+                :suffix="t('manage.settings.fileSizeUnits.mb')"
+                :min="0"
+              />
+
+              <SettingNumberInput
                 v-model="config.uploadMinute"
                 :label="t('manage.settings.uploadPerMinute')"
                 :suffix="t('common.minute')"

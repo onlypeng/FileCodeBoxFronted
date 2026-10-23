@@ -30,6 +30,8 @@ export interface ConfigState {
   uploadSize: number
   storage_path: string
   uploadMinute: number
+  /** 全局存储配额（MB；0 = 不限制）。超过后不阻止上传，但会持续告警并在后台显示占比 */
+  globalStorageQuotaMB: number
   /** 过期保存时间：记录/收件箱/房间过期后再保留该时长，到期由后台任务自动清理（含文件）；forever 不自动清理 */
   expiredRetentionStyle: string
   expiredRetentionValue: number
