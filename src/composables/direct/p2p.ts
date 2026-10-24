@@ -73,6 +73,7 @@ export function createDirectP2P(ctx: DirectConnectionContext, options: P2POption
         removeP2P(targetId)
         // P2P 连接失败且尚未收到媒体流 → 自动回退服务器中转（避免黑屏无感知）
         if (!ctx.directStore.getIncomingMediaStream(targetId) && mediaRelayRequest) {
+          ctx.directStore.addSystem(ctx.t('direct.file.p2pFallback'))
           mediaRelayRequest(targetId)
         }
       }

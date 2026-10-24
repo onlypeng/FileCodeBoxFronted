@@ -1356,6 +1356,7 @@ export default {
       cancel: 'Cancel',
       relayLimitExceeded: 'File exceeds the server relay size limit and cannot be sent via relay',
       relayDisabled: 'Server relay is disabled and file cannot be sent via relay (P2P direct is still available)',
+      p2pFallback: 'Direct connection failed, falling back to server relay (limited by server bandwidth)',
       relayEncryptFailed: 'Encryption handshake failed; file cannot be sent via server relay (retry)',
       cacheReady: '{holder} cached the file "{name}"; other members can fetch it',
       waitingConfirm: 'Waiting for confirmation',

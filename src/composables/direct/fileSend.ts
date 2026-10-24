@@ -223,6 +223,10 @@ export function createDirectFileSend(ctx: DirectConnectionContext) {
     // 1. 尝试建立直连通道（已有/等待/发起，超时回退）
     const dc = p2pApi ? await p2pApi.establishP2P(targetClientId) : null
     const mode: DirectTransferMode = dc ? 'p2p' : 'relay'
+    // 尝试过直连但没建立起来 → 明确告知已降级，避免用户以为是"卡住了"
+    if (!dc && p2pApi) {
+      ctx.directStore.addSystem(ctx.t('direct.file.p2pFallback'))
+    }
     ctx.directStore.setFileMode(transferId, mode)
 
     // 2. 中继模式受后台限制（文件大小 / 中转开关）；P2P 不受限制
