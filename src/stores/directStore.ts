@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { DirectService } from '@/services/direct'
 import { STORAGE_KEYS } from '@/constants'
 import { readPreference } from '@/utils/preference-storage'
+import { hashBlob } from '@/utils/hash-worker'
 import { Sha256 } from '@/utils/sha256'
 import type {
   CreateDirectRoomRequest,
@@ -170,25 +171,14 @@ export const useDirectStore = defineStore('direct', () => {
   }
 
   /**
-   * 内容校验的体积上限。纯 JS 的 SHA-256 是 CPU 密集操作，超大文件在主线程
-   * 计算会造成数秒卡顿；超过上限只做大小校验并标记 'unknown'。
-   * （真实项目通常把它放进 Web Worker，本项目暂无 Worker 基础设施，故设上限兜底）
+   * 合并结果的 SHA-256：交给 Worker 计算，主线程不被 CPU 密集操作卡住。
+   * 复用 utils/sha256.ts 的增量实现（与传输过程中的流式哈希同一套）。
+   *
+   * 注意：Worker 不可用时 hashBlob 会自动回退主线程（仍保持可响应地让出事件循环），
+   * 因此这里不再需要体积上限——此前设 64MB 上限正是为了避免主线程长时间冻结。
    */
-  const VERIFY_HASH_MAX_BYTES = 64 * 1024 * 1024
-
-  /**
-   * 分块读取 Blob 并增量计算 SHA-256，避免把整个文件一次性读进内存。
-   * 复用 utils/sha256 的增量实现（与传输过程中的流式哈希同一套）。
-   */
-  async function sha256OfBlob(blob: Blob, chunkSize = 4 * 1024 * 1024): Promise<string> {
-    const hasher = new Sha256()
-    for (let offset = 0; offset < blob.size; offset += chunkSize) {
-      const buf = await blob.slice(offset, Math.min(offset + chunkSize, blob.size)).arrayBuffer()
-      hasher.update(new Uint8Array(buf))
-      // 每块之间让出事件循环，避免大文件校验把 UI 完全卡死
-      await new Promise((r) => setTimeout(r, 0))
-    }
-    return hasher.digestHex()
+  async function sha256OfBlob(blob: Blob): Promise<string> {
+    return hashBlob(blob)
   }
 
   /** 分片接收完成（file_end 到达时由组合器调用）：收集分片，全部到齐后合并为完整文件 */
@@ -234,7 +224,7 @@ export const useDirectStore = defineStore('direct', () => {
       // 2) 内容校验：与服务端下发的整文件 SHA-256 比对。
       //    该哈希由服务端落盘时流式算出（非客户端声明），是权威值。
       let hashStatus: 'ok' | 'mismatch' | 'unknown' = 'unknown'
-      if (plan.hash && merged.size <= VERIFY_HASH_MAX_BYTES) {
+      if (plan.hash) {
         const actual = await sha256OfBlob(merged)
         hashStatus = actual === plan.hash ? 'ok' : 'mismatch'
         if (hashStatus === 'mismatch') {
