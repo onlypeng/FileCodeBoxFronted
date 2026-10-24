@@ -1,5 +1,6 @@
 import { createI18n } from 'vue-i18n'
 import zhCN from './locales/zh-CN'
+import zhTW from './locales/zh-TW'
 import enUS from './locales/en-US'
 import { readStoredLocale, writeStoredLocale } from '@/utils/preference-storage'
 
@@ -11,6 +12,10 @@ const getDefaultLocale = (): string => {
   }
   
   const browserLocale = navigator.language.toLowerCase()
+  // 繁体地区（台湾/香港/澳门）直接落到 zh-TW，其余中文地区用 zh-CN
+  if (/^zh-(tw|hk|mo)\b/.test(browserLocale) || browserLocale.includes('hant')) {
+    return 'zh-TW'
+  }
   if (browserLocale.startsWith('zh')) {
     return 'zh-CN'
   }
@@ -21,6 +26,7 @@ const defaultLocale = getDefaultLocale()
 
 const messages = {
   'zh-CN': zhCN,
+  'zh-TW': zhTW,
   'en-US': enUS
 }
 
@@ -51,6 +57,7 @@ export const getCurrentLocale = () => {
 
 // 导出可用语言列表
 export const availableLocales = [
-  { code: 'zh-CN', name: '中文' },
+  { code: 'zh-CN', name: '简体中文' },
+  { code: 'zh-TW', name: '繁體中文' },
   { code: 'en-US', name: 'English' }
 ]
