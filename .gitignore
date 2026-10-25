@@ -13,6 +13,7 @@ dist
 dist-ssr
 # 清理 dist 时换名隔离的旧产物（用 rename 代替递归删除的产物），不再被引用
 dist_old/
+dist_old*/
 coverage
 *.local
 
