@@ -513,6 +513,89 @@
       </div>
     </div>
 
+    <!-- 审计日志 Tab -->
+    <div v-if="activeTab === 'audit'">
+      <!-- 结果过滤 -->
+      <div class="mb-3 flex items-center gap-2 flex-wrap">
+        <span class="text-sm" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditResult') }}</span>
+        <ThemeDropdown
+          :options="auditResultOptions"
+          :model-value="auditParams.result || 'all'"
+          size="sm"
+          width="w-28"
+          @update:model-value="auditParams.result = $event === 'all' ? '' : String($event); auditParams.page = 1; loadAudit()"
+        />
+        <span class="ml-2 text-sm" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditAction') }}</span>
+        <ThemeDropdown
+          :options="auditActionOptions"
+          :model-value="auditParams.action || 'all'"
+          size="sm"
+          width="w-36"
+          @update:model-value="auditParams.action = $event === 'all' ? '' : String($event); auditParams.page = 1; loadAudit()"
+        />
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border" :class="[isDarkMode ? 'border-gray-700' : 'border-gray-200']">
+        <table class="min-w-full divide-y" :class="[isDarkMode ? 'divide-gray-700' : 'divide-gray-200']">
+          <thead :class="[isDarkMode ? 'bg-gray-800' : 'bg-gray-50']">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditTime') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditAction') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditTarget') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditResult') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditDetail') }}</th>
+              <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="[mutedTextColor]">{{ t('admin.unifiedManage.auditIp') }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y" :class="[isDarkMode ? 'divide-gray-700 bg-gray-900' : 'divide-gray-200 bg-white']">
+            <tr v-if="auditRows.length === 0">
+              <td colspan="6" class="px-4 py-8 text-center text-sm" :class="[mutedTextColor]">
+                {{ t('admin.unifiedManage.auditEmpty') }}
+              </td>
+            </tr>
+            <tr v-for="row in auditRows" :key="row.id" class="transition-colors" :class="[isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50']">
+              <td class="px-4 py-3 text-xs whitespace-nowrap" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">
+                {{ row.created_at ? formatTimestamp(row.created_at) : '-' }}
+              </td>
+              <td class="px-4 py-3 text-sm" :class="[isDarkMode ? 'text-gray-200' : 'text-gray-800']">
+                {{ auditActionLabel(row.action) }}
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-sm font-mono" :class="[isDarkMode ? 'text-indigo-400' : 'text-indigo-600']">{{ row.target_id || '-' }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" :class="[
+                  row.result === 'success'
+                    ? (isDarkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-700')
+                    : (isDarkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700')
+                ]">{{ row.result === 'success' ? t('admin.unifiedManage.auditResultSuccess') : (row.result === 'denied' ? t('admin.unifiedManage.auditResultDenied') : t('admin.unifiedManage.auditResultFailed')) }}</span>
+              </td>
+              <td class="px-4 py-3 text-sm max-w-[240px] truncate" :class="[isDarkMode ? 'text-gray-300' : 'text-gray-700']" :title="row.detail">
+                {{ row.detail || '-' }}
+              </td>
+              <td class="px-4 py-3 text-xs font-mono" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">{{ row.ip || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 flex justify-between items-center flex-wrap gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-sm" :class="[isDarkMode ? 'text-gray-400' : 'text-gray-500']">
+            {{ t('components.pagination.showing') }} {{ (auditParams.page - 1) * auditParams.size + 1 }}-{{ Math.min(auditParams.page * auditParams.size, auditParams.total) }} {{ t('components.pagination.of') }} {{ auditParams.total }} {{ t('components.pagination.total') }}
+          </span>
+          <span class="text-xs" :class="[mutedTextColor]">{{ t('admin.unifiedManage.itemsPerPage') }}</span>
+          <ThemeDropdown :options="pageSizeOptions" :model-value="String(auditParams.size)" size="sm" width="w-16" @update:model-value="onAuditPageSize($event as string)" />
+        </div>
+        <div class="flex gap-2 items-center">
+          <button @click="auditParams.page > 1 && (auditParams.page--, loadAudit())" :disabled="auditParams.page <= 1"
+            class="btn-secondary" :class="[isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">{{ t('components.pagination.previous') }}</button>
+          <button @click="auditParams.page * auditParams.size < auditParams.total && (auditParams.page++, loadAudit())" :disabled="auditParams.page * auditParams.size >= auditParams.total"
+            class="btn-secondary" :class="[isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">{{ t('components.pagination.next') }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 收件箱文件弹窗 -->
     <div v-if="showFilesModal" class="fixed inset-0 z-50">
       <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" @click="showFilesModal = false"></div>
@@ -1036,13 +1119,14 @@ import {
   InboxIcon,
   LinkIcon,
   SearchIcon,
+  ScrollTextIcon,
   Settings2Icon,
   TrashIcon,
   XIcon
 } from 'lucide-vue-next'
 import { useUnifiedAdmin, useClipboard } from '@/composables'
 import { useAlertStore } from '@/stores/alertStore'
-import { RoomService, type AdminRoomCacheFile } from '@/services'
+import { RoomService, AuditService, type AuditLogItem, type AdminRoomCacheFile } from '@/services'
 import { useConfirmStore } from '@/stores/confirmStore'
 import { useConfigStore } from '@/stores/configStore'
 import ThemeDropdown from '@/components/common/ThemeDropdown.vue'
@@ -1066,18 +1150,20 @@ const { copy } = useClipboard()
 const mutedTextColor = computed(() => (isDarkMode.value ? 'text-gray-400' : 'text-gray-500'))
 const primaryTextClass = computed(() => (isDarkMode.value ? 'text-white' : 'text-gray-900'))
 
-type TabKey = 'files' | 'collections' | 'rooms'
+type TabKey = 'files' | 'collections' | 'rooms' | 'audit'
 
 const activeTab = ref<TabKey>('files')
 const tabs = [
   { key: 'files' as const, icon: FileIcon },
   { key: 'collections' as const, icon: InboxIcon },
   { key: 'rooms' as const, icon: HouseIcon },
+  { key: 'audit' as const, icon: ScrollTextIcon },
 ]
 const tabLabelKey: Record<TabKey, string> = {
   files: 'admin.unifiedManage.fileList',
   collections: 'admin.unifiedManage.collectionList',
   rooms: 'admin.unifiedManage.roomManage',
+  audit: 'admin.unifiedManage.auditLog',
 }
 
 const isRoomTab = computed(() => activeTab.value === 'rooms')
@@ -1096,6 +1182,11 @@ const reloadCurrentTab = async () => {
       collectionParams.value.page = 1
       collectionParams.value.keyword = currentKeyword.value
       await loadCollections()
+    } else if (activeTab.value === 'audit') {
+      // 审计页的搜索框按"对象标识（取件码/房间码）"过滤，与列表页的关键词语义不同
+      auditParams.value.page = 1
+      auditParams.value.target_id = currentKeyword.value
+      await loadAudit()
     } else {
       roomParams.value.page = 1
       roomParams.value.keyword = currentKeyword.value
@@ -1109,6 +1200,7 @@ const reloadCurrentTab = async () => {
 // 切到房间 Tab 且未加载过时，懒加载列表
 watch(activeTab, (tab) => {
   if (tab === 'rooms' && rooms.value.length === 0) loadRooms()
+  if (tab === 'audit' && auditRows.value.length === 0) loadAudit()
 })
 
 // 复制文本（经 useClipboard 封装，自动提示）
@@ -1149,6 +1241,28 @@ const pageSizeOptions = computed(() => [
   { value: '10', label: '10' },
   { value: '20', label: '20' },
   { value: '50', label: '50' },
+])
+
+/** 审计结果筛选（all = 不过滤） */
+const auditResultOptions = computed(() => [
+  { value: 'all', label: t('admin.unifiedManage.auditFilterAll') },
+  { value: 'success', label: t('admin.unifiedManage.auditResultSuccess') },
+  { value: 'failed', label: t('admin.unifiedManage.auditResultFailed') },
+  { value: 'denied', label: t('admin.unifiedManage.auditResultDenied') },
+])
+
+/** 审计动作筛选，取值与后端 record(action=...) 保持一致 */
+const auditActionOptions = computed(() => [
+  { value: 'all', label: t('admin.unifiedManage.auditFilterAll') },
+  { value: 'upload', label: t('admin.unifiedManage.auditActionUpload') },
+  { value: 'retrieve', label: t('admin.unifiedManage.auditActionRetrieve') },
+  { value: 'download', label: t('admin.unifiedManage.auditActionDownload') },
+  { value: 'delete', label: t('admin.unifiedManage.auditActionDelete') },
+  { value: 'login', label: t('admin.unifiedManage.auditActionLogin') },
+  { value: 'login_failed', label: t('admin.unifiedManage.auditActionLoginFailed') },
+  { value: 'config_update', label: t('admin.unifiedManage.auditActionConfigUpdate') },
+  { value: 'room_cache_upload', label: t('admin.unifiedManage.auditActionRoomCacheUpload') },
+  { value: 'room_cache_delete', label: t('admin.unifiedManage.auditActionRoomCacheDelete') },
 ])
 
 const isFileExpired = (f: any) => {
@@ -1648,6 +1762,51 @@ const loadRooms = async () => {
   } catch {
     alertStore.showAlert(t('admin.unifiedManage.loadFailed'), 'error')
   }
+}
+
+// ============ 审计日志 ============
+const auditRows = ref<AuditLogItem[]>([])
+const auditParams = ref({ page: 1, size: 20, total: 0, target_id: '', action: '', result: '' })
+
+/** 动作 → 展示文案。后端存的是稳定的动作标识，展示层才翻译成人话。 */
+const auditActionLabel = (action: string) => {
+  const map: Record<string, string> = {
+    upload: 'admin.unifiedManage.auditActionUpload',
+    retrieve: 'admin.unifiedManage.auditActionRetrieve',
+    download: 'admin.unifiedManage.auditActionDownload',
+    delete: 'admin.unifiedManage.auditActionDelete',
+    login: 'admin.unifiedManage.auditActionLogin',
+    login_failed: 'admin.unifiedManage.auditActionLoginFailed',
+    config_update: 'admin.unifiedManage.auditActionConfigUpdate',
+    room_cache_upload: 'admin.unifiedManage.auditActionRoomCacheUpload',
+    room_cache_delete: 'admin.unifiedManage.auditActionRoomCacheDelete',
+  }
+  const key = map[action]
+  return key ? t(key) : action
+}
+
+const loadAudit = async () => {
+  try {
+    const res = await AuditService.list({
+      page: auditParams.value.page,
+      size: auditParams.value.size,
+      target_id: auditParams.value.target_id || undefined,
+      action: auditParams.value.action || undefined,
+      result: auditParams.value.result || undefined,
+    })
+    if (res.detail) {
+      auditRows.value = res.detail.items ?? []
+      auditParams.value.total = res.detail.total ?? 0
+    }
+  } catch {
+    alertStore.showAlert(t('admin.unifiedManage.loadFailed'), 'error')
+  }
+}
+
+const onAuditPageSize = async (val: string) => {
+  auditParams.value.size = Number(val)
+  auditParams.value.page = 1
+  await loadAudit()
 }
 
 const deleteRoom = async (room: AdminRoomItem) => {
