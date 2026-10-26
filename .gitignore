@@ -11,6 +11,8 @@ node_modules
 .DS_Store
 dist
 dist-ssr
+# npm run build 前的清理脚本（scripts/clean-dist.mjs）换名隔离的旧产物
+.dist_trash/
 # 清理 dist 时换名隔离的旧产物（用 rename 代替递归删除的产物），不再被引用
 dist_old/
 dist_old*/
