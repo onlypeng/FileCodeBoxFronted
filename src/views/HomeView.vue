@@ -352,6 +352,8 @@ const createRecord = (detail: {
   expire_value?: number
   expired_count?: number | null
   remark?: string | null
+  /** 服务端算出的 SHA-256（单文件才有；多文件 zip 不下发） */
+  file_hash?: string
 }): ReceivedFileRecord => {
   // 文件判定：多文件，或 text 为可下载 URL（/share/download 或 http(s)）。
   // 仅备注分享（无文件）text=remark 纯文本 → 归为文本；不再依赖 name/prefix 判定（prefix 已统一为空）
@@ -370,6 +372,8 @@ const createRecord = (detail: {
     downloadUrl: isFile ? detail.text : null,
     content: isFile ? null : detail.text,
     date: new Date().toLocaleString(),
+    // 单文件才有可用基准：多文件是服务端打包的 zip，哈希不固定
+    fileHash: isFile ? (detail.file_hash || '') : '',
     type: recordType,
     remark: detail.remark ?? null,
     expiredAt: detail.expired_at,
@@ -646,7 +650,13 @@ const downloadSingleFileRecord = () => {
     return
   }
   const expired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue) || record.isExpired
-  void downloadFile(buildDownloadUrl(record.downloadUrl), record.filename || undefined, { isExpired: expired, expiredMessage: t('fileDetail.expired') })
+  void downloadFile(buildDownloadUrl(record.downloadUrl), record.filename || undefined, {
+    isExpired: expired,
+    expiredMessage: t('fileDetail.expired'),
+    // 校验结果需要提示给用户，否则算完没人知道
+    notify: (msg, type) => alertStore.showAlert(msg, type),
+    expectedHash: record.fileHash || '',
+  })
 }
 
 const downloadMultiFileItem = (itemId: number) => {

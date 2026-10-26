@@ -84,6 +84,11 @@ export interface ReceivedFileRecord {
   downloadUrl: string | null
   content: string | null
   date: string
+  /**
+   * 服务端落盘时算出的 SHA-256（权威值），用于下载后校验文件完整性。
+   * 空串表示无可用基准（多文件打包、旧数据未回填等），此时跳过校验。
+   */
+  fileHash?: string
   /** 记录类型：text=文本, file=单文件, multiFile=多文件(含收件箱) */
   type?: ReceiveRecordType
   /** 是否为收件箱记录（多文件子类型） */

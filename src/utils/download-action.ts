@@ -2,6 +2,7 @@ import { saveAs } from 'file-saver'
 import type { ReceivedFileRecord } from '@/types'
 import { buildDownloadUrl } from '@/utils/share-url'
 import { CollectionService } from '@/services/collection'
+import { hashBlob } from '@/utils/hash-worker'
 
 /** 非文件类 Content-Type（遇到这些类型视为错误响应） */
 const NON_FILE_CONTENT_TYPES = ['text/html', 'application/json', 'text/plain']
@@ -42,6 +43,11 @@ export async function downloadFile(
     silent?: boolean
     /** 提示回调（未传入且非静默时，仅输出到控制台） */
     notify?: DownloadNotify
+    /**
+     * 期望的 SHA-256（服务端落盘时算出的权威值）。
+     * 传入则在下载完成后校验文件完整性；为空则不校验。
+     */
+    expectedHash?: string
   }
 ): Promise<DownloadResult> {
   const notify = options?.notify
@@ -109,6 +115,11 @@ export async function downloadFile(
     }
 
     saveAs(blob, downloadName)
+    // 校验放在保存之后且不 await：文件先到用户手里，校验结果稍后提示。
+    // 大文件的 SHA-256 即便在 Worker 里也要算几秒，阻塞保存会让"下载"看起来卡住。
+    if (options?.expectedHash) {
+      void verifyDownloaded(blob, options.expectedHash, notify)
+    }
     return { success: true }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : ''
@@ -125,6 +136,27 @@ export async function downloadFile(
     }
     showMessage(displayMsg, 'error')
     return { success: false, reason, errorMessage: displayMsg }
+  }
+}
+
+/**
+ * 下载完成后校验文件完整性。
+ *
+ * 哈希由服务端落盘时流式算出（权威值），客户端算出来比对即可知道内容是否完整。
+ * 在 Worker 中计算，不占用主线程；失败或异常都静默——文件已经存到用户本地，
+ * 校验只是附加信息，不该因为算不出来而打扰用户。
+ */
+async function verifyDownloaded(blob: Blob, expectedHash: string, notify?: DownloadNotify) {
+  try {
+    const actual = await hashBlob(blob)
+    if (!actual) return
+    if (actual.toLowerCase() === expectedHash.toLowerCase()) {
+      notify?.('文件校验通过：内容与服务端一致', 'success')
+    } else {
+      notify?.('文件校验失败：内容哈希与服务端不一致，文件可能不完整', 'error')
+    }
+  } catch {
+    // 校验失败不影响已保存的文件，静默
   }
 }
 
@@ -273,7 +305,10 @@ export function downloadReceivedRecord(
 
   if (record.downloadUrl) {
     const url = buildDownloadUrl(record.downloadUrl)
-    return downloadFile(url, record.filename || undefined, { notify })
+    return downloadFile(url, record.filename || undefined, {
+      notify,
+      expectedHash: record.fileHash || '',
+    })
   }
 
   return Promise.resolve({ success: false, reason: 'other', errorMessage: '无可下载内容' })
