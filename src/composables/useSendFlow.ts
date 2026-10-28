@@ -26,6 +26,8 @@ export function useSendFlow() {
   const selectedFile = ref<File | null>(null)
   const selectedFiles = ref<File[]>([])
   const textContent = ref('')
+  /** 提取口令（二次口令）：可选，设置后取件必须同时提供 */
+  const accessCode = ref('')
   const expirationMethod = ref(config.value.expireStyle[0] || 'day')
   const expirationValue = ref('1')
   const uploadProgress = ref(0)
@@ -243,7 +245,8 @@ export function useSendFlow() {
         expireStyle: expirationMethod.value,
         enableChunk: Boolean(config.value.enableChunk),
         chunkSizeMb: Number(config.value.uploadChunkSize) || 5,
-        validateFileSize: checkFileSize
+        validateFileSize: checkFileSize,
+        accessCode: accessCode.value.trim() || undefined
       })
 
       if (!response) return
@@ -271,6 +274,7 @@ export function useSendFlow() {
         selectedFile.value = null
         selectedFiles.value = []
         textContent.value = ''
+        accessCode.value = ''
         uploadProgress.value = 0
         resetPresignUpload()
         // 发送完成弹窗：与"记录-发件-查看"一致，使用发件记录查看弹窗展示（仅查看，无下载）
@@ -357,7 +361,8 @@ export function useSendFlow() {
     let expireText = record.expiration
     let isExpired = false
     try {
-      const res = await getFileInfo(record.retrieveCode)
+      // 发起者凭证放行：设了口令的分享也能看到自己的文件列表/名称
+      const res = await getFileInfo(record.retrieveCode, { ownerToken: record.ownerToken })
       const detail = res.detail as { is_multi_file?: boolean; items?: MultiFileItem[]; expire_style?: string; expire_value?: number; expired_count?: number; expired_at?: string | null } | undefined
       if (res.code === 410 || (res.code !== 200 && String(res.detail || '').includes('过期'))) {
         // 后端确认已过期：弹窗内展示过期横幅，文件列表回退本地缓存
@@ -440,6 +445,7 @@ export function useSendFlow() {
     selectedFile,
     selectedFiles,
     textContent,
+    accessCode,
     expirationMethod,
     expirationValue,
     uploadProgress,

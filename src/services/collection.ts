@@ -71,14 +71,17 @@ export class CollectionService {
     return api.patch(`/collection/update/${collectionCode}`, data)
   }
 
-  /** 下载多文件分享中的单个文件 */
-  static getMultiFileDownloadUrl(itemId: number, code: string): string {
-    return buildAbsoluteUrl(`/share/download/item/${itemId}?code=${code}`)
+  /** 下载多文件分享中的单个文件
+   *  key：设有提取口令的分享，取件通过后下发的短期下载 token（普通分享不传） */
+  static getMultiFileDownloadUrl(itemId: number, code: string, key?: string): string {
+    const suffix = key ? `&key=${encodeURIComponent(key)}` : ''
+    return buildAbsoluteUrl(`/share/download/item/${itemId}?code=${code}${suffix}`)
   }
 
   /** 下载多文件分享的ZIP */
-  static getMultiFileZipUrl(code: string): string {
-    return buildAbsoluteUrl(`/share/zip/${code}`)
+  static getMultiFileZipUrl(code: string, key?: string): string {
+    const suffix = key ? `?key=${encodeURIComponent(key)}` : ''
+    return buildAbsoluteUrl(`/share/zip/${code}${suffix}`)
   }
 
   // ============ 后台管理接口 ============

@@ -223,6 +223,14 @@
       @close="directRoomModalCode = ''"
       @enter-room="enterDirectRoomFromModal"
     />
+    <!-- 提取口令输入（该分享设置了二次口令，取件时补输） -->
+    <AccessCodeDialog
+      :visible="accessDialogVisible"
+      :loading="accessDialogLoading"
+      :error="accessDialogError"
+      @submit="submitAccessCode"
+      @cancel="cancelAccessCode"
+    />
   </div>
 </template>
 
@@ -250,6 +258,7 @@ import DirectRoomInfoModal from '@/components/common/DirectRoomInfoModal.vue'
 import MultiFileRetrieveModal from '@/components/common/MultiFileRetrieveModal.vue'
 import SuccessModal from '@/components/common/SuccessModal.vue'
 import ContentPreviewModal from '@/components/common/ContentPreviewModal.vue'
+import AccessCodeDialog from '@/components/common/AccessCodeDialog.vue'
 import { useRetrieveFlow, useRetrieveUrls, useSendFlow, useClipboard } from '@/composables'
 import type { ApiResponse } from '@/types'
 import { useConfigStore } from '@/stores/configStore'
@@ -297,6 +306,55 @@ const renderedContent = ref('')
 const isMultiFile = ref(false)
 const multiFileItems = ref<Array<MultiFileItem & { sizeText?: string }>>([])
 const multiFileCode = ref('')
+
+// ===== 提取口令（二次口令）取件 =====
+const accessDialogVisible = ref(false)
+const accessDialogError = ref('')
+const accessDialogLoading = ref(false)
+/** 待取件的码（主输入框在 finally 里会被清空） */
+const pendingAccessCode = ref('')
+/** 用户在弹窗里补输的口令：随下次 selectFile 一起提交 */
+const retryAccessCode = ref('')
+/** 设了口令的多文件分享：取件成功后拿到的短期下载 token（单项/打包下载要带上） */
+const multiFileAccessKey = ref('')
+
+/** 是否"需要提取口令"的 403（后端 detail 固定含「提取口令」） */
+const isAccessCodeRequiredError = (err: unknown): boolean => {
+  const response = (err as { response?: { status?: number; data?: { detail?: unknown } } })
+    ?.response
+  if (response?.status !== 403) return false
+  const detail = response.data?.detail
+  return typeof detail === 'string' && detail.includes('提取口令')
+}
+
+/** 提交口令：把码和口令重新灌回取件入口再走一遍完整流程 */
+const submitAccessCode = async (value: string) => {
+  const trimmed = (value || '').trim()
+  if (!trimmed) {
+    accessDialogError.value = t('retrieve.accessCode.required')
+    return
+  }
+  accessDialogLoading.value = true
+  accessDialogError.value = ''
+  try {
+    retrieveCode.value = pendingAccessCode.value
+    retryAccessCode.value = trimmed
+    await handleRetrieveSubmit()
+    // 口令错误时 handleRetrieveSubmit 会重新打开弹窗并带上错误文案
+    if (!accessDialogVisible.value) {
+      pendingAccessCode.value = ''
+    }
+  } finally {
+    accessDialogLoading.value = false
+  }
+}
+
+const cancelAccessCode = () => {
+  accessDialogVisible.value = false
+  accessDialogError.value = ''
+  pendingAccessCode.value = ''
+  retryAccessCode.value = ''
+}
 
 // 多文件弹窗
 const showMultiFileModal = ref(false)
@@ -491,8 +549,8 @@ const handleRetrieveSubmit = async () => {
       }
     }
 
-    // 普通文件码 → 内联展示结果
-    const res = await retrieveFlow.selectFile(retrieveCode.value)
+    // 普通文件码 → 内联展示结果（retryAccessCode：用户在口令弹窗补输的口令）
+    const res = await retrieveFlow.selectFile(retrieveCode.value, retryAccessCode.value)
     if (res.code === 200 && res.detail) {
       const detail = res.detail as {
         code: string
@@ -512,6 +570,8 @@ const handleRetrieveSubmit = async () => {
         isMultiFile.value = true
         multiFileItems.value = detail.items
         multiFileCode.value = detail.code
+        // 口令保护的分享：多文件单项/打包下载需带短期 token
+        multiFileAccessKey.value = (detail as { access_key?: string }).access_key || ''
         multiFileDate.value = (detail as any).created_at
           ? new Date((detail as any).created_at).toLocaleString()
           : new Date().toLocaleString()
@@ -584,6 +644,11 @@ const handleRetrieveSubmit = async () => {
         nextTick(() => { showMultiFileModal.value = true })
       }
       alertStore.showAlert(t('retrieve.messages.retrieveSuccess'), 'success')
+      // 取件成功：关闭口令弹窗并清掉临时口令（避免带到下一次取件）
+      accessDialogVisible.value = false
+      accessDialogError.value = ''
+      pendingAccessCode.value = ''
+      retryAccessCode.value = ''
     } else {
       // 识别过期错误，给出明确提示
       const detail = String(res.detail || '')
@@ -595,6 +660,14 @@ const handleRetrieveSubmit = async () => {
     }
   } catch (err: unknown) {
     const errorMessage = getErrorMessage(err, t('retrieve.messages.unknownError'))
+    // 提取口令：不弹错误提示，直接引导补输口令后重试
+    if (isAccessCodeRequiredError(err)) {
+      // 二次打开（= 上次口令不对）时把服务端文案带进弹窗，首次不重复提示
+      accessDialogError.value = accessDialogVisible.value ? errorMessage : ''
+      pendingAccessCode.value = retrieveCode.value
+      accessDialogVisible.value = true
+      return
+    }
     // 捕获 HTTP 410 过期异常
     if (String(errorMessage).includes('过期') || String(errorMessage).includes('410')) {
       alertStore.showAlert(t('fileDetail.expired') || '该取件码已过期', 'error')
@@ -671,7 +744,7 @@ const downloadMultiFileItem = (itemId: number) => {
   if (isCollectionRetrieve.value && collectionCodeForDownload.value) {
     void downloadFile(retrieveUrls.getDownloadUrl(itemId, collectionCodeForDownload.value), filename, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
   } else {
-    void downloadFile(retrieveUrls.getMultiFileDownloadUrl(itemId, multiFileCode.value), filename, {
+    void downloadFile(retrieveUrls.getMultiFileDownloadUrl(itemId, multiFileCode.value, multiFileAccessKey.value), filename, {
       isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value, multiFileExpireValue.value),
       expiredMessage: t('fileDetail.expired')
     })
@@ -683,7 +756,7 @@ const downloadMultiFileZip = () => {
   if (isCollectionRetrieve.value && collectionCodeForDownload.value) {
     void downloadFile(retrieveUrls.getZipDownloadUrl(collectionCodeForDownload.value), undefined, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
   } else {
-    void downloadFile(retrieveUrls.getMultiFileZipUrl(multiFileCode.value), `${multiFileCode.value}.zip`, {
+    void downloadFile(retrieveUrls.getMultiFileZipUrl(multiFileCode.value, multiFileAccessKey.value), `${multiFileCode.value}.zip`, {
       isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value, multiFileExpireValue.value),
       expiredMessage: t('fileDetail.expired')
     })

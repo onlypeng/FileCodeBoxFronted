@@ -53,6 +53,17 @@
               </p>
             </div>
           </div>
+          <!-- 提取口令（可选）：与取件码走不同信道，降低码泄露带来的风险 -->
+          <div class="mt-4">
+            <FormInput
+              v-model="accessCode"
+              type="password"
+              :maxlength="32"
+              :label="t('send.accessCode.label')"
+              :placeholder="t('send.accessCode.placeholder')"
+              :hint="t('send.accessCode.hint')"
+            />
+          </div>
           <ExpirationSelector
             v-model:expiration-method="expirationMethod"
             v-model:expiration-value="expirationValue"
@@ -171,6 +182,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import FileUploadArea from '@/components/common/FileUploadArea.vue'
 import ExpirationSelector from '@/components/common/ExpirationSelector.vue'
 import TextInputArea from '@/components/common/TextInputArea.vue'
+import FormInput from '@/components/common/FormInput.vue'
 import SideDrawer from '@/components/common/SideDrawer.vue'
 import SentRecordList from '@/components/common/SentRecordList.vue'
 import SuccessModal from '@/components/common/SuccessModal.vue'
@@ -187,6 +199,7 @@ const {
   selectedFile,
   selectedFiles,
   textContent,
+  accessCode,
   expirationMethod,
   expirationValue,
   uploadProgress,

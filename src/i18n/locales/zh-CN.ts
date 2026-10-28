@@ -450,6 +450,15 @@ export default {
     },
     submit: '取件',
     needSendFile: '需要发送文件？点击这里',
+    accessCode: {
+      dialogTitle: '该分享需要提取口令',
+      dialogHint: '发起者为这条分享设置了提取口令，请输入后继续取件。',
+      placeholder: '请输入提取口令',
+      submit: '确认取件',
+      submitting: '校验中...',
+      required: '请输入提取口令',
+      invalid: '提取口令错误，请重新输入'
+    },
     recordsDrawer: '取件记录',
     messages: {
       invalidCode: '请输入取件码',
@@ -521,6 +530,11 @@ export default {
       label: '文件备注（可选）',
       placeholder: '可填写备注说明；不选择文件时，备注将作为文本单独发送',
       hint: '支持三种发送方式：仅文件 / 仅备注 / 文件+备注'
+    },
+    accessCode: {
+      label: '提取口令（可选）',
+      placeholder: '2-32 位，取件时需一并输入',
+      hint: '设置后，取件码与口令缺一不可；请通过另一条渠道告知对方'
     },
     fileDetails: '文件详情',
     fileList: '文件列表',

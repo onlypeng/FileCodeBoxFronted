@@ -13,6 +13,8 @@ type ChunkedUploadOptions = {
   expireValue: number
   expireStyle: string
   remark?: string
+  /** 提取口令（可选）：在"完成上传"时随记录一起提交 */
+  accessCode?: string
   onHashCalculated?: (hash: string) => void
   onProgress?: (progress: UploadProgress) => void
   messages?: {
@@ -96,7 +98,8 @@ export const uploadChunkedFile = async (
   const completeResponse = await FileService.completeChunkUpload(uploadId, {
     expire_value: options.expireValue,
     expire_style: options.expireStyle,
-    remark: options.remark
+    remark: options.remark,
+    access_code: options.accessCode
   })
 
   if (completeResponse.code !== 200) {

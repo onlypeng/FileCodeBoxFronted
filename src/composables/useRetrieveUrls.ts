@@ -13,13 +13,13 @@ export function useRetrieveUrls() {
   const getZipDownloadUrl = (collectionCode: string): string =>
     CollectionService.getZipDownloadUrl(collectionCode)
 
-  /** 多文件分享单文件下载 URL */
-  const getMultiFileDownloadUrl = (itemId: number, code: string): string =>
-    CollectionService.getMultiFileDownloadUrl(itemId, code)
+  /** 多文件分享单文件下载 URL（key：提取口令分享取件后拿到的短期 token） */
+  const getMultiFileDownloadUrl = (itemId: number, code: string, key?: string): string =>
+    CollectionService.getMultiFileDownloadUrl(itemId, code, key)
 
-  /** 多文件分享 ZIP 下载 URL */
-  const getMultiFileZipUrl = (code: string): string =>
-    CollectionService.getMultiFileZipUrl(code)
+  /** 多文件分享 ZIP 下载 URL（key：同上） */
+  const getMultiFileZipUrl = (code: string, key?: string): string =>
+    CollectionService.getMultiFileZipUrl(code, key)
 
   return {
     getDownloadUrl,

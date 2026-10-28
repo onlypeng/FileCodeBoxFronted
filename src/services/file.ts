@@ -42,7 +42,8 @@ export class FileService {
     expireValue: number = 1,
     expireStyle: string = 'day',
     onProgress?: (progress: UploadProgress) => void,
-    remark?: string
+    remark?: string,
+    accessCode?: string
   ): Promise<ApiResponse<FileUploadResponse>> {
     const formData = new FormData()
     for (const file of files) {
@@ -52,6 +53,9 @@ export class FileService {
     formData.append('expire_style', expireStyle)
     if (remark) {
       formData.append('remark', remark)
+    }
+    if (accessCode) {
+      formData.append('access_code', accessCode)
     }
 
     return api.post('/share/file/', formData, multipartUploadConfig(onProgress))
@@ -100,18 +104,28 @@ export class FileService {
       {
         expire_value: request.expire_value,
         expire_style: request.expire_style,
-        remark: request.remark || ''
+        remark: request.remark || '',
+        access_code: request.access_code || ''
       }
     )
   }
 
-  static async selectFile(code: string): Promise<ApiResponse<ShareSelectResponse>> {
-    return api.post('/share/select/', { code })
+  static async selectFile(code: string, accessCode?: string): Promise<ApiResponse<ShareSelectResponse>> {
+    return api.post('/share/select/', { code, access_code: accessCode || '' })
   }
 
   /** 只读查询文件分享详情（不消耗取件次数），供记录查看刷新剩余次数/文件列表/过期状态 */
-  static async getFileInfo(code: string): Promise<ApiResponse<ShareSelectResponse>> {
-    return api.get('/share/select/info/', { params: { code } })
+  static async getFileInfo(
+    code: string,
+    options?: { accessCode?: string; ownerToken?: string }
+  ): Promise<ApiResponse<ShareSelectResponse>> {
+    return api.get('/share/select/info/', {
+      params: {
+        code,
+        access_code: options?.accessCode || '',
+        owner_token: options?.ownerToken || ''
+      }
+    })
   }
 
   static async checkCodeType(code: string): Promise<ApiResponse<{ type: string; code: string; title?: string; expired?: boolean }>> {

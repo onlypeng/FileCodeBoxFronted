@@ -42,6 +42,19 @@ export interface ShareSelectResponse {
   name: string
   text: string
   size: number
+  /** 服务端落盘时算出的权威 SHA-256（多文件打包场景不下发） */
+  file_hash?: string
+  is_multi_file?: boolean
+  items?: Array<{ id: number; file_name: string; file_size: number }>
+  /** 该分享是否设置了提取口令（二次口令） */
+  require_access_code?: boolean
+  /** 口令通过后下发的短期下载 token，多文件单项/打包下载需带上 */
+  access_key?: string
+  expired_count?: number
+  created_at?: string | null
+  expired_at?: string | null
+  expire_style?: string
+  expire_value?: number
 }
 
 // ==================== 取件记录类型 ====================
@@ -181,6 +194,8 @@ export interface ChunkUploadCompleteRequest {
   expire_style: string
   /** 文件备注（可选） */
   remark?: string
+  /** 提取口令（可选）：分享创建时可选的二次口令 */
+  access_code?: string
 }
 
 export type ChunkUploadResponse = null

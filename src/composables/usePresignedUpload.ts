@@ -180,7 +180,8 @@ export function usePresignedUpload(options: UsePresignedUploadOptions = {}) {
       const confirmResponse = await PresignUploadService.confirmUpload(session.upload_id, {
         expire_value: options?.expireValue ?? DEFAULT_EXPIRE_VALUE,
         expire_style: options?.expireStyle ?? DEFAULT_EXPIRE_STYLE,
-        remark: options?.remark
+        remark: options?.remark,
+        access_code: options?.accessCode
       })
 
       if (confirmResponse.code === 200 && confirmResponse.detail?.code) {
@@ -219,7 +220,8 @@ export function usePresignedUpload(options: UsePresignedUploadOptions = {}) {
         session.upload_id,
         file,
         progressHandler,
-        options?.remark
+        options?.remark,
+        options?.accessCode
       )
 
       if (response.code === 200 && response.detail?.code) {

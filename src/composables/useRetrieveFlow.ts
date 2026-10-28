@@ -112,7 +112,7 @@ export function useRetrieveFlow() {
   const checkCodeType = (code: string) => FileService.checkCodeType(code)
 
   /** 取件（普通文件码/多文件码；消耗取件次数） */
-  const selectFile = (code: string) => FileService.selectFile(code)
+  const selectFile = (code: string, accessCode?: string) => FileService.selectFile(code, accessCode)
 
   /** 只读查询文件分享详情（不消耗次数），供记录查看刷新剩余次数/文件列表/过期状态 */
   const getFileInfo = (code: string) => FileService.getFileInfo(code)
@@ -123,6 +123,105 @@ export function useRetrieveFlow() {
   /** 通过管理码获取收件箱管理信息（含完整三码与各自过期时间，供记录-收件箱-查看展示） */
   const getManageInfo = (code: string) => CollectionService.getManageInfo(code)
 
+
+  // ===== 提取口令（二次口令）=====
+  const accessDialogVisible = ref(false)
+  const accessDialogError = ref('')
+  const accessDialogLoading = ref(false)
+  /** 待取件的码：弹窗重试时用（主输入框在 finally 里会被清空） */
+  const pendingAccessCode = ref('')
+  /** 设了口令的多文件分享：口令通过后拿到的短期下载 token */
+  const multiFileAccessKey = ref('')
+
+  /** 是否"需要提取口令"的 403（后端 detail 固定含「提取口令」） */
+  const isAccessCodeRequiredError = (err: unknown): boolean => {
+    const response = (err as { response?: { status?: number; data?: { detail?: unknown } } })
+      ?.response
+    if (response?.status !== 403) return false
+    const detail = response.data?.detail
+    return typeof detail === 'string' && detail.includes('提取口令')
+  }
+
+  /** 执行取件：普通分享与口令分享共用（口令未设置时参数字段为空） */
+  const performSelect = async (selectCode: string, accessCodeValue?: string) => {
+    const res = await FileService.selectFile(selectCode, accessCodeValue)
+    if (res.code !== 200 || !res.detail) {
+      alertStore.showAlert(t('retrieve.messages.retrieveFailure') + res.detail, 'error')
+      return
+    }
+
+    const detail = res.detail as {
+      code: string
+      name: string
+      text: string
+      size: number
+      is_multi_file?: boolean
+      items?: MultiFileItem[]
+      access_key?: string
+    }
+
+    // 多文件模式
+    if (detail.is_multi_file && detail.items) {
+      isMultiFile.value = true
+      multiFileItems.value = detail.items
+      multiFileCode.value = detail.code
+      // 口令保护的分享：单项/打包下载都要带这个 token
+      multiFileAccessKey.value = detail.access_key || ''
+    } else {
+      isMultiFile.value = false
+      multiFileItems.value = []
+      multiFileAccessKey.value = ''
+    }
+
+    const newFileData = createRecord(detail)
+    // 为多文件记录补充子项数据
+    if (isMultiFile.value) {
+      newFileData.isMultiFile = true
+      newFileData.multiFileItems = detail.items || []
+    }
+    if (!fileStore.receiveData.some((file) => file.code === newFileData.code)) {
+      fileStore.addReceiveData(newFileData)
+    }
+    selectedRecord.value = newFileData
+    if (newFileData.content) {
+      showPreview.value = true
+    }
+    alertStore.showAlert(t('retrieve.messages.retrieveSuccess'), 'success')
+  }
+
+  /** 提交口令并重试取件；口令错误时保留弹窗，就地提示 */
+  const submitAccessCode = async (value: string) => {
+    const trimmed = (value || '').trim()
+    if (!trimmed) {
+      accessDialogError.value = t('retrieve.accessCode.required')
+      return
+    }
+    accessDialogLoading.value = true
+    try {
+      await performSelect(pendingAccessCode.value, trimmed)
+      accessDialogVisible.value = false
+      accessDialogError.value = ''
+      pendingAccessCode.value = ''
+    } catch (err: unknown) {
+      if (isAccessCodeRequiredError(err)) {
+        accessDialogError.value = getErrorMessage(err, t('retrieve.accessCode.invalid'))
+      } else {
+        accessDialogVisible.value = false
+        alertStore.showAlert(
+          getErrorMessage(err, t('retrieve.messages.networkError')),
+          'error'
+        )
+      }
+    } finally {
+      accessDialogLoading.value = false
+    }
+  }
+
+  const cancelAccessCode = () => {
+    accessDialogVisible.value = false
+    accessDialogError.value = ''
+    pendingAccessCode.value = ''
+  }
 
   const handleSubmit = async () => {
     if (!CODE_REGEX.test(code.value)) {
@@ -257,45 +356,15 @@ export function useRetrieveFlow() {
       }
 
       // 普通文件码 → 原有取件逻辑
-      const res = await FileService.selectFile(code.value)
-      if (res.code === 200 && res.detail) {
-        const detail = res.detail as {
-          code: string
-          name: string
-          text: string
-          size: number
-          is_multi_file?: boolean
-          items?: MultiFileItem[]
-        }
-
-        // 多文件模式
-        if (detail.is_multi_file && detail.items) {
-          isMultiFile.value = true
-          multiFileItems.value = detail.items
-          multiFileCode.value = detail.code
-        } else {
-          isMultiFile.value = false
-          multiFileItems.value = []
-        }
-
-        const newFileData = createRecord(detail)
-        // 为多文件记录补充子项数据
-        if (isMultiFile.value) {
-          newFileData.isMultiFile = true
-          newFileData.multiFileItems = detail.items || []
-        }
-        if (!fileStore.receiveData.some((file) => file.code === newFileData.code)) {
-          fileStore.addReceiveData(newFileData)
-        }
-        selectedRecord.value = newFileData
-        if (newFileData.content) {
-          showPreview.value = true
-        }
-        alertStore.showAlert(t('retrieve.messages.retrieveSuccess'), 'success')
-      } else {
-        alertStore.showAlert(t('retrieve.messages.retrieveFailure') + res.detail, 'error')
-      }
+      await performSelect(code.value)
     } catch (err: unknown) {
+      // 设了提取口令的分享：不弹错误提示，直接引导输入口令后重试
+      if (isAccessCodeRequiredError(err)) {
+        pendingAccessCode.value = code.value
+        accessDialogError.value = ''
+        accessDialogVisible.value = true
+        return
+      }
       const errorMessage = getErrorMessage(err, t('retrieve.messages.unknownError'))
       alertStore.showAlert(t('retrieve.messages.networkError') + errorMessage, 'error')
     } finally {
@@ -315,12 +384,12 @@ export function useRetrieveFlow() {
   const downloadMultiFileItem = (itemId: number) => {
     const item = multiFileItems.value.find(i => i.id === itemId)
     const filename = item?.file_name || undefined
-    void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, multiFileCode.value), filename, { expiredMessage: t('fileDetail.expired') || '已过期，无法下载' })
+    void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, multiFileCode.value, multiFileAccessKey.value), filename, { expiredMessage: t('fileDetail.expired') || '已过期，无法下载' })
       .then(result => handleDownloadResult(result, multiFileCode.value))
   }
 
   const downloadMultiFileZip = () => {
-    void downloadFile(CollectionService.getMultiFileZipUrl(multiFileCode.value), `${multiFileCode.value}.zip`, { expiredMessage: t('fileDetail.expired') || '已过期，无法下载' })
+    void downloadFile(CollectionService.getMultiFileZipUrl(multiFileCode.value, multiFileAccessKey.value), `${multiFileCode.value}.zip`, { expiredMessage: t('fileDetail.expired') || '已过期，无法下载' })
       .then(result => handleDownloadResult(result, multiFileCode.value))
   }
 
@@ -420,9 +489,11 @@ export function useRetrieveFlow() {
       downloadSingleRecordFile(modal.record)
       return
     }
+    // 口令保护的分享：仅当弹窗对应的就是刚取件成功的那个码时才带 token
+    const recordModalKey = modal.code === multiFileCode.value ? multiFileAccessKey.value : ''
     const item = modal.items.find(i => i.id === itemId)
     const filename = item?.file_name || undefined
-    void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, modal.code), filename, {
+    void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, modal.code, recordModalKey), filename, {
       isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle, modal.expireValue),
       expiredMessage: t('fileDetail.expired')
     }).then(result => handleDownloadResult(result, modal.code))
@@ -430,8 +501,9 @@ export function useRetrieveFlow() {
 
   const downloadRecordModalZip = () => {
     const modal = recordModal.value
+    const recordModalKey = modal.code === multiFileCode.value ? multiFileAccessKey.value : ''
     // 单文件与多文件统一打包下载
-    void downloadFile(CollectionService.getMultiFileZipUrl(modal.code), `${modal.code}.zip`, {
+    void downloadFile(CollectionService.getMultiFileZipUrl(modal.code, recordModalKey), `${modal.code}.zip`, {
       isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle, modal.expireValue),
       expiredMessage: t('fileDetail.expired')
     }).then(result => handleDownloadResult(result, modal.code))
@@ -554,6 +626,11 @@ export function useRetrieveFlow() {
     collectionDeliveryCode,
     deliveryRedirectCode,
     recordModal,
+    accessDialogVisible,
+    accessDialogError,
+    accessDialogLoading,
+    submitAccessCode,
+    cancelAccessCode,
     checkCodeType,
     selectFile,
     getFileInfo,

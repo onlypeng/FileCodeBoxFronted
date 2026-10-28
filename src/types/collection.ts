@@ -164,6 +164,9 @@ export interface ShareSelectResponseMulti {
   expire_style?: string
   expire_value?: number
   items?: MultiFileItem[]
+  /** 设有提取口令的分享：口令通过后下发的短期下载 token */
+  access_key?: string
+  require_access_code?: boolean
 }
 
 /** Dashboard 收件箱统计 */

@@ -33,6 +33,8 @@ export interface PresignConfirmRequest {
   expire_style?: ExpireStyle
   /** 文件备注（可选） */
   remark?: string
+  /** 提取口令（可选）：确认直传时提交，随记录落库 */
+  access_code?: string
 }
 
 export interface PresignUploadResult {
@@ -55,5 +57,7 @@ export interface PresignUploadOptions {
   expireStyle?: ExpireStyle
   /** 文件备注（可选） */
   remark?: string
+  /** 提取口令（可选） */
+  accessCode?: string
   onProgress?: (progress: UploadProgress) => void
 }

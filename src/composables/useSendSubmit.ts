@@ -27,6 +27,8 @@ type SubmitFileOptions = {
   validateFileSize: (file: File) => boolean
   /** 文件备注（可选）；仅备注分享（无文件）时也走此接口 */
   remark?: string
+  /** 提取口令（可选）：设置后取件必须同时提供，走独立信道降低码泄露风险 */
+  accessCode?: string
 }
 
 export function useSendSubmit(options: UseSendSubmitOptions) {
@@ -40,13 +42,15 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     expireValue: number,
     expireStyle: string,
     remark?: string,
-    chunkSizeMb?: number
+    chunkSizeMb?: number,
+    accessCode?: string
   ): Promise<ApiResponse> => {
     return uploadChunkedFile(file, {
       chunkSizeMb,
       expireValue,
       expireStyle,
       remark,
+      accessCode,
       onHashCalculated: options.onHashCalculated,
       onProgress: (progress: UploadProgress) => {
         options.onProgress(progress.percentage)
@@ -63,12 +67,14 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     file: File,
     expireValue: number,
     expireStyle: string,
-    remark?: string
+    remark?: string,
+    accessCode?: string
   ): Promise<ApiResponse<{ code?: string; name?: string }>> => {
     const code = await presignUploadFile(file, {
       expireValue,
       expireStyle: expireStyle as ExpireStyle,
       remark,
+      accessCode,
       onProgress: (progress) => {
         options.onProgress(progress.percentage)
       }
@@ -95,7 +101,8 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     enableChunk,
     chunkSizeMb,
     validateFileSize,
-    remark
+    remark,
+    accessCode
   }: SubmitFileOptions): Promise<ApiResponse | null> => {
     // 多文件共用一个取件码上传
     if (selectedFiles.length > 1) {
@@ -115,7 +122,8 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
         (progress: UploadProgress) => {
           options.onProgress(progress.percentage)
         },
-        remark
+        remark,
+        accessCode
       )
 
       if (res.code === 200 && res.detail) {
@@ -139,13 +147,13 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
       options.onHashCalculated(await calculateFileHash(file))
 
       return enableChunk
-        ? handleChunkUpload(file, expireValue, expireStyle, remark, chunkSizeMb)
-        : handlePresignedUpload(file, expireValue, expireStyle, remark)
+        ? handleChunkUpload(file, expireValue, expireStyle, remark, chunkSizeMb, accessCode)
+        : handlePresignedUpload(file, expireValue, expireStyle, remark, accessCode)
     }
 
     // 仅备注分享（无文件）：走发送文件接口，后端创建仅备注记录
     if (!selectedFiles.length && !selectedFile) {
-      const res = await FileService.uploadFiles([], expireValue, expireStyle, () => {}, remark)
+      const res = await FileService.uploadFiles([], expireValue, expireStyle, () => {}, remark, accessCode)
       if (res.code === 200 && res.detail) {
         return {
           code: 200,
@@ -166,15 +174,17 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
     }
 
     return enableChunk
-      ? handleChunkUpload(fileToUpload, expireValue, expireStyle, remark, chunkSizeMb)
-      : handlePresignedUpload(fileToUpload, expireValue, expireStyle, remark)
+      ? handleChunkUpload(fileToUpload, expireValue, expireStyle, remark, chunkSizeMb, accessCode)
+      : handlePresignedUpload(fileToUpload, expireValue, expireStyle, remark, accessCode)
   }
 
   /** 取件（发件记录详情页刷新多文件列表用） */
-  const selectFile = (code: string) => FileService.selectFile(code)
+  const selectFile = (code: string, accessCode?: string) =>
+    FileService.selectFile(code, accessCode)
 
   /** 只读查询文件分享详情（不消耗取件次数），供发件记录查看刷新 */
-  const getFileInfo = (code: string) => FileService.getFileInfo(code)
+  const getFileInfo = (code: string, options?: { accessCode?: string; ownerToken?: string }) =>
+    FileService.getFileInfo(code, options)
 
   /** 多文件分享 ZIP 下载 URL */
   const getMultiFileZipUrl = (code: string) => CollectionService.getMultiFileZipUrl(code)

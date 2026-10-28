@@ -142,7 +142,7 @@ export default {
       expiredFiles: '已過期文件',
       needCleanup: '可在文件管理中清理',
       chunkedFiles: '分片上傳文件',
-      storagePolicy: '存储与上傳策略',
+      storagePolicy: '存储與上傳策略',
       storagePolicyDesc: '當前後台配置對上傳鏈路的影响。',
       storageBackend: '存储後端',
       singleFileLimit: '單文件上限',
@@ -179,9 +179,9 @@ export default {
       fileGroup: '文件',
       inboxGroup: '收件箱',
       directGroup: '臨時房間',
-      groupFilesDesc: '文件分享的規模、健康度与最近記錄。',
-      groupInboxDesc: '收件箱規模、投递流量与最近收件箱。',
-      groupDirectDesc: '臨時房間的規模与活跃情况。',
+      groupFilesDesc: '文件分享的規模、健康度與最近記錄。',
+      groupInboxDesc: '收件箱規模、投递流量與最近收件箱。',
+      groupDirectDesc: '臨時房間的規模與活跃情况。',
       // 收件箱明細
       inboxActiveRatio: '活跃收件箱',
       inboxTodayDeliveries: '今日投递',
@@ -452,6 +452,15 @@ export default {
     },
     submit: '取件',
     needSendFile: '需要發送文件？點擊這里',
+    accessCode: {
+      dialogTitle: '該分享需要提取口令',
+      dialogHint: '發起者為這條分享設置了提取口令，請輸入後繼續取件。',
+      placeholder: '請輸入提取口令',
+      submit: '確認取件',
+      submitting: '校驗中...',
+      required: '請輸入提取口令',
+      invalid: '提取口令錯誤，請重新輸入'
+    },
     recordsDrawer: '取件記錄',
     messages: {
       invalidCode: '請輸入取件碼',
@@ -521,8 +530,13 @@ export default {
     backToRetrieve: '返回首頁',
     remark: {
       label: '文件備注（可選）',
-      placeholder: '可填写備注說明；不選擇文件時，備注將作為文本單独發送',
-      hint: '支持三种發送方式：僅文件 / 僅備注 / 文件+備注'
+      placeholder: '可填寫備注說明；不選擇文件時，備注將作為文本單独發送',
+      hint: '支持三種發送方式：僅文件 / 僅備注 / 文件+備注'
+    },
+    accessCode: {
+      label: '提取口令（可選）',
+      placeholder: '2-32 位，取件時需一並輸入',
+      hint: '設置後，取件碼與口令缺一不可；請通過另一條渠道告知對方'
     },
     fileDetails: '文件詳情',
     fileList: '文件列表',
@@ -534,7 +548,7 @@ export default {
       clickText: '點擊選擇文件',
       textInput: '在此輸入要發送的文本...',
       placeholder: '點擊或拖放文件到此处上傳',
-      description: '支持各种常见格式'
+      description: '支持各種常见格式'
     },
     submit: '發送',
     submitting: '發送中...',
@@ -649,13 +663,13 @@ export default {
       title: '系統設置',
       group: {
         siteInfo: '站點信息',
-        siteInfoDesc: '對外展示的名稱、描述、公告与 SEO 信息，對所有访客生效。',
-        themeAdmin: '界面与後台',
-        themeAdminDesc: '界面主題与 Robots 影响全站外观与搜索引擎收錄；管理員密碼為後台登錄憑證。',
+        siteInfoDesc: '對外展示的名稱、描述、公告與 SEO 信息，對所有访客生效。',
+        themeAdmin: '界面與後台',
+        themeAdminDesc: '界面主題與 Robots 影响全站外观與搜索引擎收錄；管理員密碼為後台登錄憑證。',
         storage: '存储服務',
         storageDesc: '文件实际保存位置。切換存储方式後，新上傳文件存入所選後端，不影响已存文件。',
-        uploadShare: '上傳与分享限制',
-        uploadShareDesc: '限制文件發送与分享行為，僅對上傳/發送环节生效。',
+        uploadShare: '上傳與分享限制',
+        uploadShareDesc: '限制文件發送與分享行為，僅對上傳/發送环节生效。',
         uploadLimit: '上傳限制',
         uploadShareFiles: '文件',
         uploadShareInbox: '收件箱',
@@ -768,8 +782,8 @@ export default {
       qualityUhd: '超清（2K）',
       qualityOrigin: '原画（不压縮）',
       qualityAuto: '自動（按带寬）',
-      relaySpeedAdvice: '中轉限速与視頻流质量匹配建議',
-      relaySpeedAdviceDesc: '當前限速 {suggestion}；各檔位最低建議限速如下（數值為視頻碼率換算，未計音頻与協議開銷）',
+      relaySpeedAdvice: '中轉限速與視頻流质量匹配建議',
+      relaySpeedAdviceDesc: '當前限速 {suggestion}；各檔位最低建議限速如下（數值為視頻碼率換算，未計音頻與協議開銷）',
       relayAdviceLow: '流畅檔',
       relayAdviceSd: '標清檔',
       relayAdviceHd: '高清檔',
@@ -806,7 +820,7 @@ export default {
       expiredFiles: '已過期文件',
       needCleanup: '可在文件管理中清理',
       chunkedFiles: '分片上傳文件',
-      storagePolicy: '存储与上傳策略',
+      storagePolicy: '存储與上傳策略',
       storagePolicyDesc: '當前後台配置對上傳鏈路的影响。',
       storageBackend: '存储後端',
       singleFileLimit: '單文件上限',
@@ -1171,7 +1185,7 @@ export default {
       maxMembersLabel: '人員上限',
       maxMembersHint: '最多 {max} 人（後台設置的人員上限）',
       saveMessagesLabel: '保存消息到服務器',
-      saveMessagesHint: '聊天消息与文件元信息保存到服務器，房間過期後一並刪除',
+      saveMessagesHint: '聊天消息與文件元信息保存到服務器，房間過期後一並刪除',
       cacheEnabledLabel: '啟用房間文件緩存',
       cacheEnabledHint: '已接收文件的成員可作為多源，其他成員/新成員可從中收取',
       joinHint: '已有房間？讓朋友扫碼，或在查碼框直接輸入房間碼加入'
@@ -1257,7 +1271,7 @@ export default {
       viewShare: '查看',
       ignoreShare: '忽略',
       viewShareFailed: '無法查看共享，請檢查網絡後重試',
-      // 共享記錄与結束提醒
+      // 共享記錄與結束提醒
       shareStartedScreen: '{name} 正在共享屏幕',
       shareStartedVideo: '{name} 正在共享視頻',
       shareEndedScreen: '{name} 已結束屏幕共享，画面已停止',
@@ -1284,7 +1298,7 @@ export default {
       maxMembers: '最大成員數',
       notFoundOrExpired: '房間不存在或已過期'
     },
-    // 共享視頻流质量檔位（彈窗与共享控制面板共用）
+    // 共享視頻流质量檔位（彈窗與共享控制面板共用）
     quality: {
       hint: '選擇視頻流质量；「自動」會根據當前網絡带寬自動匹配，後台可設置默認檔位',
       screenTitle: '傳屏幕 - 選擇质量',

@@ -20,12 +20,16 @@ export class PresignUploadService {
     uploadId: string,
     file: File,
     onProgress?: (progress: UploadProgress) => void,
-    remark?: string
+    remark?: string,
+    accessCode?: string
   ): Promise<ApiResponse<PresignUploadResult>> {
     const formData = new FormData()
     formData.append('file', file)
     if (remark) {
       formData.append('remark', remark)
+    }
+    if (accessCode) {
+      formData.append('access_code', accessCode)
     }
 
     return api.put(`/presign/upload/proxy/${uploadId}`, formData, multipartUploadConfig(onProgress))

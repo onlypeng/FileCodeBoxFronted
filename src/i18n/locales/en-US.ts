@@ -462,6 +462,15 @@ export default {
     },
     submit: 'Retrieve',
     needSendFile: 'Need to send a file? Click here',
+    accessCode: {
+      dialogTitle: 'Passphrase required',
+      dialogHint: 'The sender set an access passphrase for this share. Enter it to continue.',
+      placeholder: 'Enter access passphrase',
+      submit: 'Confirm',
+      submitting: 'Verifying...',
+      required: 'Please enter the passphrase',
+      invalid: 'Incorrect passphrase, please try again'
+    },
     recordsDrawer: 'Retrieval Records',
     messages: {
       invalidCode: 'Please enter a valid retrieval code',
@@ -534,6 +543,11 @@ export default {
       label: 'Remark (optional)',
       placeholder: 'Add a remark; if no file is selected, the remark will be sent as text',
       hint: 'Supports: file only / text only / file + remark'
+    },
+    accessCode: {
+      label: 'Access passphrase (optional)',
+      placeholder: '2-32 characters, required at retrieval',
+      hint: 'Once set, both code and passphrase are required; share it over a different channel'
     },
     uploadArea: {
       dragText: 'Drag files here or',
