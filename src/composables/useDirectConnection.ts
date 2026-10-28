@@ -534,6 +534,12 @@ export function useDirectConnection(options: UseDirectConnectionOptions = {}) {
           directStore.addSystem(t('direct.file.hashMismatch'))
         }
         break
+      case 'relay_failed':
+        // 多实例部署下接收方挂在别的实例：二进制帧不做跨实例转发，
+        // 服务端明确告知（否则用户只看到"传到一半不动了"）
+        if (msg.transfer_id) directStore.setFileStatus(msg.transfer_id, 'failed')
+        directStore.addSystem(t('direct.file.relayCrossInstance'))
+        break
       // ---- 房间文件缓存（cache_enabled） ----
       case 'file_cache_list':
         // 新成员加入时收到服务器下发的已缓存文件列表

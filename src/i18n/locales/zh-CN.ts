@@ -1355,6 +1355,7 @@ export default {
       cancel: '取消',
       relayLimitExceeded: '文件超过服务器中转大小限制，无法通过服务器中转发送',
       relayDisabled: '服务器中转已关闭，无法通过中转发送文件（可开启 P2P 直连）',
+      relayCrossInstance: '接收方当前不在同一服务实例，无法通过服务器中转发送（可改用 P2P 直连，或让同房间的人重新进入）',
       p2pFallback: '直连未建立，已改用服务器中转（速度受服务器带宽限制）',
       relayEncryptFailed: '加密握手失败，无法通过服务器中转发送（可重试）',
       cacheReady: '{holder} 已缓存文件「{name}」，其他成员可收取',

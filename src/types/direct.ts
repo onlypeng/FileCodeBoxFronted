@@ -199,6 +199,7 @@ export interface DirectWSMessage {
     | 'file_end'
     | 'file_cancel'
     | 'file_error'
+    | 'relay_failed'
     | 'rtc_offer'
     | 'rtc_answer'
     | 'rtc_ice'
