@@ -90,6 +90,12 @@ export default {
     viewDetails: '查看詳情',
     download: '下載',
     delete: '刪除',
+    // 提前作廢（撤銷）：服務端刪除，别人立刻取不到
+    revoke: '提前作廢',
+    revokeConfirm: '撤銷後這條分享將立即失效，任何人都無法再取件。確定撤銷嗎？',
+    revokeSuccess: '已撤銷，該分享已失效',
+    revokeFailed: '撤銷失敗，請稍後重試',
+    revokeUnavailable: '該記錄不支持撤銷（缺少發起者憑證）',
     copyLink: '復制鏈接',
     tabs: {
       retrieve: '取件',
@@ -204,7 +210,7 @@ export default {
       collectionFiles: '收件箱文件',
       files: '個文件',
       searchCollection: '搜索收件箱（標題/碼）',
-      deleteConfirm: '確認刪除此收件箱？所有文件將被刪除，此操作不可撤销。',
+      deleteConfirm: '確認刪除此收件箱？所有文件將被刪除，此操作不可撤銷。',
       deleteFailed: '刪除收件箱失敗',
       loadFailed: '加載收件箱列表失敗',
       loadFilesFailed: '加載文件列表失敗',
@@ -224,7 +230,7 @@ export default {
       searchRoom: '搜索房間碼或標題',
       viewMessages: '查看消息',
       roomMessages: '房間消息',
-      roomDeleteConfirm: '確認刪除此房間？房間內消息將一並刪除，此操作不可撤销。',
+      roomDeleteConfirm: '確認刪除此房間？房間內消息將一並刪除，此操作不可撤銷。',
       roomDeleteFailed: '刪除房間失敗',
       loadMessagesFailed: '加載消息失敗',
       // 列表增強
@@ -644,7 +650,7 @@ export default {
         siteInfo: '站點信息',
         siteInfoDesc: '對外展示的名稱、描述、公告与 SEO 信息，對所有访客生效。',
         themeAdmin: '界面与後台',
-        themeAdminDesc: '界面主題与 Robots 影响全站外观与搜索引擎收錄；管理員密碼為後台登錄凭證。',
+        themeAdminDesc: '界面主題与 Robots 影响全站外观与搜索引擎收錄；管理員密碼為後台登錄憑證。',
         storage: '存储服務',
         storageDesc: '文件实际保存位置。切換存储方式後，新上傳文件存入所選後端，不影响已存文件。',
         uploadShare: '上傳与分享限制',
@@ -762,7 +768,7 @@ export default {
       qualityOrigin: '原画（不压縮）',
       qualityAuto: '自動（按带寬）',
       relaySpeedAdvice: '中轉限速与視頻流质量匹配建議',
-      relaySpeedAdviceDesc: '當前限速 {suggestion}；各檔位最低建議限速如下（數值為視頻碼率換算，未計音頻与協議開销）',
+      relaySpeedAdviceDesc: '當前限速 {suggestion}；各檔位最低建議限速如下（數值為視頻碼率換算，未計音頻与協議開銷）',
       relayAdviceLow: '流畅檔',
       relayAdviceSd: '標清檔',
       relayAdviceHd: '高清檔',
@@ -837,7 +843,7 @@ export default {
         actions: '操作'
       },
       deleteFailed: '刪除失敗',
-      deleteConfirm: '確認刪除這個文件？此操作不可撤销。',
+      deleteConfirm: '確認刪除這個文件？此操作不可撤銷。',
       loadFileListFailed: '加載文件列表失敗'
     },
     systemSettings: {
@@ -1097,7 +1103,7 @@ export default {
       maxFiles: '最大文件數',
       maxFilesExceed: '最大文件數不能超過 {max}',
       collectionExpireReadOnly: '創建後不可更改',
-      deleteConfirm: '確定要刪除此文件吗？此操作不可撤销。'
+      deleteConfirm: '確定要刪除此文件嗎？此操作不可撤銷。'
     },
     retrieve: {
       title: '取件碼取件',

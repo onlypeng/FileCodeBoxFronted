@@ -10,7 +10,8 @@ import { getErrorMessage } from '@/utils/common'
 import { getStorageUnit } from '@/utils/convert'
 import { calculateFileHash } from '@/utils/file-processing'
 import { buildSentRecord } from '@/utils/send-record'
-import { createSentRecordActions } from '@/utils/sent-record-actions'
+import { createSentRecordActions, revokeSentRecord } from '@/utils/sent-record-actions'
+import { useConfirmStore } from '@/stores/confirmStore'
 import type { MultiFileItem } from '@/types/collection'
 import { useSendSubmit } from './useSendSubmit'
 
@@ -20,6 +21,7 @@ export function useSendFlow() {
   const adminStore = useAdminStore()
   const configStore = useConfigStore()
   const fileDataStore = useFileDataStore()
+  const confirmStore = useConfirmStore()
   const config = computed(() => configStore.config)
   const selectedFile = ref<File | null>(null)
   const selectedFiles = ref<File[]>([])
@@ -416,6 +418,19 @@ export function useSendFlow() {
     }
   }
 
+  /**
+   * 提前作废：服务端删掉记录与文件，别人立刻取不到。
+   * 与 deleteRecord 不同——那只是本地列表里看不见，分享仍然有效。
+   */
+  const revokeRecord = async (record: SentFileRecord) => {
+    const ok = await revokeSentRecord(record, {
+      confirm: (message: string) => confirmStore.confirm({ message }),
+      notify: (message: string, type: 'success' | 'error') => alertStore.showAlert(message, type),
+      translate: (key: string) => t(key)
+    })
+    if (ok) deleteRecord(record.id)
+  }
+
   const removeFile = (idx: number) => {
     selectedFiles.value.splice(idx, 1)
   }
@@ -436,6 +451,7 @@ export function useSendFlow() {
     expirationOptions,
     closeDetails,
     deleteRecord,
+    revokeRecord,
     sentModal,
     closeSentModal,
     copySentRecordCode: sentRecordActions.copyCode,

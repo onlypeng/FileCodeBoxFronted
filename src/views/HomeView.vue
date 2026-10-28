@@ -135,6 +135,7 @@
         @copy-link="copySentRecordLink"
         @view-details="viewSendDetails"
         @delete-record="deleteSendRecord"
+        @revoke-record="revokeSendRecord"
       />
       <CollectionRecordList
         v-if="drawerTab === 'collection'"
@@ -976,6 +977,7 @@ const {
   sendRecords,
   closeDetails: closeSendDetails,
   deleteRecord: deleteSendRecord,
+  revokeRecord: revokeSendRecord,
   sentModal,
   closeSentModal,
   copySentRecordLink,

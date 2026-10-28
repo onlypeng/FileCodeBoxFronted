@@ -50,7 +50,13 @@ export function formatExpirationTime(
 }
 
 export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
-  const detail = input.response.detail as { code?: string; name?: string; is_multi_file?: boolean } | undefined
+  const detail = input.response.detail as {
+    code?: string
+    name?: string
+    is_multi_file?: boolean
+    /** 发起者凭证：凭它可提前作废，旧版后端不下发 */
+    owner_token?: string
+  } | undefined
   const retrieveCode = detail?.code || ''
   const isMultiFile = detail?.is_multi_file || input.selectedFiles.length > 1
   const isText = input.sendType === 'text'
@@ -91,6 +97,7 @@ export function buildSentRecord(input: BuildSentRecordInput): SentFileRecord {
             input.getUnit
           ),
     retrieveCode,
+    ownerToken: detail?.owner_token || undefined,
     type: recordType,
     isMultiFile,
     fileCount: isMultiFile ? input.selectedFiles.length : undefined,

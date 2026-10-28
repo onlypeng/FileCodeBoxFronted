@@ -57,6 +57,11 @@ export class FileService {
     return api.post('/share/file/', formData, multipartUploadConfig(onProgress))
   }
 
+  /** 提前作废自己发起的分享（需要上传时下发的发起者凭证） */
+  static async revoke(code: string, ownerToken: string): Promise<ApiResponse> {
+    return api.post('/share/revoke', { code, owner_token: ownerToken })
+  }
+
   static async initChunkUpload(
     request: ChunkUploadInitRequest
   ): Promise<ApiResponse<ChunkUploadInitResponse>> {

@@ -124,6 +124,7 @@
         @copy-link="copySentRecordLink"
         @view-details="viewDetails"
         @delete-record="deleteRecord"
+        @revoke-record="revokeRecord"
       />
     </SideDrawer>
 
@@ -200,6 +201,7 @@ const {
   closeSentModal,
   copySentRecordLink,
   deleteRecord,
+  revokeRecord,
   handleFileDrop,
   handleFileSelected,
   handleFilesSelected,

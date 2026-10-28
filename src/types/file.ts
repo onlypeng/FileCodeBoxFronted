@@ -135,6 +135,11 @@ export interface SentFileRecord {
   retrieveCode: string
   /** 记录类型：text=文本, file=单文件, multiFile=多文件(含投件) */
   type?: SentRecordType
+  /**
+   * 发起者凭证：上传成功时服务端随取件码下发，凭它可提前作废。
+   * 旧记录（升级前创建的）没有这个值，此时不显示"撤销"。
+   */
+  ownerToken?: string
   /** 是否为投件记录（多文件子类型） */
   isDelivery?: boolean
   /** 投件时的收件箱标题 */

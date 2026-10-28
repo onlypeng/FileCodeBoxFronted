@@ -425,6 +425,12 @@ export default {
     viewDetails: 'View Details',
     download: 'Download',
     delete: 'Delete',
+    // Revoke: delete on the server so nobody can retrieve it anymore
+    revoke: 'Revoke',
+    revokeConfirm: 'Once revoked this share becomes invalid immediately and no one can retrieve it. Continue?',
+    revokeSuccess: 'Revoked — this share is no longer accessible',
+    revokeFailed: 'Failed to revoke, please try again later',
+    revokeUnavailable: 'This record cannot be revoked (no owner token)',
     copyLink: 'Copy Link',
     tabs: {
       retrieve: 'Retrieved',

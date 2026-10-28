@@ -47,6 +47,15 @@
               <EyeIcon class="w-4 h-4" />
             </button>
             <button
+              v-if="record.ownerToken"
+              @click="$emit('revoke-record', record)"
+              :aria-label="t('records.revoke') || '提前作废'"
+              class="p-1.5 rounded-md transition duration-200"
+              :class="[isDarkMode ? 'hover:bg-gray-600 text-gray-400 hover:text-amber-400' : 'hover:bg-gray-200 text-gray-400 hover:text-amber-600']"
+            >
+              <BanIcon class="w-4 h-4" />
+            </button>
+            <button
               @click="$emit('delete-record', record.id)"
               :aria-label="t('records.delete') || '删除'"
               class="p-1.5 rounded-md transition duration-200"
@@ -71,6 +80,7 @@
 import { inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  BanIcon,
   ClipboardCopyIcon,
   EyeIcon,
   FileIcon,
@@ -87,6 +97,8 @@ defineEmits<{
   'copy-link': [record: SentFileRecord]
   'view-details': [record: SentFileRecord]
   'delete-record': [id: number]
+  /** 提前作废（服务端删除，别人立刻取不到）；仅本地删除用 delete-record */
+  'revoke-record': [record: SentFileRecord]
 }>()
 
 const isDarkMode = inject<Ref<boolean> | boolean>('isDarkMode', false)

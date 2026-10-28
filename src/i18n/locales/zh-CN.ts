@@ -88,6 +88,12 @@ export default {
     viewDetails: '查看详情',
     download: '下载',
     delete: '删除',
+    // 提前作废（撤销）：服务端删除，别人立刻取不到
+    revoke: '提前作废',
+    revokeConfirm: '撤销后这条分享将立即失效，任何人都无法再取件。确定撤销吗？',
+    revokeSuccess: '已撤销，该分享已失效',
+    revokeFailed: '撤销失败，请稍后重试',
+    revokeUnavailable: '该记录不支持撤销（缺少发起者凭证）',
     copyLink: '复制链接',
     tabs: {
       retrieve: '取件',
