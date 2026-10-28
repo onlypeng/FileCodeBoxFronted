@@ -1263,6 +1263,7 @@ const auditActionOptions = computed(() => [
   { value: 'config_update', label: t('admin.unifiedManage.auditActionConfigUpdate') },
   { value: 'room_cache_upload', label: t('admin.unifiedManage.auditActionRoomCacheUpload') },
   { value: 'room_cache_delete', label: t('admin.unifiedManage.auditActionRoomCacheDelete') },
+  { value: 'revoke', label: t('admin.unifiedManage.auditActionRevoke') },
 ])
 
 const isFileExpired = (f: any) => {
@@ -1780,6 +1781,7 @@ const auditActionLabel = (action: string) => {
     config_update: 'admin.unifiedManage.auditActionConfigUpdate',
     room_cache_upload: 'admin.unifiedManage.auditActionRoomCacheUpload',
     room_cache_delete: 'admin.unifiedManage.auditActionRoomCacheDelete',
+    revoke: 'admin.unifiedManage.auditActionRevoke',
   }
   const key = map[action]
   return key ? t(key) : action

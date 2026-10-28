@@ -276,6 +276,7 @@ export default {
       auditActionConfigUpdate: '配置变更',
       auditActionRoomCacheUpload: '房间缓存上传',
       auditActionRoomCacheDelete: '房间缓存删除',
+      auditActionRevoke: '撤销分享',
       sortAsc: '升序',
       sortDesc: '降序',
       // 第三轮增强：文本预览 / 类型筛选 / 汇总统计 / 自动刷新

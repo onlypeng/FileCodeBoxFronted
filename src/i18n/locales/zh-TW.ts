@@ -278,6 +278,7 @@ export default {
       auditActionConfigUpdate: '配置变更',
       auditActionRoomCacheUpload: '房間緩存上傳',
       auditActionRoomCacheDelete: '房間緩存刪除',
+      auditActionRevoke: '撤銷分享',
       sortAsc: '升序',
       sortDesc: '降序',
       // 第三轮增強：文本预览 / 類型篩選 / 匯總統計 / 自動刷新

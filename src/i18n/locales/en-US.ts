@@ -215,6 +215,7 @@ export default {
       auditActionConfigUpdate: 'Config Change',
       auditActionRoomCacheUpload: 'Room Cache Upload',
       auditActionRoomCacheDelete: 'Room Cache Delete',
+      auditActionRevoke: 'Revoke Share',
       sortAsc: 'ascending',
       sortDesc: 'descending',
       // Round 3: text preview / type filter / summary stats / auto refresh
