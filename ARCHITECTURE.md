@@ -9,7 +9,7 @@
 - `src/composables/`：业务流程层，承载页面状态、业务校验、服务调用和视图模型转换。
 - `src/services/`：API 访问层，只封装请求路径、请求参数和响应类型；`client.ts` 是统一 HTTP 客户端入口，`upload-client.ts` 只处理外部直传，`upload-strategy.ts` 承载上传协议编排。
 - `src/stores/`：跨页面共享状态。局部页面状态应优先放在对应 composable。
-- `src/types/`：领域类型定义，按 `api/auth/config/dashboard/file/presign-upload/ui` 拆分。
+- `src/types/`：领域类型定义，按 `api/auth/collection/config/dashboard/direct/file/presign-upload/room/ui` 拆分，由 `types/index.ts` 汇总导出。
 - `src/utils/`：纯工具、存储 helper、URL 构造、剪贴板、格式化等无页面状态能力，不直接依赖 store。
 
 ## 导入规则
@@ -30,7 +30,7 @@
 - 发送记录列表归 `SentRecordList`，发送记录详情归 `SentRecordDetailModal`，发送页不内联记录抽屉明细模板。
 - 发送记录视图模型、过期时间校验和过期时间展示归 `utils/send-record.ts`，`useSendFlow` 不内联日期格式化和记录构造。
 - 发送记录复制和二维码取值动作归 `utils/sent-record-actions.ts`，`useSendFlow` 不直接调用底层剪贴板和二维码 URL helper。
-- 发送提交策略归 `useSendSubmit`，切片上传、预签名上传、文本上传和多文件打包不回流到 `useSendFlow`。
+- 发送提交策略归 `useSendSubmit`，切片上传、预签名上传、纯文本分享（`/share/file/` 只带 `remark`）和多文件打包不回流到 `useSendFlow`。
 - 取件流程状态归 `useRetrieveFlow`；路由参数读取、自动提交、页面跳转等页面编排放在 view。
 - 取件详情和内容预览的打开/关闭动作归 `useRetrieveFlow`，取件页不直接改内部状态 ref。
 - 管理文件列表状态归 `useAdminFiles`。
@@ -73,25 +73,47 @@
 - 新共享状态进入 store 前，需要确认它确实跨页面使用。
 - 新类型应放入对应领域类型文件，再由 `types/index.ts` 汇总导出。
 - 删除旧代码优先于保留兼容别名，除非已有明确外部调用方。
+- **`<script setup>` 里不能写 `export`**：`vue-tsc` 不校验这条 SFC 编译期约束（EXIT=0），
+  但 `vite build` 会失败。要被别处 import 的常量/类型/接口一律放进独立 `.ts`。
+  所以改完组件必须跑真实 build，不能只看 typecheck 的退出码。
+- 新增后台配置项要**同时**改 `ConfigState` 与 `PublicConfig`（`src/types/config.ts`），
+  否则 `vue-tsc` 报 TS2353；后端也要同步 `UpdateConfigRequest` 白名单，否则在线改不生效。
+- 前端类型是实际执行的契约：后端枚举语义与前端展示类型不同时，在 service/composable 里做映射层，
+  **不要为了对齐前端去改后端表结构**（后端枚举承载判定语义，合并会丢失方向）。
+
+## 与后端仓库的契约
+
+- 两个仓库独立，无统一父仓库；后端 serve `FileCodeBox/frontend_dist`。
+- 本仓库 `dist` 不是交付物，构建后必须 `sync_dist.py` 同步回后端并入库。
+- 纯文本分享**没有** `/share/text/` 接口：走 `POST /share/file/`，只提交 `remark`。
+- 取件遇到 `403 需要提取口令` 时由弹窗补输后重试；口令分享的多文件单项/打包下载
+  必须带上取件阶段下发的 `access_key`，否则会被后端拒绝。
+- 多实例部署下二进制分片不跨实例转发，前端收到 `relay_failed` 要标记传输失败并提示，
+  不要让用户对着卡住的进度条。
 
 ## 验证
 
 每次结构性改动后至少运行：
 
 ```sh
-pnpm build
+npm run build
 ```
 
-`pnpm build` 会先执行 `pnpm check:architecture`，再执行类型检查和生产构建。
+`npm run build` 依次执行 `clean-dist` → `check:architecture` → `type-check` → `vite build`。
+仓库同时提供 `pnpm-lock.yaml`，用 `pnpm build` 亦可。
 
 快速验证架构边界时可单独运行：
 
 ```sh
-pnpm check:architecture
+npm run check:architecture
 ```
 
 必要时补充：
 
 ```sh
-pnpm lint
+npm run lint
 ```
+
+> **构建类改动要连续跑两次 `npm run build`**。首轮产物目录不存在时清理逻辑不会触发，
+> 第二轮才会暴露"清理失败导致旧产物原地未更新"的问题。确认构建真的生效要**比对产物内容**
+> （grep 新增标记），不要只看退出码。
