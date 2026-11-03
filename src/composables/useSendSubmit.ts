@@ -1,3 +1,11 @@
+/**
+ * 发送提交的选路层：把上层给的文件/备注收敛成一次调用，按输入形态选通道——
+ * 多文件整包 uploadFiles 共用一个取件码，单文件按 enableChunk 走分片或预签名，
+ * 纯备注也复用同一接口。三条路径都透传 accessCode，口令不在本层落地或缓存。
+ *
+ * 刻意不做：不在这里做业务校验（openUpload、大小校验交给上层传入的 validateFileSize），
+ * 也不统一 throw——把响应原样交回，让上层决定成功提示与记录构造。
+ */
 import { FileService, uploadChunkedFile, CollectionService } from '@/services'
 import type { AlertType, ApiResponse, ExpireStyle, UploadProgress } from '@/types'
 import { calculateFileHash } from '@/utils/file-processing'

@@ -35,6 +35,23 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 管理列表里的"快捷延长"悬浮菜单：file / collection / room 三种对象各调一个接口。
+ *
+ * ## 为什么菜单 Teleport 到 body + 手动算坐标
+ * 这个菜单所在的行是 overflow-y-auto 的滚动容器，留在原地会被容器裁掉。
+ * 传送到 body 后必须自己算位置，于是有了 open() 里的 getBoundingClientRect。
+ * 注意坐标是**视口**坐标而 fixed 也相对视口，两者一致；一旦将来给页面加 transform
+ * 的祖先，这里就要重新换算。
+ *
+ * ## 悬浮消失为什么留 200ms 延迟
+ * 鼠标从按钮移到菜单本体会短暂离开二者，没有延迟菜单会在途中消失；
+ * 200ms 是能容忍的空隙，再长就会有"粘住不走"的迟滞感。
+ *
+ * ## 刻意不做
+ * - 不做键盘操作与焦点管理：这是鼠标专用的快捷入口，同一操作在详情面板里也能完成。
+ * - 不在失败时抛出可重试的重试按钮：失败以 toast 呈现，避免每行都挂一个错误态。
+ */
 import { computed, inject, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ClockIcon } from 'lucide-vue-next'

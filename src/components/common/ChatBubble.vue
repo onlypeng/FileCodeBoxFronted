@@ -59,6 +59,27 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 直连房间的单条聊天气泡（文本消息）。
+ *
+ * ## 为什么偏偏这里要用 v-html
+ * 消息要支持"URL 自动变可点链接"和整行代码块样式，纯文本插值做不到，只能拼片段 HTML。
+ * 代价是引入了注入面：发送方是**对端浏览器**，内容完全不可信，所以走了两层处理——
+ * 先 escapeHtml 抹掉标签，再交给 sanitizeSimpleHtml（content-preview 里的 DOMPurify）
+ * 做二次清洗。顺序不能颠倒，也不要为了"看起来能渲染 Markdown"就去掉其中任何一层。
+ *
+ * ## 关键设计
+ * - retry 事件 emit 给上层而不是自己重发：重发需要复用房间连接与待发队列，
+ *   那是 useDirectConnection 的职责；组件只认识 DirectChatItem 这份视图模型。
+ * - copy 走 useClipboard 而非直接调用剪贴板 helper：ARCHITECTURE.md 要求
+ *   页面/组件不直接依赖底层工具，且复制成功与否的提示由 composable 统一处理。
+ *
+ * ## 刻意不做
+ * - 不渲染头像/连续消息合并：房间是临时会话，消息量小，省掉这部分判断。
+ * - 不做完整 Markdown：marked / DOMPurify 依赖按架构约定只允许出现在
+ *   utils/content-preview.ts，这里对 ``` 与四个空格的识别只是轻量排版启发式，
+ *   代码块没有语法高亮。
+ */
 import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { sanitizeSimpleHtml } from '@/utils/content-preview'
@@ -88,7 +109,13 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;')
 }
 
-/** 渲染内容：转义 + URL 转可点击链接 + DOMPurify 二次消毒（代码块用等宽字体） */
+/** 渲染内容：转义 + URL 转可点击链接 + DOMPurify 二次消毒（代码块用等宽字体）
+ * 注意两点：
+ * 1) 顺序固定为「先转义再补链接」——反之我们自己拼的 <a> 会被转义掉，且用户输入里的
+ *    尖括号会绕过正则成为真实标签；
+ * 2) 链接里的 & 已被转义成 &amp;，放进 href 属性正是 HTML 要求的写法，
+ *    浏览器解析时会还原成 &，不要"修正"它。
+ */
 const renderedContent = computed(() => {
   const lines = (props.item.content || '').split('\n')
   return lines

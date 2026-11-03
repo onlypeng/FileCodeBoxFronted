@@ -1,3 +1,10 @@
+/**
+ * 把 window.confirm 换成全局 Promise 化确认：任意逻辑层 await 到布尔结果即可，
+ * 弹窗实体只挂在 App.vue 一处，靠 pending 状态驱动，避免每个页面各塞一个确认框。
+ *
+ * 边界：同一时刻只允许一个 pending，新的 confirm 会覆盖旧的 resolve 导致旧 Promise
+ * 永不 settle，调用方须串行发起；状态刻意不持久化，刷新即视为取消。
+ */
 import { defineStore } from 'pinia'
 
 export interface ConfirmOptions {

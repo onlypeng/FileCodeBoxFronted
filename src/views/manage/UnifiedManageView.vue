@@ -1107,6 +1107,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 后台统一管理：文件 / 收件箱 / 房间 / 审计日志四个 tab 的增删改查与批量操作。
+ *
+ * ## 为什么合成单页多 tab
+ * 这些对象经常要互相跳转查证（从文件查到所属收件箱、从房间查审计记录），
+ * 拆成多个路由会反复重建列表、丢失筛选条件；用 TabKey 切换并保留各自状态更顺手。
+ * 但四类数据的字段与权限差异大，刻意不合并成一张通用表格，各 tab 独立取数。
+ *
+ * ## 边界与刻意不做
+ * 分享链接/二维码统一走 buildAbsoluteUrl / buildRetrieveUrl（共享域名在这里生效）；
+ * 不在前端缓存全量列表，翻页与刷新都重新问后端要。
+ */
 import { inject, ref, computed, watch, onMounted, type Ref } from 'vue'
 import type { Component } from 'vue'
 import { useI18n } from 'vue-i18n'

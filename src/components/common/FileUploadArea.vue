@@ -108,6 +108,24 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 上传区域（点选 / 拖拽 / 粘贴），同时承担"上传状态看板"的角色。
+ *
+ * ## 为什么所有状态都由 props 传入
+ * 上传协议有三条不同路径（分片、预签名、纯文本），进度来源各不相同；让组件自己持有状态
+ * 就等于把协议差异塞进 UI。这里组件只认识 uploadStatus / progress / uploadedBytes 三个字段。
+ *
+ * ## 边界条件
+ * - triggerFileUpload 与 handleFileDrop 都在 isUploading 时直接 return：
+ *   上传中途换文件会让"正在上传的分片"与"选中的文件"错位，且没有可靠的中断时机。
+ * - handleFileUpload 结尾把 target.value 置空：否则再次选择同一个文件时不会触发 change，
+ *   表现为"点了没反应"（这是原生 input 的行为，很容易被误判成组件 bug）。
+ * - 拖拽与粘贴都用 .prevent：浏览器默认行为会用文件内容替换当前页面（拖文件到窗口）。
+ *
+ * ## 刻意不做
+ * - 不在此处校验文件体积/类型：超限判断需要后台下发的配置，应由调用方在选到文件后执行；
+ *   组件只透传 accept，且 accept 只是文件选择器的过滤提示，不构成安全约束。
+ */
 import { ref, computed } from 'vue'
 import { UploadCloudIcon, CheckCircleIcon, XCircleIcon, LoaderIcon, XIcon } from 'lucide-vue-next'
 import BorderProgressBar from './BorderProgressBar.vue'

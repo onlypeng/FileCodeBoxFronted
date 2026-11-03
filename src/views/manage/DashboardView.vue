@@ -508,6 +508,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 管理后台仪表盘：把后端统计接口渲染成卡片与简单的占比条。
+ *
+ * ## 为什么运行时长在前端算
+ * 接口只给 sysUptime 起点时间戳，由本地 Date.now 差值换算天/时/分；这样语言切换时
+ * 能立即重算文案，不必再打一次接口，也避免服务端为每个访客维持计时器。
+ * 代价是它不含服务暂停时间，只作概览展示。
+ *
+ * ## 刻意不做
+ * 不引图表库：占比条用 CSS 宽度即可表达；最近分享默认只显示 5 条保持首屏紧凑；
+ * 不自动轮询，数据由 useDashboardStats 在进入页面/手动刷新时拉取。
+ */
 import { computed, defineComponent, h, onMounted, ref } from 'vue'
 import type { Component, PropType } from 'vue'
 import {

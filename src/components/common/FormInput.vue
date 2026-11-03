@@ -31,6 +31,14 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 单行输入控件：label + 必填星号 + 错误/提示文案 + 后缀插槽。
+ *
+ * 只做 v-model 受控字符串，不内置校验规则——同一份表单在不同页面的校验时机不同
+ * （有的失焦校验、有的提交时统一校验），错误文案统一由 error prop 传入。
+ * 刻意不包一层 useId / aria-describedby：错误提示紧跟输入框的线性结构
+ * 对读屏软件已是自然的顺序，暂不需要显式关联。
+ */
 import { inject } from 'vue'
 
 interface Props {

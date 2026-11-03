@@ -1025,6 +1025,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 直连房间主页面：把 P2P/WebSocket 连接、聊天、文件、屏幕共享与房间缓存汇到一个视图。
+ *
+ * ## 为什么房码要在这里规范化
+ * 码来自链接、二维码或手动输入，可能带空格或小写；后端 _validate_code 只认
+ * 大写字母+数字，所以在 computed 里统一 trim + toUpperCase 一次，后面所有请求都用
+ * 这个值，别在每处调用点各改一遍。
+ *
+ * ## 边界与刻意不做
+ * isLowEndBrowser / isMobileDevice 只用于关闭屏幕共享等重能力，不改变传输协议；
+ * 房间缓存刻意做成独立面板而非混进消息时间线（两者生命周期不同）。
+ * 连接、重连与心跳全部交给 useDirectConnection，本页不自己持有 WebSocket。
+ */
 import { inject, ref, reactive, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

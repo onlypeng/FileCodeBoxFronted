@@ -1,4 +1,17 @@
 <script setup lang="ts">
+/**
+ * 系统设置页：把 ConfigState 的众多字段铺成表单，改动经 useSystemConfig 提交。
+ *
+ * ## 为什么要做字符串桥接
+ * 输入框组件只吃字符串，而开关是 0/1 数字、大小是字节数、过期值是数字：
+ * 页面用 computed getter/setter 在两端转换，提交时再交回 config-form 换算字节，
+ * 避免把 "5" 这类字符串直接写进配置。主题下拉不自己读主题表，而是复用
+ * App.vue 注入的注册表与 setTheme，保证与公开页同一套主题定义。
+ *
+ * ## 刻意不做
+ * 不直接改 configStore、不本地缓存配置；任何字段都以 submitConfig 落库为准，
+ * 刷新后重新拉取，避免表单里留着一份没提交成功的"假配置"。
+ */
 import { computed, inject, onMounted, ref, unref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {

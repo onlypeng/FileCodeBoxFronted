@@ -1,3 +1,11 @@
+/**
+ * 编排预签名上传的整条状态机：init → 直传/代理 → confirm → 成功码，进度对外只读。
+ * 选路由 init 返回的 mode 决定，上层不预判：direct 打到对象存储、proxy 回到本后端，
+ * 两者 confirm 完全一致，差异必须收敛在这一层，否则每条发送路径都要复制一遍分支。
+ *
+ * 边界：upload_url 一次性且短期，失败不整体重传；confirm 超时会留下"已上传未落库"
+ * 的中间态，只能靠后端定时清理，前端不做回滚。
+ */
 import { ref, computed, readonly } from 'vue'
 import { PresignUploadService } from '@/services'
 import type {

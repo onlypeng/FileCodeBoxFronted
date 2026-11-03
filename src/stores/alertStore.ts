@@ -1,3 +1,10 @@
+/**
+ * 全局轻提示队列。用 Pinia 而非各组件自持 alert 列表，是为了任意层级（service /
+ * composable）都能直接 showAlert，不必逐层 emit 出来。
+ *
+ * 刻意不做：提示状态不持久化（刷新即清，本就不该跨会话残留）；进度条定时器是
+ * 模块级单例且带 start/stop 配对，避免多个组件各起一个 interval 重复推进同一批提示。
+ */
 import { defineStore } from 'pinia'
 import type { Alert, AlertType } from '@/types'
 import { TIME_CONSTANTS } from '@/constants'

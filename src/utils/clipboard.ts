@@ -1,5 +1,14 @@
 /**
  * 剪贴板工具函数
+ *
+ * ## 为什么保留 execCommand 兜底
+ * 复制文本、取件链接/取件码/wget 命令都收在这里。navigator.clipboard 只在
+ * 安全上下文且页面获得焦点时可用，失焦或 http 局域网访问会直接抛错；
+ * 旧的 textarea + execCommand 虽已废弃，却是这些场景唯一能用的路径。
+ *
+ * ## 刻意不做
+ * 提示回调 notify 由调用方注入，工具层不直接依赖 alert store；链接一律走
+ * utils/share-url 的 build* 生成，避免改路由时漏改某处复制出来的地址。
  */
 
 import { buildRetrieveUrl, buildWgetCommand } from '@/utils/share-url'

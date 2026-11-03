@@ -1,3 +1,11 @@
+/**
+ * 取件页主流程：先判码类型（普通/收件箱管理码/取件码/投递码）再分流，并维护
+ * 口令弹窗、记录缓存与下载。设了提取口令的分享会返回 403，这里靠 detail 含
+ * "提取口令"识别，弹窗重试期间不报错、也不清掉待取件码（主输入框 finally 会清空）。
+ *
+ * 边界：记录"查看"用 getFileInfo 只读刷新，不消耗取件次数，只有 selectFile 才扣；
+ * 下载直链带短期签名，过期/404 时把本地记录标为过期而非静默失败。
+ */
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'

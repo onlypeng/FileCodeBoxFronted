@@ -52,6 +52,24 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 文本内容预览弹窗（取到的文件是文本时展示渲染后的 HTML）。
+ *
+ * ## 重要前提：传入的 renderedContent 必须已经清洗过
+ * 本组件直接 v-html 渲染，**不做**任何转义或消毒——调用约定是上游
+ * （utils/content-preview.ts 的 marked + DOMPurify）产出安全 HTML。
+ * 如果将来有调用点传入原始文件字符串，这里就是 XSS 入口，务必走同一个渲染入口。
+ *
+ * ## 为什么 z-[60]
+ * 预览常常是叠在另一个弹窗之上打开的（例如先开取件详情、再点预览），
+ * 而 BaseModal 统一用 z-50。这里写死高一层是权宜之计：没有全局层级常量，
+ * 改动时请确认不会与其它浮层打架。
+ *
+ * ## 刻意不做
+ * - 不在组件内实现复制：剪贴板 helper 按架构约定只应由 composable 调用，
+ *   所以这里是 emit('copy-content') 让上层处理。
+ * - 不做 Markdown 渲染 / 主题切换逻辑，两者分别属于 utils 与根组件。
+ */
 import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CopyIcon, XIcon } from 'lucide-vue-next'

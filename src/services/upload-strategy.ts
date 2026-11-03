@@ -1,3 +1,11 @@
+/**
+ * 单文件分片上传编排：算整文件哈希 → init → 逐片上传 → complete。
+ * 哈希供服务端秒传/去重，init 回传的 uploaded_chunks 用于断点续传（跳过已传片），
+ * 所以进度要把已完成片叠加到当前片上，否则续传时进度条会倒退。
+ *
+ * 边界：片大小钳在 1~100MB，过大失去续传意义、过小片数爆炸；进度封顶 99%，
+ * 100% 留给 complete 成功。刻意不做：不重试单片，重查已传片是上层会话的职责。
+ */
 import { FileService } from './file'
 import type { ApiResponse, ChunkUploadInitResponse, FileUploadResponse, UploadProgress } from '@/types'
 import { calculateFileHash } from '@/utils/file-processing'

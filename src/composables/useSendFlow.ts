@@ -1,3 +1,12 @@
+/**
+ * 发送页的状态编排：文件/多文件/纯备注的选择、校验、过期配置与记录查看都在这里，
+ * 真正的上传整体交给 useSendSubmit，避免页面同时知道三条上传通道的细节。
+ *
+ * 三种输入统一走同一个发送接口（纯备注也走它，由后端建记录），sendType 只用于记录
+ * 展示；提取口令一路透传到提交参数，不落本地缓存。
+ * 边界：记录"查看"用 getFileInfo 只读刷新剩余次数/过期，不消耗取件次数；
+ * 提前作废 revokeRecord 会真删服务端记录，与仅隐藏本地列表的 deleteRecord 不同。
+ */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlertStore } from '@/stores/alertStore'

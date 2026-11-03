@@ -1,3 +1,10 @@
+/**
+ * 后台登录的状态机：校验 → 换 token → 写 adminStore，成功与否用布尔值交回页面决定跳转。
+ * 口令只做 ≥6 的即时反馈，真实校验留给后端，避免前端复刻一套规则后两边不一致。
+ *
+ * 刻意不做：口令绝不进 store 或持久化，只落 token；must_change_password 由服务端
+ * 下发后置位，后台布局据此弹出不可关闭的改密弹窗。
+ */
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthService } from '@/services'

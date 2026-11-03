@@ -139,6 +139,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 创建收件箱的表单页：填标题/上限与三套过期配置，成功后展示三码。
+ *
+ * ## 为什么过期配置要拆成三份
+ * 收件箱、投件码、取件码各有独立有效期（见 types/collection.ts 的三码权限模型），
+ * 合用一份会让"征集期结束了但已发出的投件码还能用"这类状态无法表达。
+ * 三个默认值都取后台 configStore 而不是写死，管理员改了默认配置这里要跟着变。
+ *
+ * ## 边界
+ * FormInput 的 v-model 只吃字符串，maxFiles 用 computed getter/setter 桥接并兜底为 1；
+ * 创建响应里的三码只出现这一次，成功后必须立刻弹窗并写入本地记录，刷新就找不回。
+ */
 import { inject, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

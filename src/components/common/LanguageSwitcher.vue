@@ -61,6 +61,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 语言切换下拉。出现在公开页面顶部控件区与管理后台顶栏两处。
+ *
+ * ## 为什么直接 import setLocale 而不是 emit
+ * 切换语言是全局副作用（写 i18n locale + localStorage），没有任何"父级要先确认"的余地，
+ * 让每处使用方都套一层 handler 只会多出重复代码。
+ *
+ * ## 点击外部关闭为什么监听 document 而不是用 mousedown + stop
+ * 用 click 且不做 stop：中间层若有 @click.stop（例如文件列表容器），
+ * 冒泡会被截断，下拉就关不掉了；监听 document 的冒泡阶段最稳。
+ * 代价是监听一直存在——但组件在页面生命周期内常驻，成本可接受。
+ */
 import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { GlobeIcon, ChevronDownIcon } from 'lucide-vue-next'

@@ -118,6 +118,23 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 收件箱（collection）管理端的设置弹窗：改投递码/取件码过期策略与最大文件数。
+ *
+ * ## 为什么"收件箱有效期"这一项是只读的
+ * 已经发出的投递码/取件码是按收件箱的过期时间推算出来的；允许改它等于让部分
+ * 已存在的子码瞬间越界（绝对过期时间晚于收件箱）。因此这里只展示，改动只能重建收件箱。
+ *
+ * ## 为什么本组件直接读 collectionStore 而不是 props + emits
+ * 历史遗留：弹窗的字段与保存动作原本就写在详细页里，拆出来时为避免一次性重写
+ * 数据流保留了 store 直读。注意这与 ARCHITECTURE.md 的"组件只接收 props/emit"有出入，
+ * 后续若要收敛应把这部分搬进对应的 collection composable。
+ *
+ * ## 边界条件（都在发请求之前拦截，避免无谓的往返）
+ * - 最大文件数 < 1 直接 return；> maxAllowedFiles 也直接 return，上限来自后台配置。
+ * - 子码的绝对过期时间不能晚于收件箱；收件箱非永久时子码不允许选"永久"。
+ *   这条规则必须与后端保持一致，否则前端放行了也会被服务端拒。
+ */
 import { inject, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { XIcon } from 'lucide-vue-next'
@@ -270,7 +287,13 @@ const handleSaveAll = async () => {
   }
 }
 
-/** 过期时间边界（秒）：forever 为无限，count 与后端落库一致固定 365 天（不乘次数），day/hour/minute 按秒 */
+/**
+ * 过期时间边界（秒）：forever 为无限，count 与后端落库一致固定 365 天（不乘次数），day/hour/minute 按秒
+ *
+ * ⚠️ 'count' 的 365 天是与后端的**隐性契约**：后端把次数型过期存成一个很长的绝对时间，
+ * 前端没有可换算的配置项。后端若改变该口径，这里就会出现"前端以为有限、实际永久"
+ * 的偏差，改动请与后端核对。
+ */
 const _expireBoundSeconds = (style: string, value: number): number => {
   if (style === 'forever') return Infinity
   if (style === 'count') return 365 * 86400

@@ -1,3 +1,16 @@
+/**
+ * 公共配置的形状与本地兜底默认值（DEFAULT_PUBLIC_CONFIG / DEFAULT_CONFIG_STATE）。
+ *
+ * ## 为什么需要一份硬编码兜底
+ * 首页在拿到远程配置前就要渲染，而移动端局域网、后端重启等场景会让配置请求失败；
+ * 没有默认值时连"允许哪些后缀、过期单位有哪些"都显示不出来。这里的数值刻意与
+ * 后端 core/settings.py 的 DEFAULT_CONFIG 逐项对齐——尤其 expireStyle、房间缓存
+ * 72 小时这类会影响实际行为的项，对不上就会出现"前端让选、后端不认"的割裂。
+ *
+ * ## 刻意不做
+ * 不把远程配置缓存进 localStorage：宁可拉取失败就用这份静态兜底，
+ * 也不让上一次的旧值悄悄覆盖服务端新配置。
+ */
 import { DEFAULT_CONFIG, FILE_SIZE_LIMITS, STORAGE_KEYS } from '@/constants'
 import type { ConfigState, SystemConfig } from '@/types'
 

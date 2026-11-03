@@ -1,3 +1,11 @@
+/**
+ * 面向前端的公共配置快照（上传限额、主题、公告等），是远端配置与本地缓存的合并结果。
+ * 必须经 toPublicConfig 投影后才入状态：后台完整配置含各类密钥/口令，
+ * 直接整包塞进 store 会让敏感字段随状态到处可见。
+ *
+ * 公告去重：notify_title+content 拼成 key 记在 localStorage，同一公告只在首次弹出，
+ * 避免 30 秒一次的轮询反复弹同一个通知。刻意不做：不缓存密钥类字段。
+ */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { ConfigState } from '@/types'

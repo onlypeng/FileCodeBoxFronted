@@ -1,3 +1,10 @@
+/**
+ * 用路由守卫驱动全局 loading：beforeEach 置位、afterEach 延时 200ms 再熄灭。
+ * 加延时是为了盖住"导航已完成但首屏还在渲染"的空档，也让极快的跳转不闪一下进度条。
+ *
+ * 边界：to.meta.showRouteLoading === false 可关掉该页 loading；守卫与定时器都在
+ * onUnmounted 注销，避免外壳重建后多个 afterEach 抢着改同一个 isLoading。
+ */
 import { onUnmounted, ref } from 'vue'
 import type { Router } from 'vue-router'
 

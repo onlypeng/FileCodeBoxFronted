@@ -1,3 +1,11 @@
+/**
+ * 主题的全局单一状态源：用户显式选择 > 旧版明暗模式 > 后台站点默认 > 浅色。
+ * 之所以由 store 统一改 document 的 data-theme/dark 类，而不是各组件读
+ * prefers-color-scheme 自行判断，是为了让"跟随系统"与"后台下发默认主题"两种来源不打架。
+ *
+ * 持久化只写用户显式选的 themeId（setTheme 的 persist 开关）；站点默认/跟随系统
+ * 都传 persist:false，不覆盖用户偏好。刻意不做：不持久化后台下发的站点主题。
+ */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { THEME_MODES } from '@/constants'

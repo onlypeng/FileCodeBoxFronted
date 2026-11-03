@@ -1,3 +1,15 @@
+/**
+ * localStorage 偏好读写的薄封装：主题/语言，以及通用的字符串与 JSON 存取。
+ *
+ * ## 为什么 JSON 读取一定要吞异常
+ * 这些值可能被旧版本格式、用户手改或半写入的脏数据污染；解析失败时返回 fallback
+ * 让页面照常启动，比抛错白屏好。写入按 typeof 区分字符串与对象，避免把纯字符串
+ * 再 JSON.stringify 一层，导致下次读出来带着引号。
+ *
+ * ## 刻意不做
+ * 不做命名空间、版本迁移与 storage 事件监听（多标签同步目前不需要）；
+ * 也不缓存读到的值，配置类数据由各 store 自己持有响应式状态。
+ */
 import { STORAGE_KEYS } from '@/constants'
 import type { ThemeMode } from '@/types'
 

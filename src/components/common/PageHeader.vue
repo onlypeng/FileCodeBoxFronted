@@ -24,6 +24,13 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 页面标题头（Logo + 大字标题）。首页与各主要页面顶部复用。
+ *
+ * 标题可点击并 emit 'title-click' 是刻意的隐藏入口（回到首页/触发特定行为由调用方决定），
+ * 因此这里保留了 cursor-pointer 但没有默认行为——不要给 @click 加 push('/')，
+ * 那会让"管理页标题点击"也跳回首页。
+ */
 import { inject } from 'vue'
 import { BoxIcon } from 'lucide-vue-next'
 

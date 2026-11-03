@@ -23,6 +23,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 系统设置里的数字输入框：值 + 单位后缀，自动钳到 min/max。
+ *
+ * ## 为什么钳是在 handleInput 里而不是只靠原生属性
+ * min/max 只对步进器与表单校验生效，用户手输或粘贴超范围值时浏览器仍然接受。
+ * 这里读 input.min/max 再回夹一次，保证 emit 出去的值一定落在区间内。
+ *
+ * ## 边界条件
+ * - 清空输入框会 emit 0 而不是 NaN：配置项的 0 通常表示"关闭/不限"，
+ *   而 NaN 一旦写进 payload 会让后端收到 null，语义完全不同。
+ * - valueAsNumber 在某些输入法组合过程中会给出 NaN，此时直接 return，
+ *   不 emit——否则用户还没输完就被强行改写成 0。
+ */
 import { inject } from 'vue'
 
 defineProps<{

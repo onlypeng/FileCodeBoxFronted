@@ -80,6 +80,24 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * "操作成功"结果弹窗：一组码卡片（取件码/管理码/投件码）+ wget 命令 + 文件清单。
+ *
+ * ## 为什么这里是 codes 数组而不是单个码
+ * 同一个动作可能产生多个可用码（例如建收件箱同时给出取件码、投件码、管理码），
+ * 让调用方按 Scene 组装列表，比给弹窗加 N 组 props 更容易扩展。
+ *
+ * ## 关于 export interface SuccessCodeItem
+ * 这里的 export 是**刻意保留**的：DirectHomeView / CollectionCreateView 需要
+ * `import type { SuccessCodeItem }` 来给自己的 computed 标注类型。
+ * 只有类型导出能被 compiler-sfc 剥掉、不影响 vite build；
+ * 千万不要在 `<script setup>` 里再加任何**值**导出（export const / function），
+ * 那会让 @vue/compiler-sfc 直接报错并让构建失败。
+ *
+ * ## 刻意不做
+ * 不在弹窗里做任何跳转或"再来一次"的副作用：结果页的按钮语义在各场景不同，
+ * 由调用方通过 footer 插槽提供。
+ */
 import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CheckCircleIcon, CopyIcon, FileIcon, TerminalIcon, XIcon } from 'lucide-vue-next'

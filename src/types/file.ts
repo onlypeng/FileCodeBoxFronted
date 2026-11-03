@@ -1,3 +1,25 @@
+/**
+ * 文件分享（上传 / 列表 / 取件 / 记录）全链路的类型定义。
+ *
+ * ## 问题
+ * 分享链路里有三组极易混淆的"码/凭证"和一组易混淆的"多文件标记"：
+ *   - `code`：取件码，公开的，任何人拿到都能请求取件信息
+ *   - `ownerToken`：发起者凭证，**只**下发给上传者，凭它可以提前作废分享
+ *   - `accessKey`：二次口令通过后服务端下发的**短期**下载 token
+ * 三者泄漏任一都会导致越权，因此在这里就把语义钉死，不允许用泛指的 `token` 命名。
+ *
+ * ## 取舍
+ * 记录类类型（ReceivedFileRecord / SentFileRecord）刻意用**宽字段 + 全可选**：
+ * 它们会被序列化进 localStorage，历史上已有多版结构。收窄成必填会在读取旧数据时
+ * 全部变成 undefined 而编译期毫无察觉——宁可运行时判空，也不要假的类型安全。
+ */
+
+/**
+ * 上传/列表场景的文件元信息。
+ *
+ * 注意这是**前端展示模型**，字段名是驼峰，且不与任何单个接口一一对应；
+ * 后端原始响应用 `FileListItem`（蛇形），两者由 utils/record-display 之类做转换。
+ */
 export interface FileInfo {
   id: string
   name: string
@@ -8,6 +30,12 @@ export interface FileInfo {
   expireTime?: string
 }
 
+/**
+ * 后台文件列表项（GET /admin/file/list）。
+ *
+ * 字段全部蛇形，与后端 `FileStorage` 模型对齐；取名不为可读性，
+ * 而是为了让 tsc 在后端改字段名时能一次性暴露所有引用点。
+ */
 export interface FileListItem {
   id: number
   code: string
@@ -44,9 +72,17 @@ export interface ShareSelectResponse {
   size: number
   /** 服务端落盘时算出的权威 SHA-256（多文件打包场景不下发） */
   file_hash?: string
+  /** 是否为多文件分享。**这个字段决定界面走哪套逻辑**：为 true 时 `items`
+   *  才是有效数据、`name`/`size` 只是打包后的汇总值；为 false 时必须忽略 `items`。
+   *  后端在单文件场景不下发该字段，故判真要写 `=== true` 之外的宽松写法。
+   */
   is_multi_file?: boolean
   items?: Array<{ id: number; file_name: string; file_size: number }>
-  /** 该分享是否设置了提取口令（二次口令） */
+  /** 该分享是否设置了提取口令（二次口令）
+   *  语义陷阱：它只是"是否需要口令"的**预告**。为 true 时后续取件/下载请求
+   *  都必须先换到 `accessKey`，否则后端会拒绝；为 false 不代表能直接下载
+   *  （还可能受次数、过期限制）。
+   */
   require_access_code?: boolean
   /** 口令通过后下发的短期下载 token，多文件单项/打包下载需带上 */
   access_key?: string
@@ -157,6 +193,7 @@ export interface SentFileRecord {
   isDelivery?: boolean
   /** 投件时的收件箱标题 */
   collectionTitle?: string
+  /** 是否为多文件分享：为 true 时用 `files` 渲染子项列表，忽略顶层的 size 语义 */
   isMultiFile?: boolean
   fileCount?: number
   /** 多文件子项列表 */
@@ -174,6 +211,7 @@ export interface UploadProgress {
   percentage: number
 }
 
+/** 秒传判定用的完整文件 SHA-256：后端据此查是否已有同一份物理文件 */
 export interface ChunkUploadInitRequest {
   file_name: string
   file_size: number
@@ -185,6 +223,8 @@ export interface ChunkUploadInitResponse {
   code?: string
   name?: string
   upload_id?: string
+  /** 命中秒传：服务端已存在同哈希文件，无需再传任何分片。
+   *  此时 `code`/`name` 已直接可用，`upload_id` 不必再走 complete 流程。 */
   existed?: boolean
   uploaded_chunks?: number[]
 }
@@ -198,4 +238,11 @@ export interface ChunkUploadCompleteRequest {
   access_code?: string
 }
 
+/**
+ * 分片合并接口的返回值固定为空。
+ *
+ * 刻意写成 `null` 而非 `void`/`unknown`：合并成功后取件码要从
+ * `ChunkUploadInitResponse.code` 拿，合并接口本身什么都不给，
+ * 用具体的 null 阻止调用方误以为这里有新数据。
+ */
 export type ChunkUploadResponse = null

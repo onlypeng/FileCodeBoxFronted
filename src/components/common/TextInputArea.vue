@@ -24,6 +24,17 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 发送页的文本/备注输入区：受控 textarea 加字数进度提示。
+ *
+ * ## 为什么计数只预警不拦截
+ * 真正的字符上限以后台下发的 maxTextLength 为准，后端还会再校验一次；组件里
+ * 擅自截断或报错，会在配置调大/调小时出现"前端拦了、后端其实收"的割裂。
+ * 因此 maxlength 只交给原生属性做软限制，颜色变化仅提示接近上限。
+ *
+ * ## 刻意不做
+ * 不内置中文文案（走 i18n），也不自己持有文本副本：发送流程的状态归 useSendFlow。
+ */
 import { inject, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

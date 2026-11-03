@@ -1,3 +1,12 @@
+/**
+ * 本地"取件/发件/收件箱/房间"四类历史记录，刷新后仍要能看，故用 Pinia + watch
+ * 深监听自动写 localStorage。刻意只存展示所需的元数据（码、名称、时间、大小），
+ * 不存文件内容或下载直链——链接带短期签名，落盘后必然失效。
+ *
+ * 边界：记录是本地视图，不是服务端权威状态；删除记录只改本地列表、不会作废分享
+ * （作废要调服务端 revoke）。ownerToken 等发起者凭证会随记录持久化，属敏感字段，
+ * 清理记录时应一并清掉。
+ */
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { readJsonPreference, writePreference } from '@/utils/preference-storage'

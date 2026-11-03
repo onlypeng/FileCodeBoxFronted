@@ -10,6 +10,9 @@
  * - 优先级：用户本地选择 > 后台站点默认（spaTheme）> 系统偏好 > 浅色。
  */
 
+// id 取值不是任意字符串：它同时是 themes.css 里 [data-theme="xxx"] 的选择器、
+// 后台下发配置里的取值、以及 localStorage 里存的值（见 STORAGE_KEYS.THEME_ID）。
+// 改动需要与后端 themesChoices 同步，否则用户输入会被 resolveThemeId 静默降级。
 export const THEME_IDS = {
   LIGHT: 'light',
   DARK: 'dark',
@@ -142,13 +145,16 @@ export const THEMES: ThemeDefinition[] = [
   }
 ]
 
-/** 默认主题 id */
+/** 默认主题 id：取浅色是有意的——浅色是唯一不依赖 <html> 额外类名就能正确渲染的兜底 */
 export const DEFAULT_THEME_ID: ThemeId = THEME_IDS.LIGHT
 
 export function isThemeId(value: unknown): value is ThemeId {
   return typeof value === 'string' && THEMES.some((theme) => theme.id === value)
 }
 
+// 刻意不抛错而回退 THEMES[0]：配置里的主题 id 可能来自更**新**版本的后端，
+// 一个未知 id 不应让整页白屏。代价是 THEMES[0] 成了隐式兜底，
+// 调整数组顺序时请保证第 0 项仍是浅色主题。
 export function getThemeById(id: ThemeId): ThemeDefinition {
   return THEMES.find((theme) => theme.id === id) ?? THEMES[0]
 }

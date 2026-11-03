@@ -103,6 +103,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 管理员登录页：只负责收集口令、调用 useAdminLogin 并按 redirect 跳转。
+ *
+ * ## 为什么 redirect 要校验前缀
+ * query 里的 redirect 是用户可控输入，直接 router.push 会形成开放重定向
+ * （//evil.com 之类会被当成协议相对地址）。这里只接受以单个 '/' 开头的站内路径，
+ * 其余一律回落到 /admin。
+ *
+ * ## 刻意不做
+ * 凭据写入与 Token 持久化都在 composable / auth-storage，页面不碰 localStorage；
+ * 不提供"记住密码"（见 auth-storage：口令绝不落盘）。
+ */
 import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

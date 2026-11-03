@@ -1,3 +1,10 @@
+/**
+ * 房间缓存文件的独立入口：列表、上传、删除、下载直链与剩余有效期都收在这里，
+ * 刻意与聊天消息流解耦——消息流不再逐条渲染缓存卡片，避免刷屏也便于单独刷新。
+ *
+ * 边界：下载优先用服务端下发的 30 分钟签名链接，缺省才回退前端拼接以兼容旧后端；
+ * 删除仅上传者本人可用（owner_id 比对），前端不提供绕过入口。
+ */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DirectService } from '@/services/direct'

@@ -169,6 +169,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 发送页表单：把 useSendFlow 的状态绑到文件区、备注、提取口令与有效期上。
+ *
+ * ## 为什么页面几乎不含逻辑
+ * 文件/多文件/纯备注三种输入统一走同一个发送接口（连"仅备注"也由后端建记录），
+ * sendType 只用于发件记录展示；选择、校验、上传、记录都收敛在 useSendFlow。
+ * 页面只留成功弹窗的链接拼装，改发送行为请改 composable 而不是这里。
+ *
+ * ## 边界
+ * 提取口令与取件码走不同信道，刻意只在提交时透传、不落本地缓存；
+ * 有效期选项由后台 configStore 的 expireStyle 给出，不在前端写死。
+ */
 import { inject, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

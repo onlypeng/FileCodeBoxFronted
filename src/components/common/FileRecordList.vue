@@ -76,6 +76,24 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 已接收/历史文件记录列表。
+ *
+ * ## 为什么过期判断要做两次（record.isExpired 与 isRecordExpired）
+ * record.isExpired 是入库时快照的结果，随着时间推移，快照可能仍是 false 但记录其实已过期；
+ * isRecordExpired 再拿 expiredAt 与当前时间比一次（'forever' 直接判不过期；
+ * 注意它并不用 expireValue，所以次数型过期只能靠服务端给的结果）。两者取"或"：
+ * 前者保留服务端对次数型过期的结论（前端算不出来），后者补上时间流逝造成的过期。
+ *
+ * ## 关键设计
+ * - 下载按钮对过期记录同时用了 opacity/cursor 样式和 `!isExpired(...) &&` 短路两层拦截：
+ *   只做样式用户会以为还能点，只做短路则完全没有"为何不可点"的视觉提示。
+ * - isDarkMode 用 inject<Ref<boolean> | boolean> 兜住了"有人 provide Ref、有人 provide 布尔值"
+ *   的现状，因此取值统一走 _isDark() 的 unref，不要在模板里直接消费 isDarkMode。
+ *
+ * ## 刻意不做
+ * 不做批量选择与批量删除：记录量小，逐条操作已够，批量带来的选中态管理不划算。
+ */
 import { inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {

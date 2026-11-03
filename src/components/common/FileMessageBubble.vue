@@ -180,6 +180,24 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 直连房间内的文件消息气泡：一个组件按 fileDirection + fileStatus 分四种形态。
+ *
+ * ## 为什么一个组件包四种形态而不是拆四个
+ * 聊天流是 v-for 列表，判断分支集中在模板里可以让滚动列表只有一种列表项类型，
+ * 也避免父组件写四套 <template v-if>。代价是本文件偏长，改样式时先确认落在哪个分支。
+ *
+ * ## 关键设计
+ * - transferId 用非空断言交给 emit：能渲染出对应按钮的状态一定已经建好传输会话；
+ *   若将来出现"没有 transferId 也要能取消"的场景，应改 Emits 类型而不是放宽断言。
+ * - download 事件明确由父组件处理「下载 + 留存为供源」，组件内不 window.open：
+ *   下载动作按架构约定只能出现在 utils/download-action.ts 的调用方里。
+ * - hashStatus === 'mismatch' 优先于 fileStatus 决定文案：校验失败是最强的状态，
+ *   不能被后到的 'done' 覆盖成"已接收"。
+ *
+ * ## 刻意不做
+ * - 不做断点续传 UI（重传按钮）：重传要靠重连后的新 offer，组件层没有足够信息。
+ */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FileIcon, XIcon, CloudCheckIcon } from 'lucide-vue-next'

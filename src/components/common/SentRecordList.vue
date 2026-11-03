@@ -77,6 +77,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 已发送记录列表（FileRecordList 的发送方版本）。
+ *
+ * ## 为什么这里有两种"删除"
+ * delete-record 只删本地记录，revoke-record 会让服务端提前作废（别人立刻取不到）。
+ * 后者只在 record.ownerToken 存在时才显示——没有 ownerToken 说明这条不是本机发的
+ * （或是旧版本存的记录），服务端必然拒绝，给了按钮只会得到一次失败。
+ * 不要把 v-if 去掉改成禁用：两者差别对普通用户不可见，隐藏更不容易误解。
+ *
+ * ## 刻意不做
+ * 不做过期判断与置灰：发送方关心的是"这条还能不能被取"，而这个信息要从服务端刷新，
+ * 列表里用过期时间做视觉降级会让用户误以为已经失效。
+ */
 import { inject, unref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {

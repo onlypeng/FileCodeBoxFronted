@@ -1,3 +1,15 @@
+/**
+ * 富文本预览：Markdown 渲染与 HTML 消毒，是全项目唯一的 XSS 收敛点。
+ *
+ * ## 为什么两处白名单不一样
+ * renderMarkdownPreview 给 marked 的输出放行标题/列表/代码块等标签；而
+ * sanitizeSimpleHtml 只放行 a/span，专供聊天消息这种"只该有链接和等宽样式"的场景。
+ * ChatBubble 也调用后者，防御口径必须集中在这里，不能各自实现一遍。
+ *
+ * ## 刻意不做
+ * 不做语法高亮、不允许 script/style 与 on* 属性；渲染抛错时降级返回原文，
+ * 预览失败不该让整条消息或整个弹窗崩掉。
+ */
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 

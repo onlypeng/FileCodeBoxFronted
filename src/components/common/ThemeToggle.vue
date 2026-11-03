@@ -1,4 +1,16 @@
 <script setup lang="ts">
+/**
+ * 顶栏的主题切换下拉：把主题注册表渲染成选项，选中后交给注入的 setTheme。
+ *
+ * ## 为什么到处都先 unref
+ * isDarkMode / themeId / themeMode 由 App.vue provide，但历史上提供方既有传 ref
+ * 也有传普通值的写法；统一在 setup 里解包一次，避免每个 computed 各判一次形态。
+ * 主题状态本身不在本地复制，保证与根节点始终是同一份。
+ *
+ * ## 边界与刻意不做
+ * "点外部关闭"依赖 document 级 click 监听，必须成对在 onUnmounted 里移除；
+ * 不自己写 localStorage（持久化属 theme-storage），也不做 Esc 关闭。
+ */
 import { computed, inject, onMounted, onUnmounted, ref, unref, type Ref } from 'vue'
 import { CheckIcon, MonitorIcon, PaletteIcon } from 'lucide-vue-next'
 import { THEME_MODES } from '@/constants'

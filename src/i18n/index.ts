@@ -1,3 +1,15 @@
+/**
+ * vue-i18n 实例与语言切换出口：启动时决定初始语言，之后只暴露 setLocale。
+ *
+ * ## 语言优先级的理由
+ * 本地存储 > 浏览器语言：用户主动选过就不该被系统语言覆盖。繁体地区（tw/hk/mo、
+ * 以及带 Hant 的 tag）单独落到 zh-TW，其余中文走 zh-CN，其余一律 en-US；
+ * fallback 固定 zh-CN，保证语言包缺 key 时不至于显示空白。
+ *
+ * ## 副作用与刻意不做
+ * 创建实例与每次 setLocale 都同步 document.documentElement.lang（影响字体与读屏）。
+ * 三个语言包全量同步引入、不做按需懒加载：包体不大，且能避免切换瞬间的异步闪烁。
+ */
 import { createI18n } from 'vue-i18n'
 import zhCN from './locales/zh-CN'
 import zhTW from './locales/zh-TW'

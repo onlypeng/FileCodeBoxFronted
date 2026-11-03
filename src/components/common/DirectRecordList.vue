@@ -63,6 +63,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 直连房间历史记录列表。
+ *
+ * ## 与 CollectionRecordList 的关键差异
+ * 整行可点击（@click 进房间）是这里的主要交互，因此行内的查看详情 / 删除按钮
+ * **必须** @click.stop，否则每次删除都会被行点击再带一次跳转——这类 bug 在
+ * 测试里很容易被漏掉，改动模板时不要顺手删掉 .stop。
+ *
+ * ## 为什么"进房间"只抛房间号
+ * roomCode 才是路由唯一需要的参数，完整 record 里的时间、成员等信息与跳转无关，
+ * 传字符串可以让上层不必关心 record 的结构。
+ */
 import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EyeIcon, TrashIcon, HouseIcon } from 'lucide-vue-next'

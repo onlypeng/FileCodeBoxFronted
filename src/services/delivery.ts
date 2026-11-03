@@ -1,3 +1,11 @@
+/**
+ * 收件箱"投递侧"的接口：投递页信息与文件上传/分片上传生命周期。
+ * 认证用 delivery_code 随表单提交，不依赖管理员 token——投件人本就是匿名访客，
+ * 若套用带 Authorization 的通用客户端反而会误带凭据。
+ *
+ * 边界：init/complete/cancel 三件套里 cancel 负责回滚已占的投递次数，
+ * 前端取消上传必须显式调它，否则次数会被一直占着；分片走独立的 /delivery/chunk/*。
+ */
 import api from './client'
 import { multipartUploadConfig } from './shared'
 import type { ApiResponse, UploadProgress } from '@/types'

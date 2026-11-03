@@ -43,6 +43,20 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 全局轻提示（toast）渲染器，在 App.vue 里全局挂载一次。
+ *
+ * ## 这里只做渲染，计时在 store
+ * 计时与进度推进放在 alertStore 而不是本组件：
+ * - 提示的生命周期要跨越路由切换（App.vue 的 RouterView 重建不影响它）；
+ * - 若把 setTimeout 写在组件里，组件被卸载就会丢掉定时器，提示永远停在那；
+ * - 因此这里的 startProgressTimer / stopProgressTimer 只是把 store 里的计时器
+ *   与自身生命周期对齐，真正的到点销毁逻辑仍在 store。
+ *
+ * ## 刻意不做
+ * - 不做自定义 stacking / 分组：多条提示纵向堆叠即可，业务上几乎不会同时出现 3 条以上。
+ * - 不在模板里判断暗色主题：toast 用固定的高对比渐变色，在明暗背景下都要可读。
+ */
 import { storeToRefs } from 'pinia'
 import { useAlertStore } from '@/stores/alertStore'
 import { CheckCircle, AlertTriangle, AlertCircle, Info, X } from 'lucide-vue-next'

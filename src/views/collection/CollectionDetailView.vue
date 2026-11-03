@@ -200,6 +200,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 收件箱管理详情（管理码视角）：三码二维码、文件列表、在线人数与设置入口。
+ *
+ * ## 为什么挂 WebSocket
+ * 投件人从各自的投件链接上传，创建者页面若不实时刷新就会一直显示旧列表；
+ * useCollectionWebSocket 的连接刻意绑在本页的 onMounted/onUnmounted，
+ * 离开即断开，避免后台页面继续占着订阅。因此这里不做定时轮询。
+ *
+ * ## 边界与刻意不做
+ * 本页只对管理码可见、才拿得到三码；取件人视角走取件弹窗，别复用这里的展示。
+ * 二维码链接统一由 buildAppUrl 拼（共享域名配置在这里生效），设置提交交给
+ * CollectionSettingsModal，页面自身不改配置。
+ */
 import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

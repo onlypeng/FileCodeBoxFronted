@@ -215,6 +215,25 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 取件详情弹窗：常规文件/文本/多文件、以及收件箱（collection）两种模式的结果展示。
+ *
+ * ## 为什么一个 props 对象里塞了这么多"视角开关"
+ * 同一份数据在不同入口展示不同：取件人不能看到管理码；发件记录查看没有"取件时间"
+ * 也没有下载按钮。这里用 showDownloads / showRetrieveTime / collection 等开关区分视角，
+ * 而不是拆成多个弹窗——拆开后每个新场景都要再复制一份模板。
+ * 代价是 props 列表较长，新增字段请在注释里写明它对应哪个视角。
+ *
+ * ## 过期判定
+ * isExpired prop 是权威值：后端可能因次数用尽而判过期，而本地 expiredAt 还没到，
+ * 两者不一致时**必须**以服务端为准（因此这里用 ?? 而不是 ||）。
+ *
+ * ## 刻意不做
+ * - 不在弹窗内直接下载或打包：下载动作按架构约定只能出现在 utils/download-action.ts
+ *   的调用方里，这里只 emit 事件，弹窗保持纯展示。
+ * - 不在各自入口重复 QR 链接拼接：统一走 utils/share-url 的 build* 系列，
+ *   避免改动路径时漏改某一处。
+ */
 import { inject, computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode.vue'

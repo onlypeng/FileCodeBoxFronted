@@ -113,6 +113,25 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 管理后台外壳（/admin 的父路由组件）：侧边导航 + 顶栏 + 内容区。
+ *
+ * ## 为什么某些东西放在这里而不是页面里
+ * - ForcePasswordChangeDialog 挂在布局层而不是登录页：默认口令未改时必须无论进哪个
+ *   管理页都弹出来，挂页面里会被"换个路由就绕过"。
+ * - 语言切换（LanguageSwitcher）只在布局顶栏出现：/admin 路由 meta 关闭了全局控件
+ *   （showGlobalControls: false），这里是它的替代入口。
+ *
+ * ## 关键设计
+ * - isDarkMode 通过 inject 取壳提供的值，不自己读 store：保证与 App.vue 同一份状态，
+ *   也避免各处重复实现"跟随系统偏好"的逻辑。
+ * - menuItems 的 id 与路由 name 比，而不是与 path 比：path 可能带参或将来调整。
+ *
+ * ## 刻意不做
+ * - 不做路由级面包屑与折叠子菜单：目前层级只有一层。
+ * - 不做响应式菜单的 CSS-only 方案（纯 class 控制展开）：窄屏仍需 JS 判断初始状态，
+ *   否则首屏闪一下展开的侧栏。
+ */
 import { ref, inject, onMounted, onUnmounted } from 'vue'
 import {
   BoxIcon,
@@ -169,7 +188,10 @@ const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value
 }
 
-// 响应式处理
+// 响应式处理：用 JS 判断断点而不是纯 CSS，是因为窄屏下侧栏的默认状态必须
+// 在首帧之前确定，交给 CSS 会先渲染出展开态再收起。
+// 1024 必须与 Tailwind 的 lg 断点保持一致——模板里的 lg: 前缀是 CSS，
+// 这里是 JS 数字，两者不会自动同步。
 const handleResize = () => {
   if (window.innerWidth >= 1024) {
     isSidebarOpen.value = true

@@ -79,6 +79,21 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 房间详情弹窗：展示Room 元信息（房间码/二维码/创建时间/过期/人数上限）并提供进入入口。
+ *
+ * ## 为什么每次打开都重新拉一次详情
+ * 房间过期时间、成员数会被别人的操作改变；这里不缓存，visible 变 true 即重新请求，
+ * 用一次请求换取"点了进去才发现已过期"的糟糕体验不会发生。
+ * 请求本身在 useDirectRoomInfo 里，本组件只负责按 visible 触发。
+ *
+ * ## 关键设计
+ * - "进入房间"按钮 emit 而不是内部 router.push：跳转目的地由上层（记录列表或房间页）
+ *   决定，组件不该假设自己身处哪个路由。
+ * - 已过期（isExpired）时隐藏进入按钮：后端一定会拒绝，给了按钮也只是多一次报错。
+ * - info / loading / error 三态互斥由模板 v-if/v-else-if 保证，
+ *   注意 info 为空且未报错时（刚打开的第一帧）不会命中任何分支，只显示 footer。
+ */
 import { computed, inject, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertCircleIcon } from 'lucide-vue-next'

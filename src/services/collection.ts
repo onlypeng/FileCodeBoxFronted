@@ -1,3 +1,18 @@
+/**
+ * 收件箱（投递 / 取件 / 后台管理）接口。
+ *
+ * ## 三码权限不同，选错方法会越权
+ * - `collection_code`（管理码）→ `getManageInfo` / `getStatus` / `updateConfig`
+ * - `delivery_code`（投件码）→ `getDeliveryPage`（见 DeliveryService）
+ * - `retrieve_code`（取件码）→ `getRetrieveInfo`
+ * 三个 getter 返回的职责故意不同，`getRetrieveInfo` 的响应里**没有**管理码，
+ * 这是后端的权限收紧，不要为了少写个接口而改用管理码接口去渲染取件页。
+ *
+ * ## 下载链接不做鉴权校验
+ * `getDownloadUrl` 等返回的是**拼接好的地址**（可直接给 `<a href>`），
+ * 校验发生在服务端；因此这些链接不应被日志打印或存进 localStorage 长期保存
+ * ——它们等价于长期有效的取件凭证。
+ */
 import api from './client'
 import { buildAbsoluteUrl } from '@/utils/share-url'
 import type { ApiResponse } from '@/types'

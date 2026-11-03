@@ -1,3 +1,11 @@
+/**
+ * 收件箱页面的会话状态：三码（管理/投递/取件）与文件列表、实时上传进度都放这里，
+ * 因为投递页、管理页、WebSocket 推送三处会同时读写同一份数据，分散在组件里必然不同步。
+ *
+ * 持久化只保留"最近创建的收件箱"最多 10 条（含管理码与投递码）供快速回访；
+ * 文件列表、进度、当前三码刻意不落 localStorage——它们随会话变化且含访问凭据，
+ * 刷新后应由接口重新拉取，缓存旧值会拿到过期状态。
+ */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { CollectionService, DeliveryService } from '@/services'

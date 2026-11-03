@@ -1,3 +1,12 @@
+/**
+ * 临时房间的全部内存态：成员、聊天流、历史分页、缓存文件与多源合并计划。
+ * 放进 Pinia 而非组件局部状态，是因为 WebSocket 回调、HTTP 响应、多个面板都要
+ * 写同一份数据；组件卸载（切页面）也不该丢掉房间上下文。
+ *
+ * 刻意不做：Blob/OPFS 文件句柄、合并计划、成员令牌都只在内存里，绝不进 localStorage
+ * （体积大、且是会话级凭据）；聊天流上限 300 条、合并计划带 TTL 清扫，防止长房间
+ * 把内存吃满。仅昵称这类偏好由 preference-storage 单独持久化。
+ */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { DirectService } from '@/services/direct'

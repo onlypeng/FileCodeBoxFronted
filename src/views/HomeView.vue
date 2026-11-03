@@ -235,6 +235,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 首页：取件入口 + 四类本地记录（收件/发件/收件箱/房间）的统一查看。
+ *
+ * ## 容易踩坑：取件流程在本页，不在 useRetrieveFlow
+ * retrieveCode、口令重试弹窗、403 判定、多文件/文本/收件箱分支、按次过期的剩余次数
+ * 都是页面自己的状态；useRetrieveFlow 只是被当作无状态请求方法集合
+ * （checkCodeType / getRetrieveInfo / selectFile …）。要改取件交互请改本页，
+ * 别去改 composable，否则会出现"两边各有一半状态"的割裂。
+ *
+ * ## 边界
+ * 仅带 ?retrieve=/?code= 的链接在 onMounted 自动查一次，手动输入必须点查询；
+ * 口令需求的判定依赖后端 403 detail 含「提取口令」字样，属于字符串契约。
+ */
 import { inject, ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

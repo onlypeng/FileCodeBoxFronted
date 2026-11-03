@@ -1,3 +1,16 @@
+/**
+ * 把"发送成功"的响应与表单输入拼成本地已发送记录（SentFileRecord）。
+ *
+ * ## 为什么记录要在前端自己造
+ * 后端只回一个取件码和少量详情，不会给出可直接展示的记录对象；而发件历史要立刻
+ * 出现在抽屉里，只能由前端把响应、选中的文件、过期方式和文案就地组装。
+ * 文本/单文件/多文件刻意压成同一条记录（用 isMultiFile、fileCount 区分），
+ * 列表不必为三种形态各写一套渲染。
+ *
+ * ## 边界
+ * owner_token 是可选字段：旧版后端不下发，缺它时"提前作废"入口应隐藏而不是报错。
+ * 时间戳取本地时间，仅用于展示，不参与任何过期判定。
+ */
 import type { ApiResponse, SendType, SentFileRecord, SentRecordType } from '@/types'
 import { formatFileSize } from '@/utils/common'
 

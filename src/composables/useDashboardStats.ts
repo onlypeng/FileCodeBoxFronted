@@ -1,3 +1,11 @@
+/**
+ * 把后台统计接口的原始数据整形成仪表盘可直接渲染的视图模型（体积文案、各类比值）。
+ * 老版本后端不返回 activeCount 等扩展字段，故用 hasOwn 探测后回退到 totalFiles，
+ * 而不是让旧接口把面板显示成一片 0。
+ *
+ * 边界：请求失败时保留 loadError 交视图显示错误态，刻意不静默回落成全零面板——
+ * 全零会被误读成"真的没有数据"。
+ */
 import { reactive, ref } from 'vue'
 import { StatsService } from '@/services'
 import type { DashboardViewData } from '@/types'

@@ -31,6 +31,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 全局确认弹窗，在 App.vue 里挂载一次，通过 confirmStore 的 Promise 化 ask() 驱动。
+ *
+ * ## 为什么用 store + Promise 而不是 emits
+ * 确认框常常来自深层组件或 composable（如删除文件、清空房间），逐级 emit 会让
+ * 调用链上每个组件都多一对 props/emits。store 里保存 resolve，让调用方可以
+ * `const ok = await confirm(...)` 取回布尔值。
+ *
+ * ## 取舍
+ * closable / closeOnBackdrop 都传 false：点错消失会被当成"取消"，
+ * 而这里承载的是破坏性操作（删除），宁可让用户明确点按钮。
+ * 代价是无法用 Esc 关闭——刻意保留，理由同上。
+ */
 import { computed, inject } from 'vue'
 import BaseModal from './BaseModal.vue'
 import { useConfirmStore } from '@/stores/confirmStore'

@@ -1,3 +1,11 @@
+/**
+ * 后台管理视角的房间接口：列表、删除、延期、改设置，以及强制清理缓存文件。
+ * 与 direct.ts 的成员接口刻意分开：这里走管理员鉴权，能删任意成员上传的缓存文件
+ * （不受"仅上传者可删"限制），路径也统一挂在 /admin/room/*。
+ *
+ * 边界：返回的缓存条目同时含"已落盘"与"仅 P2P 持有"两类，靠 server_cached 区分，
+ * 后台清理只该针对前者；download_url 是短期签名，不落地缓存。
+ */
 import api from './client'
 import type { ApiResponse } from '@/types'
 import type {

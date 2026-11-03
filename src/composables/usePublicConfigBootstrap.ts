@@ -1,3 +1,11 @@
+/**
+ * 后台配置的准实时同步：立即拉一次，之后定时轮询，并在页面重新可见时再补一次。
+ * 站点级变更（尤其默认主题）要能"管理员改完、已打开的页面也跟着变"，纯靠进入时
+ * 拉一次做不到；用轮询而非 WS 是因为配置变更极低频，不值得为它常驻一条连接。
+ *
+ * 刻意不做：网络异常静默失败等下一轮重试，不弹错误打断用户；返回的清理函数负责
+ * 同时注销定时器与 visibilitychange 监听，避免外壳卸载后仍在后台跑。
+ */
 import { ConfigService } from '@/services'
 import { useAlertStore } from '@/stores/alertStore'
 import { useConfigStore } from '@/stores/configStore'

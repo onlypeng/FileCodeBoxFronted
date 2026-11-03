@@ -1,3 +1,12 @@
+/**
+ * 管理后台鉴权相关类型。
+ *
+ * ## 注意
+ * `must_change_password` 是**安全相关**字段：为 true 说明管理员还在用初始口令，
+ * 前端必须在进入后台前强制改密。它同时出现在登录和校验两个响应里，
+ * 是因为 token 可能在别的标签页被续期，只靠登录那一次判断会漏。
+ */
+
 /** 管理后台登录响应（POST /admin/login） */
 export interface AdminLoginResponse {
   token: string

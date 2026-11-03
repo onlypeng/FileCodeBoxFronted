@@ -70,6 +70,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 收集件记录列表（纯受控 + 事件外抛）。
+ *
+ * ## 为什么所有动作都 emit
+ * "跳转管理页""跳转查看页""删除"三种操作分别依赖路由 push、取件流程和本地记录存储，
+ * 组件自己拿不到这些依赖；让上层决定也让删除前的二次确认（ConfirmDialog）由上层统一控制。
+ *
+ * ## 注意
+ * 这里的按钮**没有** @click.stop——整行本身不可点击（收集件没有"进入某处"的默认动作），
+ * 与 DirectRecordList 不同，后者整行有 @click 才需要在行内按钮上阻止冒泡。
+ * delete-record 只抛 id 而不是整条记录：删除动作不需要记录内容，抛 id 更明确。
+ */
 import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {

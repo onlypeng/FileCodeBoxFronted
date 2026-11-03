@@ -59,6 +59,21 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 取件码输入表单（首页 / 取件场景）。
+ *
+ * ## 为什么 v-model 的 setter 要做字符过滤
+ * 取件码只可能是大写字母与数字，直接在输入时过滤可以让粘贴带空格、短横线、中文全角字符的
+ * 场景无痛通过（用户从聊天窗口复制取件码时经常带上这些）；比起"提交时报错"，
+ * 静默收敛是这里更合适的取舍。
+ * 硬上限 12 与 maxlength 重复约束是为了覆盖"粘贴超长文本"这一 input 事件路径。
+ *
+ * ## 刻意不做
+ * - submit 不做非空/格式校验：验证码位数可由后台配置改变（历史上有 4 位的旧码），
+ *   前端自己定规则会误伤合法旧码，交给服务端判定最可靠。
+ * - loading/readonly 都从 inputStatus 来：请求进行中既要禁按钮也要禁输入，
+ *   两者必须一致，拆成两个 prop 会出现"能改不能提交"的中间态。
+ */
 import { ref, inject, computed, onMounted } from 'vue'
 import { ArrowRightIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'

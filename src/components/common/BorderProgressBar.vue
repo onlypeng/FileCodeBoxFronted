@@ -5,6 +5,22 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 沿容器四边环绕的进度描边（上传进度浮层用）。
+ *
+ * ## 为什么用 canvas 而不是 CSS
+ * 需求是"进度沿圆角矩形周长走一圈"，CSS 的 border / conic-gradient 都只能给出
+ * 直线边框或扇形填充，无法让描边在四个圆角处连续转向。这里逐段（上边 → 右上角 →
+ * 右边 → ……）累加长度绘制，`totalLength` 因此要把圆角换算成弧长而不是几何周长。
+ *
+ * ## 性能取舍
+ * 每次 progress 变化都整体重绘而不做增量：单条边框的绘制成本远低于
+ * 维护一段脏矩形，且进度更新本身已被上游按 TIME_CONSTANTS.PROGRESS_UPDATE_INTERVAL 节流。
+ *
+ * ## 已知限制
+ * canvas 的像素尺寸直接取容器的 CSS 尺寸，未按 devicePixelRatio 放大，
+ * 高 DPI 屏上描边会偏软；改动前请确认是否值得为此引入自适应缩放分支。
+ */
 import { ref, onMounted, watch } from 'vue';
 
 const props = defineProps<{

@@ -147,6 +147,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 投件页：访客凭投件码上传文件，无需登录。
+ *
+ * ## 为什么历史与昵称存在 localStorage
+ * 投件码是公开入口、没有账号体系，服务端不会为某个访客保存"我传过哪些文件/我叫什么"。
+ * 上传历史按 code 分组落在本地，纯展示用；真正的权限由服务端校验投件码，
+ * 前端不做也不该做任何鉴权判断。
+ *
+ * ## 边界
+ * 超过 50MB 走分片（单请求易超时/吃内存）；秒传用的 hash 来自 file-processing，
+ * 只是轻量指纹不是加密摘要。上传历史读不到或解析失败时按空处理。
+ */
 import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'

@@ -122,6 +122,17 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 临时房间的创建页：设置标题、有效期、人数上限与两个房间级开关。
+ *
+ * ## 为什么人数上限要受后台约束
+ * defaultMaxMembers 是服务端的容量保护，前端若允许随意填大值，创建会被拒或拖垮房间；
+ * 配置为 0（不限）时仍回退到 10 作为可用默认值，而不是把 0 直接提交。
+ * saveMessages / cacheEnabled 默认关闭：会往服务端写消息或缓存文件，属于显式开启的能力。
+ *
+ * ## 刻意不做
+ * 不提供自定义房间码（由服务端生成，避免碰撞与猜测），创建成功后立刻展示房码与链接。
+ */
 import { inject, ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

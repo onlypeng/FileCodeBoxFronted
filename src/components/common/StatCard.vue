@@ -21,6 +21,14 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 仪表盘数字卡片：标题 + 数值 + 图标 + 描述槽位。
+ *
+ * 纯展示，颜色由 iconColor / descriptionType 两个受控 props 决定——
+ * 特意不接收 class 字符串，避免 Tailwind 的按需扫描漏掉运行时拼接的类名。
+ * 这里用 useInjectedDarkMode() 而不是裸 inject('isDarkMode')：前者带了类型与兜底，
+ * 后者拿到的是 unknown，用在模板里要靠断言，容易在改动时静默失效。
+ */
 import { computed } from 'vue'
 import type { Component } from 'vue'
 import { useInjectedDarkMode } from '@/composables'

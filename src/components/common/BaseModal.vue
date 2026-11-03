@@ -72,6 +72,24 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 通用弹窗容器：遮罩、尺寸、标题/底部插槽、Esc 关闭与焦点圈定。
+ *
+ * ## 为什么用 Teleport 到 body
+ * 弹窗常在带 transform / overflow:hidden 的卡片内部声明，留在原地会被祖先的
+ * 层叠上下文裁掉或被 z-index 压住。挂到 body 后只需要关心自身的 z-50。
+ *
+ * ## 关键设计
+ * - keydown 监听挂在 window 而不是弹窗根节点：焦点可能已经移到弹窗外（例如 body
+ *   上的倒计时），只在根节点上监听会漏掉 Esc。
+ * - 打开时记录上一次焦点元素，关闭后还回去，避免键盘用户丢失位置；
+ *   这一对操作与 props.show 的 watch 绑定，而不是在 <script setup> 里一次性执行。
+ *
+ * ## 刻意不做
+ * - 不做滚动锁定（body overflow hidden）：多个弹窗叠加时需要引用计数才不会
+ *   解锁过早，当前场景（拖动条 + 少量弹窗）收益不足以抵消复杂度。
+ * - 不做嵌套弹窗的 Esc 分层：只响应最外层会很复杂，现状是 Esc 会关掉所有已打开的弹窗。
+ */
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 
@@ -167,6 +185,9 @@ const sizeClasses = computed(() => {
 
 const handleBackdropClick = (event: MouseEvent) => {
   if (!props.closeOnBackdrop) return
+  // 注意：这里不能只判 target === currentTarget。内容区已 @click.stop，
+  // 但遮罩是铺满全屏的内层 div，点击它的 target 是遮罩而非外层容器，
+  // 漏掉这个分支会出现"点了遮罩不关闭"。
   // 点击外层容器本身，或覆盖全屏的背景遮罩（遮罩是内层 div，target 不会等于 currentTarget）
   const t = event.target as HTMLElement
   if (t === event.currentTarget || t === backdropRef.value) {

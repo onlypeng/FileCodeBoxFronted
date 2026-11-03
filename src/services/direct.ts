@@ -1,3 +1,11 @@
+/**
+ * 临时房间（P2P 快传）的 HTTP 侧接口；实时信令走 WebSocket，不在这里。
+ * 房间天生双通道：默认 P2P 直连，服务器缓存只是"接收方离线也能取"的兜底，
+ * 所以缓存上传/下载/删除都带上 client_id / member_token 作为成员身份证明。
+ *
+ * 边界：列表下发的下载直链只有 30 分钟签名，页面久留后点下载要先换链；
+ * cacheHours=0 表示跟随房间生命周期、随房间过期一起清理，不是"永不过期"。
+ */
 import api, { apiBaseURL } from './client'
 import type { ApiResponse } from '@/types'
 import type {

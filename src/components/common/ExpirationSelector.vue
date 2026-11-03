@@ -135,6 +135,22 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 过期时间复合输入：数值 + 单位（天/小时/分钟/次数/永久），双 v-model 受控。
+ *
+ * ## 两个 v-model 而不是一个 { method, value } 对象
+ * 调用方（发送表单、收件箱设置）把它当作两个普通字段绑定到各自的 payload 结构里，
+ * 用对象会增加一层解包；代价是父组件要保证两者的联动单位语义一致。
+ *
+ * ## 为什么 select 的配色要写 inline style
+ * <option> 的背景/前景由浏览器原生绘制，Tailwind 类在部分系统（尤其 Windows Chrome）
+ * 上对下拉列表无效，深色模式下会出现"白底白字"。这里的 inline style 是必要的兜底，
+ * 不要以"改用工具类更干净"为由删掉。
+ *
+ * ## 边界条件
+ * incrementValue 下限钳到 1（Math.max(1, …)）：0 或负数会被后端当成立即过期，
+ * 而这在 UI 上没有对应表达，直接拦截比事后报错更好。
+ */
 import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 

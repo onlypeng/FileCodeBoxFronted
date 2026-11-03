@@ -1,3 +1,15 @@
+/**
+ * 下载动作的唯一出口：fetch → blob 校验 → saveAs，外加可选的文件完整性校验。
+ *
+ * ## 为什么 hash 校验放在 saveAs 之后且不 await
+ * 文件必须先落到用户手里；大文件的 SHA-256 即便丢进 Worker 也要算几秒，
+ * 若等校验完再保存，"点了下载没反应"会被当成卡死。校验结果只是附加提示，
+ * 因此用 void 触发、失败静默，绝不让一次算不出来的哈希阻断已完成的下载。
+ *
+ * ## 刻意不做
+ * 不用 window.open：后端返回 200 但内容是错误页/HTML 时无法捕获，
+ * 所以坚持 fetch + blob 并校验 Content-Type；saveAs 只允许出现在本文件内。
+ */
 import { saveAs } from 'file-saver'
 import type { ReceivedFileRecord } from '@/types'
 import { buildDownloadUrl } from '@/utils/share-url'

@@ -1,3 +1,15 @@
+/**
+ * 用户显式选择的主题 id 的本地存取（与"跟随系统"的模式设置分开）。
+ *
+ * ## 为什么读取时要过 isThemeId
+ * localStorage 里的值可能来自旧版本主题表或被人手改过；直接拿它去主题注册表查
+ * 会拿到 undefined，进而让整套 CSS 变量失效。校验不过就返回 null，让上层回退到
+ * 站点默认主题，而不是崩在渲染阶段。
+ *
+ * ## 刻意不做
+ * 不在这里存 light/dark/system 模式（那是 preference-storage 的 COLOR_MODE 职责）；
+ * remove 用于"清除覆盖、恢复站点默认"，与写入某个具体值语义不同，别合并。
+ */
 import { STORAGE_KEYS } from '@/constants'
 import type { ThemeId } from '@/theme'
 import { isThemeId } from '@/theme'

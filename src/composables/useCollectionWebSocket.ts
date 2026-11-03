@@ -1,3 +1,11 @@
+/**
+ * 收件箱实时通道：把 WS 推送的文件增减/进度统一折算成 collectionStore 变更。
+ * 多人同开投递页与查看页时轮询既滞后又翻倍请求，故消息只在这里解包一次。
+ *
+ * 边界：重连有上限且仅当仍是同一 collectionCode 才重连；disconnect 必须先置空
+ * onclose 再 close，否则主动断开会被当成掉线又拉起重连。
+ * 刻意不做：非 JSON 消息静默忽略，也不在组件里维护第二份在线用户列表。
+ */
 import { ref, onUnmounted } from 'vue'
 import { useCollectionStore } from '@/stores/collectionStore'
 import { buildWebSocketUrl } from '@/utils/share-url'

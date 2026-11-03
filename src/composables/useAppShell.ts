@@ -1,3 +1,10 @@
+/**
+ * 应用外壳的进程级装配：主题、路由 loading、配置轮询、401 跳转都挂在根组件生命周期上。
+ * 这些是全局唯一的监听/定时器，若放进路由组件，每次进出页面都会重复注册且难以回收。
+ *
+ * 主题经 provide 下发供后代 inject，避免逐层透传；401 由 client 派发 window 事件后，
+ * 这里才带 redirect 跳登录（已在登录页则不动），保持匿名页面可被直接访问。
+ */
 import { computed, onMounted, onUnmounted, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AUTH_EVENTS } from '@/services'
