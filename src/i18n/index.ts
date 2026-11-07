@@ -57,7 +57,7 @@ export default i18n
 
 // 导出切换语言的函数
 export const setLocale = (locale: string) => {
-  i18n.global.locale.value = locale as 'zh-CN' | 'en-US'
+  i18n.global.locale.value = locale as 'zh-CN' | 'zh-TW' | 'en-US'
   writeStoredLocale(locale)
   document.documentElement.lang = locale
 }

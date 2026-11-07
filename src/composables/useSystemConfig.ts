@@ -106,7 +106,13 @@ export function useSystemConfig() {
       if (response.code === 200) {
         config.value = { ...config.value, ...newConfig }
         saveConfigToStorage(config.value)
-        alertStore.showAlert(t('manage.systemSettings.saveSuccess'), 'success')
+        // 后端会如实回传「保存了但不会立刻 / 根本不生效」的提示（启动期参数、
+        // dist 部署下的 themesSelect 等），不能只弹一句"保存成功"就完事。
+        const hints = ((response.detail as unknown) as { hints?: string[] } | null)?.hints || []
+        alertStore.showAlert(
+          t('manage.systemSettings.saveSuccess') + (hints.length ? '\n' + hints.join('\n') : ''),
+          'success'
+        )
         return true
       } else {
         throw new Error(response.message || t('manage.systemSettings.saveFailed'))

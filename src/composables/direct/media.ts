@@ -289,60 +289,6 @@ export function createDirectMedia(ctx: DirectConnectionContext) {
     }
   }
 
-  /**
-   * 把"方向位置"（user/environment）解析为最合适的摄像头 deviceId。
-   * 背景：安卓多摄手机 `facingMode:'environment'` 由系统选后摄，常偏向广角/长焦而非主摄
-   * （长焦/广角分辨率低于主摄 → 画面模糊）。主摄通常是同一方向分辨率最高的那颗。
-   * 通过枚举 + getCapabilities() 分辨率比较，选出该方向画质最好的主摄 deviceId。
-   * 解析失败/单摄设备返回 null（调用方回退 facingMode 直接采集）。
-   */
-  async function resolvePrimaryCamera(facingMode: 'user' | 'environment'): Promise<string | null> {
-    const devices = await listVideoInputDevices()
-    if (devices.length === 0) return null
-    // facingMode 方向标签（label 常见 Back/Rear/Front/后置/前置）
-    const isRear = facingMode === 'environment'
-    const target = devices.filter((d) => {
-      const label = d.label.toLowerCase()
-      const rear = /back|rear|后置|后摄|environment/i.test(label)
-      const front = /front|前置|前摄|user/i.test(label)
-      return isRear ? rear && !front : front && !rear
-    })
-    // 排除超广角/长焦/微距等多摄后缀，优先常规主摄
-    const nonMain = /wide|ultra|0\.5|0\.6|macro|tele|\d\.\d|\b2x\b|\b3x\b|hdr/i
-    const candidates = target.filter((d) => !nonMain.test(d.label.toLowerCase()))
-    const pool = candidates.length > 0 ? candidates : target
-    if (pool.length === 0) return null
-    // 主摄判定：分辨率最高优先（主摄物理分辨率通常最高）；分辨率相同 → label 数字最小（0=主摄）优先
-    let best: MediaDeviceInfo | null = null
-    let bestRes = -1
-    let bestIdx = Infinity
-    for (const d of pool) {
-      const label = d.label.toLowerCase()
-      // label 中出现的数字序号（如 "Back Camera 0" → 0），没有则视为 0（主摄优先）
-      const numMatch = label.match(/(\d+)\s*$/)
-      const idx = numMatch ? Number(numMatch[1]) : 0
-      let res = -1
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId } } })
-        const track = s.getVideoTracks()[0]
-        const caps = track?.getCapabilities?.()
-        const settings = track?.getSettings?.()
-        const width = caps?.width?.max || settings?.width || 0
-        const height = caps?.height?.max || settings?.height || 0
-        for (const t of s.getTracks()) t.stop()
-        res = (width || 0) * (height || 0)
-      } catch {
-        /* 该设备当前不可用，跳过 */
-      }
-      if (res > bestRes || (res === bestRes && idx < bestIdx)) {
-        bestRes = res
-        bestIdx = idx
-        best = d
-      }
-    }
-    return best?.deviceId || pool[0].deviceId
-  }
-
   /** 获取摄像头（视频通话）；优先带麦克风，权限/设备不支持时降级为仅视频。
    *  facingMode：'user'=前置 / 'environment'=后置（移动端多摄像头时由系统自动选择该方向
    *  最合适的摄像头并处理变焦，不精确指定 deviceId）；deviceId：桌面端精确指定设备。

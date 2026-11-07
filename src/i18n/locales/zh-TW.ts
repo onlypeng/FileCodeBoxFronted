@@ -275,10 +275,12 @@ export default {
       auditActionDelete: '刪除',
       auditActionLogin: '後台登錄',
       auditActionLoginFailed: '後台登錄失敗',
-      auditActionConfigUpdate: '配置变更',
+      auditActionConfigUpdate: '配置變更',
       auditActionRoomCacheUpload: '房間緩存上傳',
       auditActionRoomCacheDelete: '房間緩存刪除',
       auditActionRevoke: '撤銷分享',
+      auditActionExpireUpdate: '過期變更',
+      auditActionAdminUpdate: '後台修改',
       sortAsc: '升序',
       sortDesc: '降序',
       // 第三轮增強：文本预览 / 類型篩選 / 匯總統計 / 自動刷新

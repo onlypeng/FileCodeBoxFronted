@@ -277,6 +277,8 @@ export default {
       auditActionRoomCacheUpload: '房间缓存上传',
       auditActionRoomCacheDelete: '房间缓存删除',
       auditActionRevoke: '撤销分享',
+      auditActionExpireUpdate: '过期变更',
+      auditActionAdminUpdate: '后台修改',
       sortAsc: '升序',
       sortDesc: '降序',
       // 第三轮增强：文本预览 / 类型筛选 / 汇总统计 / 自动刷新

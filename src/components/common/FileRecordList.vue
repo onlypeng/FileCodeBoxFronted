@@ -123,7 +123,7 @@ const _isDark = () => Boolean(unref(isDarkMode))
 const { t } = useI18n()
 
 function isExpired(record: ReceivedFileRecord): boolean {
-  return record.isExpired || isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue)
+  return record.isExpired || isRecordExpired(record.expiredAt, record.expireStyle)
 }
 
 function fileCountText(record: ReceivedFileRecord): number {

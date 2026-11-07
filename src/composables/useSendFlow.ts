@@ -245,8 +245,7 @@ export function useSendFlow() {
       // 统一走发送文件接口：有文件传文件，仅备注（无文件）也走该接口（后端创建仅备注记录）
       // sendType 仅用于发件记录展示（名称/大小）；不再调用独立的文本发送接口
       const effectiveSendType: SendType = hasFile ? 'file' : 'text'
-      let response
-      response = await submitFile({
+      const response = await submitFile({
         selectedFile: selectedFile.value,
         selectedFiles: selectedFiles.value,
         remark,
@@ -261,8 +260,6 @@ export function useSendFlow() {
       if (!response) return
 
       if (response?.code === 200) {
-        const detail = response.detail as { code?: string; name?: string; is_multi_file?: boolean } | undefined
-
         // 统一处理（单文件和多文件共用一个取件码）
         const newRecord = buildSentRecord({
           response,

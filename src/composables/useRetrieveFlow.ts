@@ -6,6 +6,7 @@
  * 边界：记录"查看"用 getFileInfo 只读刷新，不消耗取件次数，只有 selectFile 才扣；
  * 下载直链带短期签名，过期/404 时把本地记录标为过期而非静默失败。
  */
+import { isAccessCodeRequiredError } from '@/utils/access-code-error'
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -141,14 +142,7 @@ export function useRetrieveFlow() {
   /** 设了口令的多文件分享：口令通过后拿到的短期下载 token */
   const multiFileAccessKey = ref('')
 
-  /** 是否"需要提取口令"的 403（后端 detail 固定含「提取口令」） */
-  const isAccessCodeRequiredError = (err: unknown): boolean => {
-    const response = (err as { response?: { status?: number; data?: { detail?: unknown } } })
-      ?.response
-    if (response?.status !== 403) return false
-    const detail = response.data?.detail
-    return typeof detail === 'string' && detail.includes('提取口令')
-  }
+  // 判定统一放到 utils/access-code-error（与 HomeView 共用）
 
   /** 执行取件：普通分享与口令分享共用（口令未设置时参数字段为空） */
   const performSelect = async (selectCode: string, accessCodeValue?: string) => {
@@ -480,7 +474,7 @@ export function useRetrieveFlow() {
   /** 单文件记录直接下载 */
   const downloadSingleRecordFile = (record: ReceivedFileRecord | null) => {
     if (!record) return
-    const expired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue) || record.isExpired
+    const expired = isRecordExpired(record.expiredAt, record.expireStyle) || record.isExpired
     if (!record.downloadUrl) {
       alertStore.showAlert(t('fileDetail.expired'), 'error')
       return
@@ -502,7 +496,7 @@ export function useRetrieveFlow() {
     const item = modal.items.find(i => i.id === itemId)
     const filename = item?.file_name || undefined
     void downloadFile(CollectionService.getMultiFileDownloadUrl(itemId, modal.code, recordModalKey), filename, {
-      isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle, modal.expireValue),
+      isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle),
       expiredMessage: t('fileDetail.expired')
     }).then(result => handleDownloadResult(result, modal.code))
   }
@@ -512,7 +506,7 @@ export function useRetrieveFlow() {
     const recordModalKey = modal.code === multiFileCode.value ? multiFileAccessKey.value : ''
     // 单文件与多文件统一打包下载
     void downloadFile(CollectionService.getMultiFileZipUrl(modal.code, recordModalKey), `${modal.code}.zip`, {
-      isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle, modal.expireValue),
+      isExpired: isRecordExpired(modal.expiredAt, modal.expireStyle),
       expiredMessage: t('fileDetail.expired')
     }).then(result => handleDownloadResult(result, modal.code))
   }
@@ -544,7 +538,7 @@ export function useRetrieveFlow() {
   }
 
   const downloadRecord = (record: ReceivedFileRecord) => {
-    const expired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue) || record.isExpired
+    const expired = isRecordExpired(record.expiredAt, record.expireStyle) || record.isExpired
 
     if (record.content) {
       // 文本内容直接下载（过期则禁止）

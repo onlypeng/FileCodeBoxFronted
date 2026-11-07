@@ -248,6 +248,7 @@
  * 仅带 ?retrieve=/?code= 的链接在 onMounted 自动查一次，手动输入必须点查询；
  * 口令需求的判定依赖后端 403 detail 含「提取口令」字样，属于字符串契约。
  */
+import { isAccessCodeRequiredError } from '@/utils/access-code-error'
 import { inject, ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -282,7 +283,7 @@ import type { DirectRecord, ReceivedFileRecord, CollectionRecord } from '@/types
 import type { MultiFileItem, CollectionManageResponse, CollectionRetrieveResponse } from '@/types/collection'
 import { getErrorMessage, isRecordExpired, formatFileSize } from '@/utils/common'
 import { renderMarkdownPreview } from '@/utils/content-preview'
-import { buildAppUrl, buildDownloadUrl, buildRetrieveUrl, buildWgetCommand } from '@/utils/share-url'
+import { buildDownloadUrl, buildRetrieveUrl, buildWgetCommand } from '@/utils/share-url'
 import { downloadFile, downloadBlob } from '@/utils/download-action'
 
 const isDarkMode = inject('isDarkMode')
@@ -331,14 +332,7 @@ const retryAccessCode = ref('')
 /** 设了口令的多文件分享：取件成功后拿到的短期下载 token（单项/打包下载要带上） */
 const multiFileAccessKey = ref('')
 
-/** 是否"需要提取口令"的 403（后端 detail 固定含「提取口令」） */
-const isAccessCodeRequiredError = (err: unknown): boolean => {
-  const response = (err as { response?: { status?: number; data?: { detail?: unknown } } })
-    ?.response
-  if (response?.status !== 403) return false
-  const detail = response.data?.detail
-  return typeof detail === 'string' && detail.includes('提取口令')
-}
+// 判定统一放到 utils/access-code-error，避免两处各自维护一份随文案变化的字符串契约
 
 /** 提交口令：把码和口令重新灌回取件入口再走一遍完整流程 */
 const submitAccessCode = async (value: string) => {
@@ -409,8 +403,6 @@ const isCollectionRetrieve = ref(false)
 const collectionCodeForDownload = ref('')
 
 const { receiveData: records } = storeToRefs(fileStore)
-
-const baseUrl = buildAppUrl()
 
 const createRecord = (detail: {
   code: string
@@ -695,13 +687,6 @@ const handleRetrieveSubmit = async () => {
   }
 }
 
-const closeResult = () => {
-  selectedRecord.value = null
-  isMultiFile.value = false
-  multiFileItems.value = []
-  multiFileCode.value = ''
-}
-
 const closeMultiFileModal = () => {
   showMultiFileModal.value = false
   multiFileIsExpired.value = false
@@ -736,7 +721,7 @@ const downloadSingleFileRecord = () => {
     alertStore.showAlert(t('fileDetail.expired'), 'error')
     return
   }
-  const expired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue) || record.isExpired
+  const expired = isRecordExpired(record.expiredAt, record.expireStyle) || record.isExpired
   void downloadFile(buildDownloadUrl(record.downloadUrl), record.filename || undefined, {
     isExpired: expired,
     expiredMessage: t('fileDetail.expired'),
@@ -758,7 +743,7 @@ const downloadMultiFileItem = (itemId: number) => {
     void downloadFile(retrieveUrls.getDownloadUrl(itemId, collectionCodeForDownload.value), filename, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
   } else {
     void downloadFile(retrieveUrls.getMultiFileDownloadUrl(itemId, multiFileCode.value, multiFileAccessKey.value), filename, {
-      isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value, multiFileExpireValue.value),
+      isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value),
       expiredMessage: t('fileDetail.expired')
     })
   }
@@ -770,7 +755,7 @@ const downloadMultiFileZip = () => {
     void downloadFile(retrieveUrls.getZipDownloadUrl(collectionCodeForDownload.value), undefined, { expiredMessage: t('collection.retrieve.expired') || '收件箱已过期' })
   } else {
     void downloadFile(retrieveUrls.getMultiFileZipUrl(multiFileCode.value, multiFileAccessKey.value), `${multiFileCode.value}.zip`, {
-      isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value, multiFileExpireValue.value),
+      isExpired: isRecordExpired(multiFileExpiredAt.value, multiFileExpireStyle.value),
       expiredMessage: t('fileDetail.expired')
     })
   }
@@ -789,7 +774,7 @@ const viewDetails = async (record: ReceivedFileRecord) => {
   // 打开记录查看时保持记录抽屉打开，不自动关闭
 
   // 前端预检：本地已过期 → 标记"已过期"，弹窗内展示过期横幅并继续用本地缓存展示
-  const localExpired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue)
+  const localExpired = isRecordExpired(record.expiredAt, record.expireStyle)
   if (localExpired) {
     record.isExpired = true
   }
@@ -990,7 +975,7 @@ const deleteRecord = (id: number) => {
 }
 
 const downloadRecord = (record: ReceivedFileRecord) => {
-  const expired = isRecordExpired(record.expiredAt, record.expireStyle, record.expireValue) || record.isExpired
+  const expired = isRecordExpired(record.expiredAt, record.expireStyle) || record.isExpired
 
   if (record.content) {
     if (expired) {

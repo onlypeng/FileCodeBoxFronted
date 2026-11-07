@@ -77,7 +77,7 @@ export async function hashBlob(blob: Blob, chunkSize = DEFAULT_CHUNK): Promise<s
     const request: HashWorkerRequest = { id, blob, chunkSize: size }
     try {
       w.postMessage(request)
-    } catch (e) {
+    } catch {
       pending.delete(id)
       workerBroken = true
       hashOnMainThread(blob, size).then(resolve, reject)

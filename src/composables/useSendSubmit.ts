@@ -140,7 +140,7 @@ export function useSendSubmit(options: UseSendSubmitOptions) {
           detail: {
             code: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).code,
             name: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).name,
-            is_multi_file: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).is_multi_file || true
+            is_multi_file: (res.detail as { code?: string; name?: string; is_multi_file?: boolean }).is_multi_file ?? true
           }
         }
       } else {

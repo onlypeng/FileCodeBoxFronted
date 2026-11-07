@@ -70,26 +70,6 @@ const expiredRetentionValueStr = computed({
   set: (v: string) => { config.value.expiredRetentionValue = Math.max(1, parseInt(v) || 1) }
 })
 
-/** 中转限速对应的视频流质量建议（按各档位视频码率换算；含超清/原画） */
-const relaySpeedSuggestion = computed(() => {
-  const limitKb = Number(config.value.directRelaySpeedLimit) || 0
-  if (limitKb <= 0) return t('manage.settings.relaySpeedUnlimited')
-  const bps = limitKb * 1024 // KB/s → bps
-  // 与共享视频各档位码率对比，给出匹配档位
-  const tierLabel = (tier: string) => {
-    const map: Record<string, string> = {
-      low: t('manage.settings.qualityLow'),
-      sd: t('manage.settings.qualitySd'),
-      hd: t('manage.settings.qualityHd'),
-      uhd: t('manage.settings.qualityUhd'),
-      origin: t('manage.settings.qualityOrigin'),
-    }
-    return map[tier] || t('manage.settings.qualityLow')
-  }
-  const matched = matchedQualityTier.value
-  return matched ? t('manage.settings.relaySpeedMatch', { tier: tierLabel(matched) }) : t('manage.settings.relaySpeedMatch', { tier: tierLabel('low') })
-})
-
 /** 当前限速匹配的档位（low/sd/hd/uhd/origin；不限速 → null） */
 const matchedQualityTier = computed<string | null>(() => {
   const limitKb = Number(config.value.directRelaySpeedLimit) || 0

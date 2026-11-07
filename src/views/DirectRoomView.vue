@@ -933,7 +933,7 @@
                 ></video>
                 <!-- 摄像头文字：视频左上角 -->
                 <span class="absolute top-1 left-1 px-1 py-px rounded text-[9px] bg-black/50 text-white leading-none">
-                  {{ multiCameraPreviewLabel(i, previewKeys.length, key) }}
+                  {{ multiCameraPreviewLabel(i, previewKeys.length) }}
                 </span>
               </div>
             </div>
@@ -1054,7 +1054,6 @@ import {
   Maximize2Icon,
   Minimize2Icon,
   ExpandIcon,
-  ChevronDownIcon,
   XIcon,
   Volume2Icon,
   VolumeXIcon,
@@ -1068,7 +1067,7 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import ThemeDropdown from '@/components/common/ThemeDropdown.vue'
 import { useDirectStore } from '@/stores/directStore'
 import { useConfigStore } from '@/stores/configStore'
-import { CACHE_HOUR_OPTIONS, useDirectConnection, useRoomCacheFiles } from '@/composables'
+import { useDirectConnection, useRoomCacheFiles } from '@/composables'
 import { useAlertStore } from '@/stores/alertStore'
 import { useFileDataStore } from '@/stores/fileData'
 import { STORAGE_KEYS } from '@/constants'
@@ -1316,9 +1315,6 @@ const handleDrop = (event: DragEvent) => {
  * 需要指定其他时长，请到右上角「文件管理」里上传（那里可手动选择过期时间）。
  */
 const cacheHours = ref(Number(config.value.roomCacheDefaultHours) || 72)
-/** 后台是否允许房间文件缓存（关闭时不再显示缓存时长选择，发送仅走 P2P） */
-const cacheEnabledForRoom = computed(() => Number(config.value.roomCacheEnabled) !== 0)
-
 /** 判断文件能否缓存到服务器：后台总开关 + 单文件大小上限（超限只能 P2P 直传） */
 function canCacheFile(file: File): boolean {
   if (Number(config.value.roomCacheEnabled) === 0) return false
@@ -1432,16 +1428,6 @@ const formatBytes = (bytes: number): string => {
 /** 从缓存源收取文件：在线来源 ≥2 且文件较大时多源并行加速（分 ≤3 段），否则单源整份收取。
  *  缓存文件以"文件消息"形式直接放入共享文件消息框（不单独展示面板）。 */
 const cacheRequested = ref<Set<string>>(new Set())
-
-/** 缓存文件消息框的发送者行：直接显示共享/持有该文件的用户名（旧记录无昵称时在线成员映射兜底） */
-const cacheSourceText = (cf: { holders: string[]; holder_names?: string[] }): string => {
-  let names: string[] = (cf.holder_names || []).filter(Boolean)
-  if (names.length === 0) {
-    // 旧记录无昵称：用在线成员映射 holder client_id
-    names = (cf.holders || []).map((h) => directStore.members.find((m) => m.client_id === h)?.nickname || '').filter(Boolean)
-  }
-  return names.length > 0 ? names.join('、') : t('direct.room.roomCacheTitle')
-}
 
 const fetchCachedFile = async (cf: {
   transfer_id: string
@@ -2150,7 +2136,7 @@ const previewKeys = computed(() => {
 })
 
 /** 预览格内标签：多摄 → "摄像头 N"；单摄 → "实时预览" */
-const multiCameraPreviewLabel = (index: number, count: number, key: string): string => {
+const multiCameraPreviewLabel = (index: number, count: number): string => {
   if (count > 1) return `${t('direct.quality.videoCamera')} ${index + 1}`
   return t('direct.quality.configPreview')
 }

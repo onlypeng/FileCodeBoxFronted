@@ -1120,7 +1120,6 @@
  * 不在前端缓存全量列表，翻页与刷新都重新问后端要。
  */
 import { inject, ref, computed, watch, onMounted, type Ref } from 'vue'
-import type { Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   CopyIcon,
@@ -1177,8 +1176,6 @@ const tabLabelKey: Record<TabKey, string> = {
   rooms: 'admin.unifiedManage.roomManage',
   audit: 'admin.unifiedManage.auditLog',
 }
-
-const isRoomTab = computed(() => activeTab.value === 'rooms')
 
 // 当前搜索关键字（跨 Tab 复用同一输入框）
 const currentKeyword = ref('')
@@ -1276,6 +1273,8 @@ const auditActionOptions = computed(() => [
   { value: 'room_cache_upload', label: t('admin.unifiedManage.auditActionRoomCacheUpload') },
   { value: 'room_cache_delete', label: t('admin.unifiedManage.auditActionRoomCacheDelete') },
   { value: 'revoke', label: t('admin.unifiedManage.auditActionRevoke') },
+  { value: 'expire_update', label: t('admin.unifiedManage.auditActionExpireUpdate') },
+  { value: 'admin_update', label: t('admin.unifiedManage.auditActionAdminUpdate') },
 ])
 
 const isFileExpired = (f: any) => {
@@ -1319,7 +1318,7 @@ const loadFiles = async () => {
       }))
       fileParams.value.total = res.detail.total
     }
-  } catch (err) {
+  } catch {
     alertStore.showAlert(t('manage.fileManage.loadFileListFailed'), 'error')
   }
 }
@@ -1330,7 +1329,7 @@ const deleteFile = async (id: number) => {
     await adminApi.deleteAdminFile(id)
     selectedFileIds.value.delete(id)
     await loadFiles()
-  } catch (err) {
+  } catch {
     alertStore.showAlert(t('manage.fileManage.deleteFailed'), 'error')
   }
 }
@@ -1343,13 +1342,12 @@ const batchDeleteFiles = async () => {
     await Promise.all(ids.map((id) => adminApi.deleteAdminFile(id)))
     selectedFileIds.value = new Set()
     await loadFiles()
-  } catch (err) {
+  } catch {
     alertStore.showAlert(t('manage.fileManage.deleteFailed'), 'error')
   }
 }
 
 // ============ 文件列表增强：状态筛选 / 排序 / 复制链接 / 批量 / 查看 / 延长 / 管理 ============
-type StatusFilter = 'all' | 'active' | 'expired'
 /** 状态筛选（多选下拉，置于搜索按钮前；选择后逗号拼接作为查询条件携带到后端） */
 const statusFilterSel = ref<string[]>([])
 const statusFilterOptions = computed(() => [
@@ -1359,15 +1357,8 @@ const statusFilterOptions = computed(() => [
 /** 状态查询参数：多选逗号分隔（空或两者都选=全部） */
 const statusQueryParam = computed(() => statusFilterSel.value.join(','))
 
-const fileStatusFilters = computed(() => [
-  { value: 'all' as StatusFilter, label: t('admin.unifiedManage.statusAll') },
-  { value: 'active' as StatusFilter, label: t('admin.unifiedManage.statusActive') },
-  { value: 'expired' as StatusFilter, label: t('admin.unifiedManage.statusExpired') },
-])
 const fileSort = ref<SortState | null>(null)
 const visibleFileList = computed(() => sortList(fileList.value, fileSort.value))
-const fileActiveCount = computed(() => fileList.value.filter((f) => !isFileExpired(f)).length)
-const fileExpiredCount = computed(() => fileList.value.length - fileActiveCount.value)
 const fileTotalSize = computed(() => fileList.value.reduce((s, f) => s + (Number(f.size) || 0), 0))
 const fileTotalUsed = computed(() => fileList.value.reduce((s, f) => s + (Number(f.used_count) || 0), 0))
 const onFilePageSize = (v: string) => {
@@ -1584,12 +1575,6 @@ const showMultiFileModal = ref(false)
 const selectedMultiFile = ref<any>(null)
 const multiFileItems = ref<Array<{ id: number; file_name: string; file_size: number }>>([])
 
-const showMultiFileItems = (file: any) => {
-  selectedMultiFile.value = file
-  multiFileItems.value = file.file_items || []
-  showMultiFileModal.value = true
-}
-
 // ============ 收件箱列表 ============
 const collectionList = ref<AdminCollectionItem[]>([])
 const collectionParams = ref({ page: 1, size: 10, total: 0, keyword: '' })
@@ -1599,8 +1584,6 @@ const collectionSort = ref<SortState | null>(null)
 const visibleCollectionList = computed(() => {
   return sortList(collectionList.value, collectionSort.value)
 })
-const collectionActiveCount = computed(() => collectionList.value.filter((c) => !c.is_expired).length)
-const collectionExpiredCount = computed(() => collectionList.value.length - collectionActiveCount.value)
 const allCollectionsSelected = computed(
   () => collectionList.value.length > 0 && collectionList.value.every((c) => selectedCollectionIds.value.has(c.id))
 )
@@ -1658,7 +1641,7 @@ const loadCollections = async () => {
       }))
       collectionParams.value.total = res.detail.total
     }
-  } catch (err) {
+  } catch {
     alertStore.showAlert(t('admin.unifiedManage.loadFailed'), 'error')
   }
 }
@@ -1668,7 +1651,7 @@ const deleteCollection = async (id: number) => {
   try {
     await adminApi.deleteCollection(id)
     await loadCollections()
-  } catch (err) {
+  } catch {
     alertStore.showAlert(t('admin.unifiedManage.deleteFailed'), 'error')
   }
 }
@@ -1679,7 +1662,7 @@ const showCollectionFiles = async (col: AdminCollectionItem) => {
     const res = await adminApi.getAdminCollectionFiles(col.id)
     collectionFiles.value = res.detail || []
     showFilesModal.value = true
-  } catch (err) {
+  } catch {
     alertStore.showAlert(t('admin.unifiedManage.loadFilesFailed'), 'error')
   }
 }
@@ -1794,6 +1777,8 @@ const auditActionLabel = (action: string) => {
     room_cache_upload: 'admin.unifiedManage.auditActionRoomCacheUpload',
     room_cache_delete: 'admin.unifiedManage.auditActionRoomCacheDelete',
     revoke: 'admin.unifiedManage.auditActionRevoke',
+    expire_update: 'admin.unifiedManage.auditActionExpireUpdate',
+    admin_update: 'admin.unifiedManage.auditActionAdminUpdate',
   }
   const key = map[action]
   return key ? t(key) : action

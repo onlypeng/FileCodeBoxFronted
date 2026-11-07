@@ -133,7 +133,7 @@ const props = withDefaults(
   }
 )
 
-const emit = defineEmits<{ close: [] }>()
+defineEmits<{ close: [] }>()
 
 const isDarkMode = inject('isDarkMode')
 const { t } = useI18n()

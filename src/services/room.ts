@@ -8,10 +8,7 @@
  */
 import api from './client'
 import type { ApiResponse } from '@/types'
-import type {
-  AdminRoomItem,
-  AdminRoomListResponse,
-} from '@/types/room'
+import type { AdminRoomListResponse } from '@/types/room'
 
 export class RoomService {
   /** 后台：统一房间列表（临时房间房间） */

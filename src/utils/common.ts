@@ -265,8 +265,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
  */
 export function isRecordExpired(
   expiredAt: string | null | undefined,
-  expireStyle?: string,
-  expireValue?: number
+  expireStyle?: string
 ): boolean {
   if (!expiredAt) return false
   if (expireStyle === 'forever') return false

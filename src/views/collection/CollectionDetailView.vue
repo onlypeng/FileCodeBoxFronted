@@ -223,7 +223,6 @@ import { ArrowLeftIcon, LoaderIcon, Settings } from 'lucide-vue-next'
 import { useCollectionStore } from '@/stores/collectionStore'
 import { useAlertStore } from '@/stores/alertStore'
 import { useConfirmStore } from '@/stores/confirmStore'
-import { useConfigStore } from '@/stores/configStore'
 import { formatFileSize as formatSize } from '@/utils/common'
 import { useCollectionWebSocket, useRetrieveUrls } from '@/composables'
 import { downloadFile } from '@/utils/download-action'
@@ -239,8 +238,6 @@ const router = useRouter()
 const alertStore = useAlertStore()
 const confirmStore = useConfirmStore()
 const collectionStore = useCollectionStore()
-const configStore = useConfigStore()
-const config = computed(() => configStore.config)
 const { isConnected: wsConnected, connect, disconnect, onlineUsers } = useCollectionWebSocket()
 
 const retrieveUrls = useRetrieveUrls()

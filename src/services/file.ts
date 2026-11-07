@@ -30,30 +30,6 @@ import type {
   UploadProgress
 } from '@/types'
 
-/**
- * form-urlencoded 请求头与配套的编码函数。
- *
- * 保留原因：后端少数接口只认 form-urlencoded 而不认 JSON。目前本文件内没有调用方，
- * 删除前请先确认没有其它分支引用。
- *
- * 注意 `String(value)` 会把 undefined/null 渲染成字面量 "undefined"，
- * 调用方必须先过滤空值——这里刻意不自动过滤：静默丢字段会让后端以缺参报错，
- * 比传错值更难排查。
- */
-const urlEncodedConfig = {
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded'
-  }
-}
-
-const toUrlEncodedForm = (data: Record<string, string | number>) => {
-  const form = new URLSearchParams()
-  Object.entries(data).forEach(([key, value]) => {
-    form.append(key, String(value))
-  })
-  return form
-}
-
 export class FileService {
   /**
    * 单文件一次性上传，**不带**过期配置（用后端的默认有效期）。

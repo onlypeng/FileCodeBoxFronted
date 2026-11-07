@@ -5,9 +5,7 @@
  * 服务器中转节点只看到密文，无法解密文件内容。
  */
 import {
-  decryptRelayChunk,
   deriveRelayAESKey,
-  encryptRelayChunk,
   exportPublicKey,
   generateRelayKeyPair,
   importPublicKey,

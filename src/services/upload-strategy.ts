@@ -63,9 +63,9 @@ export const uploadChunkedFile = async (
     throw new Error(options.messages?.initFailed || 'Init chunk upload failed')
   }
 
-  if (initResponse.detail?.existed) {
-    return initResponse
-  }
+  // 秒传/断点续传命中时也不能提前返回：complete 才是提交过期策略、备注与
+  // 提取口令的唯一入口，跳过它会生成一条「没有过期设置的孤儿分享」。
+  // existed 只表示分片已在服务端（uploaded_chunks 会装满），下面的循环自然跳过。
 
   const initDetail = initResponse.detail
   const uploadId = initDetail?.upload_id

@@ -106,7 +106,7 @@ const props = defineProps<{
   roomCode: string
 }>()
 
-const emit = defineEmits<{
+defineEmits<{
   close: []
   'enter-room': [roomCode: string]
 }>()

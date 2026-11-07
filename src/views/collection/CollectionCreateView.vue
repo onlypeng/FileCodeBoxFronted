@@ -194,13 +194,47 @@ const maxFilesInput = computed({
 const expireStyle = ref(config.value.expireStyle[0] || 'day')
 const expireValue = ref(String(config.value.collectionDefaultExpireDays || 7))
 
+// 后台「收件箱默认配置」可能在页面已打开时被管理员改动（导航前 / 轮询同步）。
+// 组件用 ref() 一次性初始化，store 更新后输入框不会自动跟随，这里补一条 watch：
+// 只有当前值仍等于「上一次下发的默认值」（即用户没手动改过）才跟随新配置，
+// 用户填过的值不能被后台变更覆盖。
+let lastDefaultMaxFiles = Number(config.value.collectionDefaultMaxFiles) || 20
+let lastDefaultExpireDays = Number(config.value.collectionDefaultExpireDays) || 7
+let lastDeliveryExpireDays = Number(config.value.collectionDefaultExpireDays) || 7
+let lastRetrieveExpireDays = Number(config.value.collectionDefaultExpireDays) || 7
+watch(
+  () => [config.value.collectionDefaultMaxFiles, config.value.collectionDefaultExpireDays] as const,
+  ([nextMaxFiles, nextExpireDays]) => {
+    const nextMax = Number(nextMaxFiles) || 20
+    const nextDays = Number(nextExpireDays) || 7
+    if (maxFiles.value === lastDefaultMaxFiles) {
+      maxFiles.value = nextMax
+    }
+    if (Number(expireValue.value) === lastDefaultExpireDays) {
+      expireValue.value = String(nextDays)
+    }
+    if (Number(deliveryExpireValue.value) === lastDeliveryExpireDays) {
+      deliveryExpireValue.value = String(nextDays)
+    }
+    if (Number(retrieveExpireValue.value) === lastRetrieveExpireDays) {
+      retrieveExpireValue.value = String(nextDays)
+    }
+    lastDefaultMaxFiles = nextMax
+    lastDefaultExpireDays = nextDays
+    lastDeliveryExpireDays = nextDays
+    lastRetrieveExpireDays = nextDays
+  }
+)
+
 // 投件码过期配置 - 受后台设置控制
 const deliveryExpireStyle = ref(config.value.expireStyle[0] || 'day')
-const deliveryExpireValue = ref('7')
+// 子码默认有效期跟随收件箱默认值：后台把默认有效期调小时，若子码仍显示 7 天，
+// 页面会因「子码过期超过收件箱」直接禁用提交按钮，配置改了反而创建不了。
+const deliveryExpireValue = ref(String(config.value.collectionDefaultExpireDays || 7))
 
 // 取件码过期配置 - 受后台设置控制
 const retrieveExpireStyle = ref(config.value.expireStyle[0] || 'day')
-const retrieveExpireValue = ref('7')
+const retrieveExpireValue = ref(String(config.value.collectionDefaultExpireDays || 7))
 
 const isCreating = ref(false)
 const createdResult = ref<CreateCollectionResponse | null>(null)

@@ -328,7 +328,7 @@ const qrValue = computed(() => props.code ? `${baseUrl}/?code=${props.code}` : '
 const collectionRetrieveQrValue = computed(() => props.code ? `${baseUrl}/collection/retrieve/${props.code}` : '')
 const collectionDeliveryQrValue = computed(() => (collection.value?.deliveryCode ? `${baseUrl}/delivery/upload/${collection.value.deliveryCode}` : ''))
 const collectionManageQrValue = computed(() => (collection.value?.collectionCode ? `${baseUrl}/collection/manage/${collection.value.collectionCode}` : ''))
-const isExpired = computed(() => props.isExpired ?? isRecordExpired(props.expiredAt, props.expireStyle, props.expireValue))
+const isExpired = computed(() => props.isExpired ?? isRecordExpired(props.expiredAt, props.expireStyle))
 /** 过期横幅文案：按次分享次数用尽 → "下载次数已用完"；其余 → "该取件码已过期" */
 const expiredText = computed(() =>
   props.expireStyle === 'count'

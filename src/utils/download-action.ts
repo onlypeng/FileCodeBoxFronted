@@ -174,8 +174,8 @@ async function verifyDownloaded(blob: Blob, expectedHash: string, notify?: Downl
 
 /** 需要从错误文本中过滤掉的无关内容（应用名、通用词汇等） */
 const NOISE_PATTERNS = [
-  /驿码[\s\-]*FileCodeBox?/g,
-  /FileCodeBox[\s\-]*驿码/g,
+  /驿码[\s-]*FileCodeBox?/g,
+  /FileCodeBox[\s-]*驿码/g,
   /口令传送箱/g,
   /匿名口令分享/g,
   /^[\s\r\n]{1,5}$/gm,  // 纯空白行

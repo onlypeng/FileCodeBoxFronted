@@ -28,10 +28,17 @@ export const useConfigStore = defineStore('config', () => {
   const uploadSizeLimit = computed(() => config.value.uploadSize)
 
   const updateConfig = (nextConfig: Partial<ConfigState>) => {
+    // toPublicConfig 会为「公共配置没下发」的字段产出 undefined；直接展开会把
+    // store 里已有的值（或 DEFAULT 兜底）抹掉。典型场景：公共配置漏下发
+    // uploadChunkSize 时，管理员改过的分片大小被覆盖成 undefined，前端退回
+    // 默认 5MB 却与服务端上界不一致。这里只合并真正有值的字段。
+    const patch = Object.fromEntries(
+      Object.entries(toPublicConfig(nextConfig)).filter(([, v]) => v !== undefined)
+    ) as Partial<PublicConfig>
     config.value = {
       ...DEFAULT_PUBLIC_CONFIG,
       ...config.value,
-      ...toPublicConfig(nextConfig)
+      ...patch
     }
     writeStoredConfig(config.value)
   }

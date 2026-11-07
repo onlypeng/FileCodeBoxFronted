@@ -23,6 +23,7 @@ import { ROUTE_NAMES, ROUTES } from '@/constants'
 import { readStoredToken, clearStoredToken } from '@/utils/auth-storage'
 import { useAdminStore } from '@/stores/adminStore'
 import { AuthService } from '@/services'
+import { syncPublicConfig } from '@/composables/usePublicConfigBootstrap'
 
 const publicPageMeta = {
   showGlobalControls: true,
@@ -218,6 +219,12 @@ async function isTokenValid(): Promise<boolean> {
 // 另外：verify 的网络异常按"无效"处理（catch 返回 false），宁可让用户重新登录，
 // 也不放行到需要鉴权的页面。
 router.beforeEach(async (to) => {
+  // 管理员改完后台配置后，访客只要进行下一步页面操作就要拿到新值。导航前
+  // await 一次公共配置同步，路由组件挂载时 configStore 已是最新，避免
+  // 「公共配置已变、页面仍显示旧值」的陈旧快照。网络异常由 syncPublicConfig
+  // 静默吞掉，不会阻塞导航。
+  await syncPublicConfig()
+
   if (to.meta.requiresAuth) {
     const valid = await isTokenValid()
     if (!valid) {
