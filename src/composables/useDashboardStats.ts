@@ -31,10 +31,16 @@ const emptyDashboardData = (): DashboardViewData => ({
   openUpload: 0,
   enableChunk: 0,
   maxSaveSeconds: 0,
+  dedupLogicalBytes: 0,
+  dedupPhysicalBytes: 0,
+  dedupSavedBytes: 0,
+  dedupRate: 0,
+  dedupUniqueFiles: 0,
   topSuffixes: [],
   recentFiles: [],
   recentCollections: [],
   storageUsedText: '0 Bytes',
+  dedupSavedText: '0 Bytes',
   yesterdaySizeText: '0 Bytes',
   todaySizeText: '0 Bytes',
   uploadSizeLimitText: '0 Bytes',
@@ -115,6 +121,13 @@ export function useDashboardStats() {
     dashboardData.activeRooms = toNumber(detail.activeRooms)
     dashboardData.todayRooms = toNumber(detail.todayRooms)
     dashboardData.onlineRooms = toNumber(detail.onlineRooms)
+
+    dashboardData.dedupLogicalBytes = toNumber(detail.dedupLogicalBytes)
+    dashboardData.dedupPhysicalBytes = toNumber(detail.dedupPhysicalBytes)
+    dashboardData.dedupSavedBytes = toNumber(detail.dedupSavedBytes)
+    dashboardData.dedupRate = toNumber(detail.dedupRate)
+    dashboardData.dedupUniqueFiles = toNumber(detail.dedupUniqueFiles)
+    dashboardData.dedupSavedText = formatFileSize(dashboardData.dedupSavedBytes)
 
     dashboardData.storageUsedText = formatFileSize(dashboardData.storageUsed)
     dashboardData.yesterdaySizeText = formatFileSize(dashboardData.yesterdaySize)

@@ -1308,7 +1308,15 @@ const loadFiles = async () => {
   try {
     const res = await adminApi.getAdminFileList({ ...fileParams.value, status: statusQueryParam.value })
     if (res.detail) {
-      fileList.value = res.detail.data.map((f: any) => ({
+      // 删空最后一页后回退页码，否则会停在空白页（total 已减但 page 没变）
+      const total = Number(res.detail.total || 0)
+      const maxPage = Math.max(1, Math.ceil(total / fileParams.value.size))
+      if (fileParams.value.page > maxPage) {
+        fileParams.value.page = maxPage
+        await loadFiles()
+        return
+      }
+      fileList.value = (res.detail.data || []).map((f: any) => ({
         ...f,
         displaySize: formatFileSize(f.size),
         displayExpiredAt: f.expire_style === 'count'
@@ -1316,7 +1324,7 @@ const loadFiles = async () => {
           : f.expired_at ? formatTimestamp(f.expired_at) : t('send.expiration.units.forever'),
         displayCreatedAt: f.created_at ? formatTimestamp(f.created_at) : '-',
       }))
-      fileParams.value.total = res.detail.total
+      fileParams.value.total = total
     }
   } catch {
     alertStore.showAlert(t('manage.fileManage.loadFileListFailed'), 'error')
@@ -1635,11 +1643,18 @@ const loadCollections = async () => {
   try {
     const res = await adminApi.getAdminCollectionList({ ...collectionParams.value, status: statusQueryParam.value })
     if (res.detail) {
-      collectionList.value = (res.detail.data as any[]).map((c) => ({
+      const total = Number(res.detail.total || 0)
+      const maxPage = Math.max(1, Math.ceil(total / collectionParams.value.size))
+      if (collectionParams.value.page > maxPage) {
+        collectionParams.value.page = maxPage
+        await loadCollections()
+        return
+      }
+      collectionList.value = ((res.detail.data || []) as any[]).map((c) => ({
         ...c,
         displayCreatedAt: c.created_at ? formatTimestamp(c.created_at) : '-',
       }))
-      collectionParams.value.total = res.detail.total
+      collectionParams.value.total = total
     }
   } catch {
     alertStore.showAlert(t('admin.unifiedManage.loadFailed'), 'error')
@@ -1742,7 +1757,14 @@ const loadRooms = async () => {
   try {
     const res = await adminApi.getAdminRoomList({ ...roomParams.value, status: statusQueryParam.value })
     if (res.detail) {
-      rooms.value = res.detail.data.map((r) => ({
+      const total = Number(res.detail.total || 0)
+      const maxPage = Math.max(1, Math.ceil(total / roomParams.value.size))
+      if (roomParams.value.page > maxPage) {
+        roomParams.value.page = maxPage
+        await loadRooms()
+        return
+      }
+      rooms.value = (res.detail.data || []).map((r) => ({
         ...r,
         displayCreatedAt: r.created_at ? formatTimestamp(r.created_at) : '-',
         displayExpiredAt: r.is_expired
@@ -1753,7 +1775,7 @@ const loadRooms = async () => {
               ? formatTimestamp(r.expired_at)
               : t('send.expiration.units.forever'),
       }))
-      roomParams.value.total = res.detail.total
+      roomParams.value.total = total
     }
   } catch {
     alertStore.showAlert(t('admin.unifiedManage.loadFailed'), 'error')

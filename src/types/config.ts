@@ -58,6 +58,8 @@ export interface ConfigState {
   enableChunk: number
   /** 上传分片大小（MB，默认 5；仅 enableChunk=1 时分片上传生效） */
   uploadChunkSize: number
+  /** 未完成分片会话回收时长（小时，>=1；由后台任务清理） */
+  chunkExpireHours: number
   s3_access_key_id: string
   background: string
   showAdminAddr: number

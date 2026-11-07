@@ -21,6 +21,8 @@ export type PublicConfig = SystemConfig & {
   enableChunk: number
   /** 上传分片大小（MB，默认 5；仅 enableChunk=1 时分片上传生效） */
   uploadChunkSize: number
+  /** 未完成分片会话回收时长（小时，>=1；由后台任务清理） */
+  chunkExpireHours: number
   uploadRateLimitCount: number
   uploadMinute: number
   maxCollectionFiles: number
@@ -86,6 +88,7 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   maxTextLength: 200000,
   expiredRetentionStyle: 'day',
   expiredRetentionValue: 1,
+  chunkExpireHours: 24,
   collectionDefaultMaxFiles: 20,
   collectionDefaultExpireDays: 7,
   codeLength: 6,
@@ -158,6 +161,7 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   maxTextLength: 200000,
   expiredRetentionStyle: 'day',
   expiredRetentionValue: 1,
+  chunkExpireHours: 24,
   directRelayEnabled: 1,
   directRelaySpeedLimit: 0,
   directRelayChunkSize: 64,
@@ -193,6 +197,7 @@ export function toPublicConfig(config: Partial<ConfigState> | null | undefined):
     openUpload: config.openUpload,
     enableChunk: config.enableChunk,
     uploadChunkSize: config.uploadChunkSize,
+    chunkExpireHours: config.chunkExpireHours,
     uploadRateLimitCount: config.uploadRateLimitCount,
     uploadMinute: config.uploadMinute,
     maxCollectionFiles: config.maxCollectionFiles,

@@ -760,6 +760,20 @@ const onThemeChange = async (event: Event) => {
                   {{ t('manage.settings.uploadChunkSizeHint') }}
                 </p>
               </div>
+
+              <div class="space-y-2">
+                <SettingNumberInput
+                  :model-value="config.chunkExpireHours"
+                  :min="1"
+                  :max="720"
+                  :label="t('manage.settings.chunkExpireHours')"
+                  :suffix="t('common.hour')"
+                  @update:model-value="(v) => (config.chunkExpireHours = Number(v))"
+                />
+                <p class="text-xs" :class="[isDarkMode ? 'text-gray-500' : 'text-gray-400']">
+                  {{ t('manage.settings.chunkExpireHoursHint') }}
+                </p>
+              </div>
             </div>
           </div>
 

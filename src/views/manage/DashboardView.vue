@@ -178,6 +178,10 @@
               :label="t('admin.dashboard.expiredRetention')"
               :value="maxSaveTimeText"
             />
+            <PolicyRow
+              :label="t('admin.dashboard.dedupSavings')"
+              :value="t('admin.dashboard.dedupSavingsValue', { size: dashboardData.dedupSavedText, rate: dashboardData.dedupRate })"
+            />
           </div>
 
           <div class="mt-5">

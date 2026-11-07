@@ -40,6 +40,16 @@ export interface DashboardData {
   openUpload: number
   enableChunk: number
   maxSaveSeconds: number
+  /** 秒传/去重：所有分享声明的大小之和（字节） */
+  dedupLogicalBytes: number
+  /** 按物理路径去重后的实际落盘大小之和（字节） */
+  dedupPhysicalBytes: number
+  /** 节省量 = max(0, logical - physical) */
+  dedupSavedBytes: number
+  /** 去重率（百分比，保留 1 位小数） */
+  dedupRate: number
+  /** 唯一物理文件数 */
+  dedupUniqueFiles: number
   topSuffixes: DashboardSuffixStat[]
   recentFiles: DashboardRecentFile[]
   recentCollections: DashboardRecentCollection[]
@@ -92,6 +102,7 @@ export interface DashboardRecentCollection {
 export interface DashboardViewData extends DashboardData {
   hasExtendedStats: boolean
   storageUsedText: string
+  dedupSavedText: string
   yesterdaySizeText: string
   todaySizeText: string
   uploadSizeLimitText: string
