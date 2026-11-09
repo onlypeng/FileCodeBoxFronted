@@ -1,6 +1,9 @@
 export default {
   // Common
   common: {
+    // SystemSettingsView 按 common.chars / common.people 引用；历史误放 admin.* 段
+    chars: 'chars',
+    people: 'people',
     confirm: 'Confirm',
     cancel: 'Cancel',
     close: 'Close',
@@ -668,6 +671,9 @@ export default {
   manage: {
     settings: {
       title: 'System Settings',
+      // SystemSettingsView 读 manage.settings.fileTypeWhitelist*；英文包此前只在 admin.settings 段
+      fileTypeWhitelist: 'Allowed File Types',
+      fileTypeWhitelistPlaceholder: 'e.g. jpg,png,pdf; empty = no restriction',
       basicSettings: 'General',
       websiteInfo: 'Site Information',
       websiteName: 'Site Name',
@@ -1221,7 +1227,11 @@ export default {
       failed: 'Delivery failed',
       loading: 'Loading...',
       notFound: 'Invalid delivery code',
-      backToHome: 'Back to Home'
+      backToHome: 'Back to Home',
+      // G5 resumable chunk upload entry after a failed upload
+      failedTitle: 'These uploads were interrupted (resume from where they stopped)',
+      retry: 'Retry',
+      discard: 'Discard'
     }
   },
 
@@ -1351,7 +1361,12 @@ export default {
       createdAt: 'Created At',
       expireInfo: 'Expiration',
       maxMembers: 'Max Members',
-      notFoundOrExpired: 'Room not found or expired'
+      notFoundOrExpired: 'Room not found or expired',
+      // Source references direct.room.*; historically misplaced in direct.quality
+      sendTo: 'Send to',
+      allMembers: 'Everyone',
+      loadingEarlier: 'Loading earlier messages…',
+      fileUnavailable: 'This file is no longer available (sender offline, no server cache)'
     },
     // Share video stream quality presets (quality picker & share control panel)
     quality: {
@@ -1404,6 +1419,10 @@ export default {
       allMembers: 'Everyone',
       loadingEarlier: 'Loading earlier messages…',
       fileUnavailable: 'This file is no longer available (sender offline, no server cache)',
+      // Source references direct.quality.*; historically misplaced in direct.room
+      shareStartFailed: 'Failed to start sharing, please retry',
+      cameraPartialFailed: '{count} additional camera(s) failed to open (device may not support concurrency); sharing main camera',
+      maxCamerasCapped: 'For stability, at most {max} cameras are shared simultaneously; the rest were not enabled',
     },
     file: {
       accept: 'Accept',

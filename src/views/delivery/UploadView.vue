@@ -107,6 +107,33 @@
             </div>
           </div>
 
+          <!-- G5 断点续传：分片上传失败的会话（可重试 / 放弃） -->
+          <div v-if="failedChunkUploads.length > 0" class="space-y-1.5">
+            <p class="text-xs font-medium" :class="[isDarkMode ? 'text-amber-400' : 'text-amber-600']">
+              {{ t('delivery.upload.failedTitle') }}
+            </p>
+            <div
+              v-for="f in failedChunkUploads"
+              :key="'fail-' + f.id"
+              class="p-2 rounded border border-amber-200 dark:border-amber-800"
+              :class="[isDarkMode ? 'bg-amber-900/20' : 'bg-amber-50']"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs truncate flex-1" :class="[isDarkMode ? 'text-amber-300' : 'text-amber-700']">{{ f.filename }}</span>
+                <button
+                  @click="retryFailedUpload(f)"
+                  :disabled="isUploading"
+                  class="text-xs px-2 py-0.5 rounded bg-indigo-500 text-white disabled:opacity-50"
+                >{{ t('delivery.upload.retry') }}</button>
+                <button
+                  @click="discardFailedUpload(f)"
+                  class="text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600"
+                >{{ t('delivery.upload.discard') }}</button>
+              </div>
+              <p class="text-[10px] mt-1 opacity-70 truncate" :title="f.error">{{ f.error }}</p>
+            </div>
+          </div>
+
           <!-- 上传按钮 -->
           <button
             @click="handleUploadAll"
@@ -169,7 +196,7 @@ import { useAlertStore } from '@/stores/alertStore'
 import { useConfigStore } from '@/stores/configStore'
 import { useFileDataStore } from '@/stores/fileData'
 import { STORAGE_KEYS } from '@/constants'
-import { formatFileSize as formatSize } from '@/utils/common'
+import { formatFileSize as formatSize, getErrorMessage } from '@/utils/common'
 import { useCollectionWebSocket, useDelivery } from '@/composables'
 import { calculateFileHash } from '@/utils/file-processing'
 import { readPreference, writePreference, readJsonPreference } from '@/utils/preference-storage'
@@ -205,6 +232,26 @@ interface UploadedFileInfo {
   uploadedAt: string
 }
 const uploadedFiles = ref<UploadedFileInfo[]>([])
+
+/**
+ * G5 断点续传：分片上传失败时不再立即 cancel，而是把「已建会话 + 已收分片」
+ * 暂存在这里，本页内可点「重试」复用同一 upload_id 从断点继续；「放弃」或离开
+ * 页面时才 cancel 回滚投递次数。刷新页面后 File 对象不可恢复，故重试仅限当前页。
+ */
+interface FailedChunkUpload {
+  id: number
+  filename: string
+  size: number
+  file: File
+  uploadId: string
+  uploadedChunks: number[]
+  chunkSize: number
+  error: string
+}
+const failedChunkUploads = ref<FailedChunkUpload[]>([])
+let failedIdCounter = 0
+/** 单个分片瞬时失败的重试次数：避免一次网络抖动让整个大文件从头再来 */
+const CHUNK_RETRY_LIMIT = 3
 
 // 上传历史持久化
 interface UploadHistoryEntry {
@@ -246,9 +293,12 @@ const uploadProgress = computed(() => {
   return Math.round(total / uploadingList.value.length)
 })
 
-// 当前文件数（已有 + 已上传 + 正在上传）
+// 当前文件数：file_count 是服务端权威总数（已包含本机历史上传），uploadedFiles
+// 只是它的本机子集，仅用于「我传过哪些」的展示，绝不能再叠加一次——否则成功一次
+// 净 +2，批量上传会在循环里的容量判断提前 break，后续选中文件静默不上传。
+// 只需叠加「正在上传、尚未落库」的数量。
 const currentFileCount = computed(
-  () => (deliveryInfo.value?.file_count || 0) + uploadedFiles.value.length + uploadingList.value.length
+  () => (deliveryInfo.value?.file_count || 0) + uploadingList.value.length
 )
 const isFull = computed(() => {
   if (!deliveryInfo.value) return false
@@ -373,17 +423,25 @@ const calculateCompletedBytes = (uploadedChunks: Set<number>, chunkSize: number,
 /**
  * 上传单个文件到收件箱：小文件直传，大文件（>50MB）分片上传。
  * 分片流程：init（占位投递次数）→ 逐个上传分片（复用 /chunk 接口）→ complete（合并创建记录）。
- * 失败时取消会话（清理分片并回滚投递次数）后抛出。
+ *
+ * G5 断点续传：传入 resume 时复用既有会话（upload_id + 已收分片），不再重新 init；
+ * 单片失败自动重试 CHUNK_RETRY_LIMIT 次；整体失败时保留会话到 failedChunkUploads，
+ * 由用户点「重试」续传或「放弃」回滚，不立即 cancel（否则已收分片全丢）。
  */
 const uploadFileWithChunk = async (
   file: File,
   upItemId: number,
   fileIndex: number,
-  totalCount: number
+  totalCount: number,
+  resume?: FailedChunkUpload
 ): Promise<{ id: number; filename: string; file_size: number; status: string }> => {
-  // 分片大小：后台 uploadChunkSize（MB）→ 字节，限 1MB~100MB，兜底 5MB
+  // 分片大小：后台 uploadChunkSize（MB）→ 字节，限 1MB~100MB，兜底 5MB。
+  // 续传时沿用原会话的 chunk_size，避免与已落盘分片错位。
   const chunkSizeMb = Number(config.value.uploadChunkSize) || 0
-  const chunkSize = Math.min(100 * 1024 * 1024, Math.max(1 * 1024 * 1024, chunkSizeMb > 0 ? chunkSizeMb * 1024 * 1024 : 5 * 1024 * 1024))
+  const chunkSize = resume?.chunkSize ?? Math.min(
+    100 * 1024 * 1024,
+    Math.max(1 * 1024 * 1024, chunkSizeMb > 0 ? chunkSizeMb * 1024 * 1024 : 5 * 1024 * 1024)
+  )
   const onItemProgress = (percentage: number) => {
     const item = uploadingList.value.find(u => u.id === upItemId)
     if (item) item.progress = percentage
@@ -391,8 +449,8 @@ const uploadFileWithChunk = async (
     sendWSProgress(file.name, percentage, uploaderName.value || '匿名')
   }
 
-  // 小文件：走原有直传接口
-  if (file.size < CHUNK_UPLOAD_THRESHOLD) {
+  // 小文件：走原有直传接口（续传项必为大文件，不会走到这里）
+  if (!resume && file.size < CHUNK_UPLOAD_THRESHOLD) {
     const res = await delivery.uploadFile(deliveryCode.value, file, uploaderName.value, ({ percentage }) => {
       onItemProgress(percentage)
     })
@@ -402,22 +460,29 @@ const uploadFileWithChunk = async (
     return res.detail
   }
 
-  // 大文件：分片上传
-  const fileHash = await calculateFileHash(file)
-  const initRes = await delivery.initChunkUpload({
-    delivery_code: deliveryCode.value,
-    uploader_name: uploaderName.value,
-    file_name: file.name,
-    file_size: file.size,
-    chunk_size: chunkSize,
-    file_hash: fileHash
-  })
-  if (initRes.code !== 200 || !initRes.detail?.upload_id) {
-    throw new Error(initRes.message || '分片上传初始化失败')
+  // 大文件：新建会话或复用失败会话
+  let uploadId: string
+  let uploadedChunks: Set<number>
+  if (resume) {
+    uploadId = resume.uploadId
+    uploadedChunks = new Set<number>(resume.uploadedChunks)
+  } else {
+    const fileHash = await calculateFileHash(file)
+    const initRes = await delivery.initChunkUpload({
+      delivery_code: deliveryCode.value,
+      uploader_name: uploaderName.value,
+      file_name: file.name,
+      file_size: file.size,
+      chunk_size: chunkSize,
+      file_hash: fileHash
+    })
+    if (initRes.code !== 200 || !initRes.detail?.upload_id) {
+      throw new Error(initRes.message || '分片上传初始化失败')
+    }
+    uploadId = initRes.detail.upload_id
+    uploadedChunks = new Set<number>(initRes.detail.uploaded_chunks || [])
   }
-  const { upload_id: uploadId } = initRes.detail
   const chunks = Math.ceil(file.size / chunkSize)
-  const uploadedChunks = new Set<number>(initRes.detail.uploaded_chunks || [])
 
   try {
     for (let index = 0; index < chunks; index++) {
@@ -425,14 +490,29 @@ const uploadFileWithChunk = async (
       const start = index * chunkSize
       const end = Math.min(start + chunkSize, file.size)
       const chunkBlob = file.slice(start, end)
-      const chunkRes = await delivery.uploadChunk(uploadId, index, new Blob([chunkBlob], { type: file.type }), (progress) => {
-        const completedBytes = calculateCompletedBytes(uploadedChunks, chunkSize, file.size)
-        const percentage = Math.round(((completedBytes + progress.loaded) * 100) / file.size)
-        onItemProgress(Math.min(percentage, 99))
-      })
-      if (chunkRes.code !== 200) {
-        throw new Error(`分片 ${index} 上传失败`)
+      // 瞬时网络抖动不该让整个大文件重来：单片失败重试若干次（退避等待）
+      let lastError: unknown
+      let uploaded = false
+      for (let attempt = 0; attempt < CHUNK_RETRY_LIMIT; attempt++) {
+        try {
+          const chunkRes = await delivery.uploadChunk(uploadId, index, new Blob([chunkBlob], { type: file.type }), (progress) => {
+            const completedBytes = calculateCompletedBytes(uploadedChunks, chunkSize, file.size)
+            const percentage = Math.round(((completedBytes + progress.loaded) * 100) / file.size)
+            onItemProgress(Math.min(percentage, 99))
+          })
+          if (chunkRes.code !== 200) {
+            throw new Error(chunkRes.message || `分片 ${index} 上传失败`)
+          }
+          uploaded = true
+          break
+        } catch (e) {
+          lastError = e
+          if (attempt < CHUNK_RETRY_LIMIT - 1) {
+            await new Promise(r => setTimeout(r, 400 * (attempt + 1)))
+          }
+        }
       }
+      if (!uploaded) throw lastError || new Error(`分片 ${index} 上传失败`)
       uploadedChunks.add(index)
     }
 
@@ -442,11 +522,18 @@ const uploadFileWithChunk = async (
     }
     return completeRes.detail
   } catch (error) {
-    // 失败时取消会话（清理分片并回滚投递次数）
-    try {
-      await delivery.cancelChunkUpload(deliveryCode.value, uploadId)
-    } catch {
-      /* 取消失败忽略 */
+    // 保留会话供本页内断点续传：不 cancel（否则已收分片全丢、投递次数白占一次）
+    if (!failedChunkUploads.value.some(f => f.uploadId === uploadId)) {
+      failedChunkUploads.value.push({
+        id: ++failedIdCounter,
+        filename: file.name,
+        size: file.size,
+        file,
+        uploadId,
+        uploadedChunks: [...uploadedChunks],
+        chunkSize,
+        error: getErrorMessage(error, t('delivery.upload.failed'))
+      })
     }
     throw error
   }
@@ -503,9 +590,10 @@ const handleUploadAll = async () => {
           uploadingList.value = uploadingList.value.filter(u => u.id !== upItemId)
           alertStore.showAlert(t('delivery.upload.failed'), 'error')
         }
-      } catch {
+      } catch (error) {
         uploadingList.value = uploadingList.value.filter(u => u.id !== upItemId)
-        alertStore.showAlert(t('delivery.upload.failed'), 'error')
+        // C3：把服务端返回的真实原因带出来，别再用笼统的「上传失败」吞掉
+        alertStore.showAlert(getErrorMessage(error, t('delivery.upload.failed')), 'error')
       }
     }
 
@@ -537,6 +625,46 @@ const handleUploadAll = async () => {
   }
 }
 
+/** G5：复用失败会话从断点续传（不重新 init、不重复占位投递次数） */
+const retryFailedUpload = async (failed: FailedChunkUpload) => {
+  if (isUploading.value) return
+  if (deliveryInfo.value && currentFileCount.value >= deliveryInfo.value.max_files) {
+    alertStore.showAlert(t('delivery.upload.boxFull'), 'error')
+    return
+  }
+  failedChunkUploads.value = failedChunkUploads.value.filter(f => f.id !== failed.id)
+  isUploading.value = true
+  overallProgress.value = 0
+  const upItemId = ++uploadingIdCounter
+  uploadingList.value.push({ id: upItemId, filename: failed.filename, progress: 0 })
+  try {
+    const res = await uploadFileWithChunk(failed.file, upItemId, 0, 1, failed)
+    if (res.status === 'completed') {
+      uploadedFiles.value.push({ filename: failed.filename, size: failed.size, uploadedAt: new Date().toLocaleString() })
+      if (deliveryInfo.value) deliveryInfo.value.file_count += 1
+      saveUploadHistory(deliveryCode.value, uploadedFiles.value)
+      uploadSuccess.value = true
+      alertStore.showAlert(t('delivery.upload.success'), 'success')
+    }
+  } catch (error) {
+    alertStore.showAlert(getErrorMessage(error, t('delivery.upload.failed')), 'error')
+  } finally {
+    uploadingList.value = uploadingList.value.filter(u => u.id !== upItemId)
+    isUploading.value = false
+    overallProgress.value = 0
+  }
+}
+
+/** G5：放弃失败会话 → cancel 回滚投递次数并清理分片 */
+const discardFailedUpload = async (failed: FailedChunkUpload) => {
+  failedChunkUploads.value = failedChunkUploads.value.filter(f => f.id !== failed.id)
+  try {
+    await delivery.cancelChunkUpload(deliveryCode.value, failed.uploadId)
+  } catch {
+    /* 会话已被后台清理时忽略 */
+  }
+}
+
 onMounted(async () => {
   if (!deliveryCode.value) {
     isLoading.value = false
@@ -558,6 +686,12 @@ onMounted(async () => {
 
 onUnmounted(() => {
   // useCollectionWebSocket 已在内部自动断开
+  // 离开页面：回滚仍保留的失败会话，避免占着投递次数；刷新后 File 不可恢复，
+  // 断点续传只在当前页有效，这里不做跨刷新持久化。
+  for (const f of failedChunkUploads.value) {
+    delivery.cancelChunkUpload(deliveryCode.value, f.uploadId).catch(() => {})
+  }
+  failedChunkUploads.value = []
 })
 
 const toHome = () => {

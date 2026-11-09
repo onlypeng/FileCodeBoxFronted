@@ -9,7 +9,7 @@
  */
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ConfigService } from '@/services'
+import { AuthService } from '@/services'
 import { useAdminStore } from '@/stores/adminStore'
 import { useAlertStore } from '@/stores/alertStore'
 
@@ -37,7 +37,7 @@ const submit = async () => {
 
   isSaving.value = true
   try {
-    const res = await ConfigService.updateConfig({ admin_token: password.value })
+    const res = await AuthService.changePassword(password.value)
     if (res.code !== 200) {
       throw new Error(res.message || t('manage.forcePasswordChange.failed'))
     }

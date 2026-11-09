@@ -1313,8 +1313,23 @@ const handleDrop = (event: DragEvent) => {
 /**
  * 发送文件时的服务器缓存时长（小时）：默认 3 天（72 小时）。
  * 需要指定其他时长，请到右上角「文件管理」里上传（那里可手动选择过期时间）。
+ *
+ * 该默认值由后台「房间缓存默认时长」控制，公共配置会在导航前/轮询时热更新。
+ * 组件用 ref() 一次性初始化会一直用旧值，故补一条 watch：只有当前值仍等于
+ * 「上一次下发的默认值」（用户没在别处改过）才跟随新配置。
  */
 const cacheHours = ref(Number(config.value.roomCacheDefaultHours) || 72)
+let lastCacheHours = Number(config.value.roomCacheDefaultHours) || 72
+watch(
+  () => config.value.roomCacheDefaultHours,
+  (next) => {
+    const nextHours = Number(next) || 72
+    if (cacheHours.value === lastCacheHours) {
+      cacheHours.value = nextHours
+    }
+    lastCacheHours = nextHours
+  }
+)
 /** 判断文件能否缓存到服务器：后台总开关 + 单文件大小上限（超限只能 P2P 直传） */
 function canCacheFile(file: File): boolean {
   if (Number(config.value.roomCacheEnabled) === 0) return false

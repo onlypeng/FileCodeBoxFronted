@@ -27,4 +27,15 @@ export class AuthService {
   static async verifyToken(): Promise<ApiResponse<AdminVerifyResponse>> {
     return api.get('/admin/verify')
   }
+
+  /** 独立改密接口：默认口令阶段中间件只放行这一个高敏写操作。 */
+  static async changePassword(
+    password: string,
+    currentPassword?: string,
+  ): Promise<ApiResponse> {
+    return api.post('/admin/password', {
+      password,
+      ...(currentPassword ? { current_password: currentPassword } : {}),
+    })
+  }
 }

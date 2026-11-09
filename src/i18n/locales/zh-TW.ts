@@ -1179,7 +1179,11 @@ export default {
       failed: '投递失敗',
       loading: '加載中...',
       notFound: '投件碼無效',
-      backToHome: '返回首頁'
+      backToHome: '返回首頁',
+      // G5 分片上傳失敗後的斷點續傳入口
+      failedTitle: '以下檔案上傳中斷（可從斷點繼續）',
+      retry: '重試',
+      discard: '放棄'
     }
   },
 
@@ -1309,7 +1313,12 @@ export default {
       createdAt: '創建時間',
       expireInfo: '過期信息',
       maxMembers: '最大成員數',
-      notFoundOrExpired: '房間不存在或已過期'
+      notFoundOrExpired: '房間不存在或已過期',
+      // 源碼按 direct.room.* 引用；歷史誤放 direct.quality 段，此處按引用段補齊
+      sendTo: '發送給',
+      allMembers: '房間全體',
+      loadingEarlier: '正在加載更早的消息…',
+      fileUnavailable: '該文件已不可用（發送方離線且服務器無緩存）'
     },
     // 共享視頻流质量檔位（彈窗與共享控制面板共用）
     quality: {
@@ -1362,6 +1371,10 @@ export default {
       allMembers: '房間全體',
       loadingEarlier: '正在加載更早的消息…',
       fileUnavailable: '該文件已不可用（發送方離線且服務器無緩存）',
+      // 源碼按 direct.quality.* 引用；歷史誤放 direct.room 段，此處按引用段補齊
+      shareStartFailed: '共享啟動失敗，請重試',
+      cameraPartialFailed: '{count} 個附加攝像頭打開失敗（設備可能不支持並發），已共享主攝像頭',
+      maxCamerasCapped: '為保障穩定性，最多同時共享 {max} 路攝像頭，超出部分未啟用',
     },
     file: {
       accept: '接受',

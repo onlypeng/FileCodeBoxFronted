@@ -85,7 +85,11 @@ export function useSystemConfig() {
       // 如果网络请求失败，尝试使用本地存储的配置
       const storedConfig = getStoredConfig()
       if (storedConfig) {
-        config.value = storedConfig
+        // 本地缓存写的是 toPublicConfig() 公共投影，不含后台专有字段
+        // （s3/webdav/onedrive 凭据、admin_token 等）。直接赋给完整 ConfigState
+        // 会让这些字段变 undefined，表单显示空值且一保存就把空值回传覆盖服务端。
+        // 与成功分支同口径：用默认值补齐，再置空敏感字段。
+        config.value = { ...DEFAULT_CONFIG_STATE, ...sanitizeRemoteConfig(storedConfig) }
         return config.value
       }
       
