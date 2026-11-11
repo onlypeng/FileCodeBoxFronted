@@ -59,6 +59,8 @@ export type PublicConfig = SystemConfig & {
   opacity?: number
   /** 共享域名：对外分享链接使用的站点地址（留空 = 使用当前访问地址） */
   shareDomain?: string
+  /** WebSocket 独立接入地址（留空 = 同源）；随公共配置下发 */
+  wsBaseUrl?: string
   /** 是否允许房间文件缓存到服务器（后台总开关，1=允许） */
   roomCacheEnabled?: number
   /** 单个房间缓存文件大小上限（MB；0 = 不限制）。超限文件只能走 P2P 直传 */
@@ -100,6 +102,7 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   mediaDefaultQuality: 'auto',
   directTurnServers: [],
   shareDomain: '',
+  wsBaseUrl: '',
   // 与后端 core/settings.py DEFAULT_CONFIG 保持一致（72 小时 = 3 天）：
   // 远程配置加载失败时房间缓存时长不会与服务端实际行为对不上
   roomCacheEnabled: 1,
@@ -171,6 +174,7 @@ export const DEFAULT_CONFIG_STATE: ConfigState = {
   directTurnServers: [],
   fileTypeWhitelist: '',
   shareDomain: '',
+  wsBaseUrl: '',
   roomCacheEnabled: 1,
   roomCacheMaxSize: 100,
   // 与后端 DEFAULT_CONFIG 保持一致（72 小时 = 3 天）
@@ -225,6 +229,7 @@ export function toPublicConfig(config: Partial<ConfigState> | null | undefined):
     background: config.background,
     opacity: config.opacity,
     shareDomain: config.shareDomain,
+    wsBaseUrl: config.wsBaseUrl,
     roomCacheEnabled: config.roomCacheEnabled,
     roomCacheMaxSize: config.roomCacheMaxSize,
     roomCacheDefaultHours: config.roomCacheDefaultHours

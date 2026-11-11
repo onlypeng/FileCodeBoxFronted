@@ -90,13 +90,43 @@ export function buildWgetCommand(retrieveCode: string, fileName: string): string
 }
 
 /**
- * 构建 WebSocket 连接地址（ws/wss），供 composable 使用
- * @param path 形如 "/ws/chat/ABC123"
+ * 把后台配置的 WS 地址规范成 `ws(s)://host[:port]`，非法/空返回空串。
+ * 只保留 origin：用户误填的路径/查询会被丢掉，避免拼出重复的 `/ws/room/...`。
+ */
+function normalizeWsOrigin(value: string): string {
+  let trimmed = value.trim()
+  while (trimmed.endsWith('/')) trimmed = trimmed.slice(0, -1)
+  if (!trimmed) return ''
+  const withProtocol = trimmed.includes('://')
+    ? trimmed
+    : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${trimmed}`
+  try {
+    const u = new URL(withProtocol)
+    if (!['http:', 'https:', 'ws:', 'wss:'].includes(u.protocol)) return ''
+    const wsProtocol = u.protocol === 'https:' || u.protocol === 'wss:' ? 'wss:' : 'ws:'
+    return `${wsProtocol}//${u.host}`
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * 构建 WebSocket 连接地址（ws/wss），供 composable 使用。
+ * @param path 形如 "/ws/room/ABC123"
  *
- * 注意：WebSocket 始终连接实际 API 地址而非共享域名——共享域名是面向外部访客的
- * 展示地址，其反代不一定转发 WebSocket 升级请求，用它建连会直接失败。
+ * 优先用后台「WebSocket 独立接入地址」，否则回退同源 API 地址。
+ * 为什么需要独立地址：CDN/边缘加速（尤其免费套餐）常不转发 Upgrade 头，
+ * 同源 wss 会被当普通 HTTP 返回 404；该配置让 WS 直连源站、HTTP 仍走 CDN，
+ * 且是运行时后台可配，不必重新构建镜像。
+ *
+ * 始终连接实际 API 地址而非共享域名：shareDomain 是面向外部访客的展示地址，
+ * 其反代不一定转发 WebSocket 升级请求，用它建连会直接失败。
  */
 export function buildWebSocketUrl(path: string): string {
+  const configured = normalizeWsOrigin(readStoredConfig()?.wsBaseUrl ?? '')
+  if (configured) {
+    return `${configured}${path.startsWith('/') ? path : `/${path}`}`
+  }
   const origin = getApiOrigin()
   const protocol = origin.startsWith('https') ? 'wss' : 'ws'
   return `${protocol}://${origin.replace(/^https?:\/\//, '')}${path}`
